@@ -25,24 +25,14 @@
 
 /* Begin PBXFileReference section */
 		99F748D22E9729BE006319FF /* Modo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Modo.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		99F748E12E9729C0006319FF /* ModoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ModoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		99F748EB2E9729C0006319FF /* ModoUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ModoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		99F7491C2E973E5A006319FF /* ModoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ModoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		99F7491D2E973E5A006319FF /* ModoUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ModoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		99F748D42E9729BE006319FF /* Modo */ = {
+		99F748FE2E972B74006319FF /* frontend */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = Modo;
-			sourceTree = "<group>";
-		};
-		99F748E42E9729C0006319FF /* ModoTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = ModoTests;
-			sourceTree = "<group>";
-		};
-		99F748EE2E9729C0006319FF /* ModoUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = ModoUITests;
+			path = frontend;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -75,10 +65,8 @@
 		99F748C92E9729BE006319FF = {
 			isa = PBXGroup;
 			children = (
-				99F748D42E9729BE006319FF /* Modo */,
-				99F748E42E9729C0006319FF /* ModoTests */,
-				99F748EE2E9729C0006319FF /* ModoUITests */,
 				99F748D32E9729BE006319FF /* Products */,
+				99F748FE2E972B74006319FF /* frontend */,
 			);
 			sourceTree = "<group>";
 		};
@@ -86,8 +74,8 @@
 			isa = PBXGroup;
 			children = (
 				99F748D22E9729BE006319FF /* Modo.app */,
-				99F748E12E9729C0006319FF /* ModoTests.xctest */,
-				99F748EB2E9729C0006319FF /* ModoUITests.xctest */,
+				99F7491C2E973E5A006319FF /* ModoTests.xctest */,
+				99F7491D2E973E5A006319FF /* ModoUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -108,7 +96,7 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				99F748D42E9729BE006319FF /* Modo */,
+				99F748FE2E972B74006319FF /* frontend */,
 			);
 			name = Modo;
 			packageProductDependencies = (
@@ -130,14 +118,11 @@
 			dependencies = (
 				99F748E32E9729C0006319FF /* PBXTargetDependency */,
 			);
-			fileSystemSynchronizedGroups = (
-				99F748E42E9729C0006319FF /* ModoTests */,
-			);
 			name = ModoTests;
 			packageProductDependencies = (
 			);
 			productName = ModoTests;
-			productReference = 99F748E12E9729C0006319FF /* ModoTests.xctest */;
+			productReference = 99F7491C2E973E5A006319FF /* ModoTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 		99F748EA2E9729C0006319FF /* ModoUITests */ = {
@@ -153,14 +138,11 @@
 			dependencies = (
 				99F748ED2E9729C0006319FF /* PBXTargetDependency */,
 			);
-			fileSystemSynchronizedGroups = (
-				99F748EE2E9729C0006319FF /* ModoUITests */,
-			);
 			name = ModoUITests;
 			packageProductDependencies = (
 			);
 			productName = ModoUITests;
-			productReference = 99F748EB2E9729C0006319FF /* ModoUITests.xctest */;
+			productReference = 99F7491D2E973E5A006319FF /* ModoUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
