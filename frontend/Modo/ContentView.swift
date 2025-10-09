@@ -1,11 +1,5 @@
-// Duplicate of ContentView.swift; consider removing to avoid duplicate symbols.
+// current main page
 
-//
-//  ContentView.swift
-//  Modo
-//
-
-//
 
 import SwiftUI
 import SwiftData

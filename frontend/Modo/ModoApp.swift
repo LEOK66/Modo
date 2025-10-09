@@ -1,4 +1,4 @@
-// App entry point; launches ContentView (current main page).
+// App entry point; launches ContentView (which is the current main page).
 
 
 import SwiftUI
