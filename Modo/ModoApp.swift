@@ -1,9 +1,4 @@
-//
-//  ModoApp.swift
-//  Modo
-//
-//  Created by 李梓豪 on 2025/10/14.
-//
+
 
 import SwiftUI
 import SwiftData
@@ -25,8 +20,9 @@ struct ModoApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            LoginView()
         }
         .modelContainer(sharedModelContainer)
     }
+    
 }
