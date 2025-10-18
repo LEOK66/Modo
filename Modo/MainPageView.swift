@@ -1,77 +1,75 @@
 import SwiftUI
 
+// BottomBar and Tab moved to BottomBar.swift for reuse.
+
 struct MainPageView: View {
     @State private var selectedTab: Tab = .todos
-
+    @State private var isPresentingAddTask = false
+    
+    struct TaskItem: Identifiable {
+        let id = UUID()
+        let emoji: String
+        let title: String
+        let subtitle: String
+        let time: String
+        let meta: String
+        var isDone: Bool
+        let emphasisHex: String
+    }
+    
+    // Sample tasks to check functionality
+    @State private var tasks: [TaskItem] = [
+        TaskItem(emoji: "🥗", title: "Healthy Breakfast", subtitle: "Oatmeal with berries and nuts", time: "08:00", meta: "350 cal", isDone: true, emphasisHex: "16A34A"),
+        TaskItem(emoji: "🏃", title: "Morning Run", subtitle: "5km jog in the park", time: "07:00", meta: "30 min", isDone: false, emphasisHex: "16A34A"),
+        TaskItem(emoji: "🥗", title: "Lunch Prep", subtitle: "Grilled chicken salad with quinoa", time: "12:30", meta: "420 cal", isDone: false, emphasisHex: "16A34A")
+    ]
+    
     var body: some View {
-        ZStack {
-            Color.white
-                .ignoresSafeArea()
-
-            VStack(spacing: 0) {
-                // Top bar with date and menu/avatar aligned to match clean style
-                TopHeaderView()
-                    .padding(.horizontal, 24)
-                    .padding(.top, 12)
-
-                VStack(spacing: 16) {
-
-                    // Stats
-                    CombinedStatsCard()
+        NavigationStack {
+            ZStack {
+                Color.white.ignoresSafeArea()
+                
+                VStack(spacing: 0) {
+                    TopHeaderView()
                         .padding(.horizontal, 24)
+                        .padding(.top, 12)
+                    
+                    VStack(spacing: 16) {
+                        CombinedStatsCard()
+                            .padding(.horizontal, 24)
 
-                    // Tasks header
-                    TasksHeader()
-                        .padding(.horizontal, 24)
-
-                    // Tasks list (scrollable only)
-                    ScrollView {
-                        VStack(spacing: 12) {
-                            TaskRowCard(
-                                emoji: "🥗",
-                                title: "Healthy Breakfast",
-                                subtitle: "Oatmeal with berries and nuts",
-                                time: "08:00",
-                                meta: "350 cal",
-                                isDone: true,
-                                emphasis: Color(hexString: "16A34A")
-                            )
-                            TaskRowCard(
-                                emoji: "🏃",
-                                title: "Morning Run",
-                                subtitle: "5km jog in the park",
-                                time: "07:00",
-                                meta: "30 min",
-                                isDone: false,
-                                emphasis: Color(hexString: "3B82F6")
-                            )
-                            TaskRowCard(
-                                emoji: "🥗",
-                                title: "Lunch Prep",
-                                subtitle: "Grilled chicken salad with quinoa",
-                                time: "12:30",
-                                meta: "420 cal",
-                                isDone: false,
-                                emphasis: Color(hexString: "3B82F6")
-                            )
+                        TasksHeader(isPresentingAddTask: $isPresentingAddTask)
+                            .padding(.horizontal, 24)
+                        
+                        ScrollView {
+                            VStack(spacing: 12) {
+                                ForEach($tasks) { $task in
+                                    TaskRowCard(
+                                        emoji: task.emoji,
+                                        title: task.title,
+                                        subtitle: task.subtitle,
+                                        time: task.time,
+                                        meta: task.meta,
+                                        isDone: $task.isDone,
+                                        emphasis: Color(hexString: task.emphasisHex)
+                                    )
+                                }
+                            }
+                            .padding(.horizontal, 24)
+                            .padding(.bottom, 12)
                         }
-                        .padding(.horizontal, 24)
-                        .padding(.bottom, 12)
                     }
+                    .padding(.top, 12)
+                    
+                    BottomBar(selectedTab: $selectedTab)
+                        .background(Color.white)
                 }
-                .padding(.top, 12)
-
-                // Bottom navigation
-                BottomBar(selectedTab: $selectedTab)
-                    .background(Color.white)
+            }
+            .navigationDestination(isPresented: $isPresentingAddTask) {
+                AddTaskView(tasks: $tasks)
             }
         }
     }
-}
-
-private enum Tab: String, CaseIterable {
-    case todos = "TODOs"
-    case insights = "Insights"
 }
 
 private struct TopHeaderView: View {
@@ -107,11 +105,7 @@ private struct TopHeaderView: View {
                     .fill(Color.black)
                     .frame(width: 40, height: 40)
                     .overlay(
-                        VStack(spacing: 5) {
-                            Capsule().fill(Color.white).frame(width: 18, height: 2)
-                            Capsule().fill(Color.white).frame(width: 18, height: 2)
-                            Capsule().fill(Color.white).frame(width: 18, height: 2)
-                        }
+                        CalendarIcon(strokeColor: .white, size: 20)
                     )
             }
         }
@@ -167,13 +161,17 @@ private struct CombinedStatsCard: View {
 }
 
 private struct TasksHeader: View {
+    @Binding var isPresentingAddTask: Bool
+
     var body: some View {
         HStack {
             Text("Today's Tasks")
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(Color(hexString: "101828"))
             Spacer()
-            Button(action: {}) {
+            Button(action: {
+                isPresentingAddTask = true
+            }) {
                 HStack(spacing: 6) {
                     Image(systemName: "plus")
                     Text("Add Task")
@@ -195,8 +193,18 @@ private struct TaskRowCard: View {
     let subtitle: String
     let time: String
     let meta: String
-    let isDone: Bool
+    @Binding var isDone: Bool
     let emphasis: Color
+
+    init(emoji: String, title: String, subtitle: String, time: String, meta: String, isDone: Binding<Bool>, emphasis: Color) {
+        self.emoji = emoji
+        self.title = title
+        self.subtitle = subtitle
+        self.time = time
+        self.meta = meta
+        self._isDone = isDone
+        self.emphasis = emphasis
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -244,60 +252,31 @@ private struct TaskRowCard: View {
                 .stroke(isDone ? emphasis.opacity(0.25) : Color(hexString: "E5E7EB"), lineWidth: 1)
         )
         .shadow(color: Color.black.opacity(0.04), radius: 2, x: 0, y: 1)
-    }
-}
-
-private struct BottomBar: View {
-    @Binding var selectedTab: Tab
-
-    var body: some View {
-        VStack(spacing: 0) {
-            Rectangle()
-                .fill(Color(hexString: "E5E7EB"))
-                .frame(height: 1)
-            HStack(spacing: 24) {
-                BottomBarItem(icon: "doc.text", label: Tab.todos.rawValue, isSelected: selectedTab == .todos) {
-                    selectedTab = .todos
-                }
-                BottomBarItem(icon: "message", label: Tab.insights.rawValue, isSelected: selectedTab == .insights) {
-                    selectedTab = .insights
-                }
+        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .onTapGesture {
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
+                isDone.toggle()
             }
-            .padding(.vertical, 12)
-        }
-        .background(Color.white)
-    }
-}
-
-private struct BottomBarItem: View {
-    let icon: String
-    let label: String
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                Image(systemName: icon)
-                Text(label)
-                    .font(.system(size: 10, weight: .medium))
-            }
-            .frame(minWidth: 64)
-            .foregroundColor(isSelected ? Color(hexString: "7C3AED") : Color(hexString: "101828"))
-            .padding(.vertical, 8)
-            .padding(.horizontal, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(isSelected ? Color(hexString: "F5F3FF") : Color.white)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(isSelected ? Color(hexString: "E9D5FF") : Color.clear, lineWidth: 1)
-            )
         }
     }
 }
 
 #Preview {
     MainPageView()
+}
+
+#Preview("Task Row Card Toggle") {
+    StatefulPreviewWrapper(false) { isDone in
+        TaskRowCard(
+            emoji: "🥗",
+            title: "Sample",
+            subtitle: "Subtitle",
+            time: "08:00",
+            meta: "350 cal",
+            isDone: isDone,
+            emphasis: Color(hexString: "16A34A")
+        )
+        .padding()
+        .background(Color.white)
+    }
 }
