@@ -2,9 +2,17 @@
 
 import SwiftUI
 import SwiftData
+import FirebaseCore
 
 @main
 struct ModoApp: App {
+    
+    init() {
+        FirebaseApp.configure()
+        // TODO: remove print
+        print("firebase configured?")
+    }
+    
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Item.self,
