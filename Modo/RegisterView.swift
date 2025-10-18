@@ -7,10 +7,17 @@ struct RegisterView: View {
     @State private var verificationCode = ""
     @State private var isPasswordVisible = false
     @State private var resendTimer = 57
+    @State private var isCodeSent = false
     @Environment(\.dismiss) private var dismiss
 
     @State private var showTerms = false
     @State private var showPrivacy = false
+    @State private var showEmailError = false
+    @State private var showPasswordError = false
+    
+    private var isEmailAndPasswordValid: Bool {
+        emailAddress.isValidEmail && password.isValidPassword
+    }
     
     var body: some View {
         ZStack {
@@ -20,10 +27,6 @@ struct RegisterView: View {
             
             VStack(spacing: 0) {
 
-                CustomNavigationBar(showBackButton: true) {
-                    dismiss()
-                }
-
                 VStack(spacing: 24) {
                     
 
@@ -31,19 +34,51 @@ struct RegisterView: View {
                     .padding(.top, 4)
                     
                     VStack(spacing: 16) {
-                        CustomInputField(
-                            placeholder: "Email address",
-                            text: $emailAddress,
-                            keyboardType: .emailAddress,
-                            textContentType: .emailAddress
-                        )
+                        VStack(alignment: .leading, spacing: 4) {
+                            CustomInputField(
+                                placeholder: "Email address",
+                                text: $emailAddress,
+                                keyboardType: .emailAddress,
+                                textContentType: .emailAddress
+                            )
+                            .onChange(of: emailAddress) {
+                                if emailAddress.isValidEmail {
+                                    showEmailError = false
+                                } else if emailAddress.isNotEmpty {
+                                    showEmailError = true
+                                }
+                            }
+                            
+                            if showEmailError && !emailAddress.isValidEmail && emailAddress.isNotEmpty {
+                                Text("Please enter a valid email address")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.red)
+                                    .padding(.leading, 12)
+                            }
+                        }
                         
-                        CustomInputField(
-                            placeholder: "Password",
-                            text: $password,
-                            isSecure: true,
-                            showPasswordToggle: true
-                        )
+                        VStack(alignment: .leading, spacing: 4) {
+                            CustomInputField(
+                                placeholder: "Password",
+                                text: $password,
+                                isSecure: true,
+                                showPasswordToggle: true
+                            )
+                            .onChange(of: password) {
+                                if password.isValidPassword {
+                                    showPasswordError = false
+                                } else if password.isNotEmpty {
+                                    showPasswordError = true
+                                }
+                            }
+                            
+                            if showPasswordError && !password.isValidPassword && password.isNotEmpty {
+                                Text("Password must be at least 8 characters with letters and numbers")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.red)
+                                    .padding(.leading, 12)
+                            }
+                        }
                         
                         // Verification Code input
                         HStack {
@@ -54,10 +89,18 @@ struct RegisterView: View {
                             
                             Spacer()
                             
-                            Text("\(resendTimer)s")
-                                .font(.system(size: 14))
-                                .foregroundColor(Color(hexString: "717182"))
-                                .kerning(-0.15)
+                            Button {
+                                sendVerificationCode()
+                            } label: {
+                                Text(isCodeSent ? "\(resendTimer)s" : "Send Code")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(
+                                        isCodeSent ? Color(hexString: "717182") : 
+                                        (isEmailAndPasswordValid ? Color.blue : Color(hexString: "717182"))
+                                    )
+                                    .kerning(-0.15)
+                            }
+                            .disabled(isCodeSent && resendTimer > 0 || !isEmailAndPasswordValid)
                         }
                         .padding(.horizontal, 12)
                         .frame(height: 48)
@@ -121,13 +164,8 @@ struct RegisterView: View {
                     .padding(.bottom, 8)
             }
         }
-        .navigationBarBackButtonHidden(true)
-        #if os(iOS)
-        .toolbar(.hidden, for: .navigationBar)
-        #endif
-        .onAppear {
-            startResendTimer()
-        }
+        .navigationTitle("Register")
+        .navigationBarTitleDisplayMode(.inline)
         .fullScreenCover(isPresented: $showTerms) {
             TermsOfServiceView()
         }
@@ -144,12 +182,31 @@ struct RegisterView: View {
         print("Verification code: \(verificationCode)")
     }
     
+    private func sendVerificationCode() {
+        // Check if email and password are valid
+        showEmailError = !emailAddress.isValidEmail && emailAddress.isNotEmpty
+        showPasswordError = !password.isValidPassword && password.isNotEmpty
+        
+        // Only send if both are valid
+        if emailAddress.isValidEmail && password.isValidPassword {
+            // Send verification code logic here
+            print("Sending verification code to: \(emailAddress)")
+            
+            // Start the timer and mark code as sent
+            isCodeSent = true
+            resendTimer = 57
+            startResendTimer()
+        }
+    }
+    
     private func startResendTimer() {
         Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
             if resendTimer > 0 {
                 resendTimer -= 1
             } else {
                 timer.invalidate()
+                // Reset the state when timer reaches 0
+                isCodeSent = false
             }
         }
     }
