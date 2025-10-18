@@ -6,7 +6,7 @@ struct RegisterView: View {
     @State private var password = ""
     @State private var verificationCode = ""
     @State private var isPasswordVisible = false
-    @State private var resendTimer = 57
+    @State private var resendTimer = 59
     @State private var isCodeSent = false
     @Environment(\.dismiss) private var dismiss
 
@@ -156,16 +156,8 @@ struct RegisterView: View {
                 .padding(.horizontal, 24)
                 .padding(.top, 4)
                 .padding(.bottom, 12)
-                
-                Rectangle()
-                    .fill(Color.black)
-                    .frame(width: 144, height: 5)
-                    .cornerRadius(100)
-                    .padding(.bottom, 8)
             }
         }
-        .navigationTitle("Register")
-        .navigationBarTitleDisplayMode(.inline)
         .fullScreenCover(isPresented: $showTerms) {
             TermsOfServiceView()
         }

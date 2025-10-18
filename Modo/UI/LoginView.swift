@@ -1,5 +1,3 @@
-
-
 import SwiftUI
 
 struct LoginView: View {
