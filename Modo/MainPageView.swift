@@ -1,10 +1,9 @@
 import SwiftUI
 
-// BottomBar and Tab moved to BottomBar.swift for reuse.
-
 struct MainPageView: View {
     @State private var selectedTab: Tab = .todos
     @State private var isPresentingAddTask = false
+    @State private var navigateToInsights = false
     
     struct TaskItem: Identifiable {
         let id = UUID()
@@ -17,7 +16,6 @@ struct MainPageView: View {
         let emphasisHex: String
     }
     
-    // Sample tasks to check functionality
     @State private var tasks: [TaskItem] = [
         TaskItem(emoji: "🥗", title: "Healthy Breakfast", subtitle: "Oatmeal with berries and nuts", time: "08:00", meta: "350 cal", isDone: true, emphasisHex: "16A34A"),
         TaskItem(emoji: "🏃", title: "Morning Run", subtitle: "5km jog in the park", time: "07:00", meta: "30 min", isDone: false, emphasisHex: "16A34A"),
@@ -37,7 +35,7 @@ struct MainPageView: View {
                     VStack(spacing: 16) {
                         CombinedStatsCard()
                             .padding(.horizontal, 24)
-
+                        
                         TasksHeader(isPresentingAddTask: $isPresentingAddTask)
                             .padding(.horizontal, 24)
                         
@@ -61,12 +59,26 @@ struct MainPageView: View {
                     }
                     .padding(.top, 12)
                     
+                    // MARK: - Bottom Bar with navigation
                     BottomBar(selectedTab: $selectedTab)
                         .background(Color.white)
+                        .onChange(of: selectedTab) { _, newValue in
+                            if newValue == .insights {
+                                navigateToInsights = true
+                            }
+                        }
                 }
             }
             .navigationDestination(isPresented: $isPresentingAddTask) {
                 AddTaskView(tasks: $tasks)
+                    .onDisappear {
+                        selectedTab = .todos
+                        navigateToInsights = false
+                    }
+            }
+            .navigationDestination(isPresented: $navigateToInsights) {
+                InsightsPageView()
+                    .navigationBarBackButtonHidden(true)
             }
         }
     }
