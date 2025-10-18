@@ -24,5 +24,4 @@ struct ModoApp: App {
         }
         .modelContainer(sharedModelContainer)
     }
-    
 }
