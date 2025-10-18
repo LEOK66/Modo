@@ -7,19 +7,16 @@ struct ForgotPasswordView: View {
 
     var body: some View {
         VStack(spacing: 24) {
-            // Title
-            VStack(spacing: 8) {
-                Text("Forgot Password")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundColor(Color(hexString: "101828"))
-
-                Text("Enter your email address and we’ll send you a reset link.")
-                    .font(.system(size: 15))
-                    .foregroundColor(Color(hexString: "6A7282"))
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 24)
-            }
+            // Logo
+            LogoView(title: "MODO", subtitle: "Forgot Password")
             .padding(.top, 8)
+
+            // Description
+            Text("Enter your email address and we'll send you a reset link.")
+                .font(.system(size: 15))
+                .foregroundColor(Color(hexString: "6A7282"))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
 
             // Email input
             CustomInputField(
@@ -47,8 +44,6 @@ struct ForgotPasswordView: View {
         .padding(.top, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.white.ignoresSafeArea())
-        .navigationTitle("Reset Password")
-        .navigationBarTitleDisplayMode(.inline)
     }
 
     private func sendReset() async {
