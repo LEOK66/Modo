@@ -73,7 +73,7 @@ private struct TopHeaderView: View {
     var body: some View {
         HStack(spacing: 12) {
             // Avatar
-            Button {} label: {
+            NavigationLink(destination: ProfilePageView()) {
                 ZStack {
                     Circle()
                         .fill(Color.white)
@@ -86,6 +86,7 @@ private struct TopHeaderView: View {
                         .foregroundColor(Color(hexString: "101828"))
                 }
             }
+            .buttonStyle(PlainButtonStyle())
 
             Spacer()
 
@@ -119,7 +120,7 @@ private struct TopHeaderView: View {
     }
 }
 
-// Displays Completed Diet and Fitness Tasks
+// Displays Completed Diet and Fitness Tasks (Should factor out to Components.swift)
 private struct CombinedStatsCard: View {
     var body: some View {
         RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -289,7 +290,9 @@ private struct TaskListView: View {
 }
 
 #Preview {
-    StatefulPreviewWrapper(Tab.todos) { selection in
-        MainPageView(selectedTab: selection)
+    NavigationStack {
+        StatefulPreviewWrapper(Tab.todos) { selection in
+            MainPageView(selectedTab: selection)
+        }
     }
 }
