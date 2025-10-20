@@ -1,10 +1,10 @@
 import SwiftUI
 
 struct MainPageView: View {
-    @State private var selectedTab: Tab = .todos
+    @Binding var selectedTab: Tab
     @State private var isPresentingAddTask = false
-    @State private var navigateToInsights = false
     
+    // Can refactor this to different file to reuse struct
     struct TaskItem: Identifiable {
         let id = UUID()
         let emoji: String
@@ -16,6 +16,7 @@ struct MainPageView: View {
         let emphasisHex: String
     }
     
+    // Test values for now
     @State private var tasks: [TaskItem] = [
         TaskItem(emoji: "🥗", title: "Healthy Breakfast", subtitle: "Oatmeal with berries and nuts", time: "08:00", meta: "350 cal", isDone: true, emphasisHex: "16A34A"),
         TaskItem(emoji: "🏃", title: "Morning Run", subtitle: "5km jog in the park", time: "07:00", meta: "30 min", isDone: false, emphasisHex: "16A34A"),
@@ -23,63 +24,32 @@ struct MainPageView: View {
     ]
     
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color.white.ignoresSafeArea()
-                
-                VStack(spacing: 0) {
-                    TopHeaderView()
-                        .padding(.horizontal, 24)
-                        .padding(.top, 12)
-                    
-                    VStack(spacing: 16) {
-                        CombinedStatsCard()
-                            .padding(.horizontal, 24)
-                        
-                        TasksHeader(isPresentingAddTask: $isPresentingAddTask)
-                            .padding(.horizontal, 24)
-                        
-                        ScrollView {
-                            VStack(spacing: 12) {
-                                ForEach($tasks) { $task in
-                                    TaskRowCard(
-                                        emoji: task.emoji,
-                                        title: task.title,
-                                        subtitle: task.subtitle,
-                                        time: task.time,
-                                        meta: task.meta,
-                                        isDone: $task.isDone,
-                                        emphasis: Color(hexString: task.emphasisHex)
-                                    )
-                                }
-                            }
-                            .padding(.horizontal, 24)
-                            .padding(.bottom, 12)
-                        }
-                    }
+        ZStack {
+            Color.white.ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                TopHeaderView()
+                    .padding(.horizontal, 24)
                     .padding(.top, 12)
+                
+                VStack(spacing: 16) {
+                    CombinedStatsCard()
+                        .padding(.horizontal, 24)
                     
-                    // MARK: - Bottom Bar with navigation
-                    BottomBar(selectedTab: $selectedTab)
-                        .background(Color.white)
-                        .onChange(of: selectedTab) { _, newValue in
-                            if newValue == .insights {
-                                navigateToInsights = true
-                            }
-                        }
+                    TasksHeader(isPresentingAddTask: $isPresentingAddTask)
+                        .padding(.horizontal, 24)
+                    
+                    TaskListView(tasks: $tasks)
                 }
+                .padding(.top, 12)
+                
+                // MARK: - Bottom Bar with navigation
+                BottomBar(selectedTab: $selectedTab)
+                    .background(Color.white)
             }
-            .navigationDestination(isPresented: $isPresentingAddTask) {
-                AddTaskView(tasks: $tasks)
-                    .onDisappear {
-                        selectedTab = .todos
-                        navigateToInsights = false
-                    }
-            }
-            .navigationDestination(isPresented: $navigateToInsights) {
-                InsightsPageView()
-                    .navigationBarBackButtonHidden(true)
-            }
+        }
+        .fullScreenCover(isPresented: $isPresentingAddTask) {
+            AddTaskView(tasks: $tasks)
         }
     }
 }
@@ -111,7 +81,7 @@ private struct TopHeaderView: View {
 
             Spacer()
 
-            // Menu button
+            // Calendar
             Button {} label: {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(Color.black)
@@ -130,6 +100,7 @@ private struct TopHeaderView: View {
     }
 }
 
+// Displays Completed Diet and Fitness Tasks
 private struct CombinedStatsCard: View {
     var body: some View {
         RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -140,6 +111,7 @@ private struct CombinedStatsCard: View {
             )
             .shadow(color: Color.black.opacity(0.04), radius: 2, x: 0, y: 1)
             .overlay(
+                // Currently hard coded values to display here
                 HStack(spacing: 0) {
                     StatItem(value: "1/3", label: "Completed", tint: Color(hexString: "101828"))
                     StatItem(value: "1", label: "Diet", tint: Color(hexString: "16A34A"))
@@ -152,7 +124,7 @@ private struct CombinedStatsCard: View {
     }
 
 
-
+   // Formats the Text for statistics
     private struct StatItem: View {
         let value: String
         let label: String
@@ -273,22 +245,32 @@ private struct TaskRowCard: View {
     }
 }
 
-#Preview {
-    MainPageView()
+private struct TaskListView: View {
+    @Binding var tasks: [MainPageView.TaskItem]
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 12) {
+                ForEach($tasks) { $task in
+                    TaskRowCard(
+                        emoji: task.emoji,
+                        title: task.title,
+                        subtitle: task.subtitle,
+                        time: task.time,
+                        meta: task.meta,
+                        isDone: $task.isDone,
+                        emphasis: Color(hexString: task.emphasisHex)
+                    )
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 12)
+        }
+    }
 }
 
-#Preview("Task Row Card Toggle") {
-    StatefulPreviewWrapper(false) { isDone in
-        TaskRowCard(
-            emoji: "🥗",
-            title: "Sample",
-            subtitle: "Subtitle",
-            time: "08:00",
-            meta: "350 cal",
-            isDone: isDone,
-            emphasis: Color(hexString: "16A34A")
-        )
-        .padding()
-        .background(Color.white)
+#Preview {
+    StatefulPreviewWrapper(Tab.todos) { selection in
+        MainPageView(selectedTab: selection)
     }
 }
