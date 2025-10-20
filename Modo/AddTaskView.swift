@@ -23,7 +23,6 @@ struct AddTaskView: View {
                     .cornerRadius(0) // optional if you want square edges
                     .padding(.top, 8)
                     
-                    Spacer()
                     
                     bottomActionBar
                 }
