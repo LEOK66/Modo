@@ -3,6 +3,7 @@ import SwiftUI
 struct MainPageView: View {
     @Binding var selectedTab: Tab
     @State private var isPresentingAddTask = false
+    @State private var isShowingCalendar = false
     
     // Can refactor this to different file to reuse struct
     struct TaskItem: Identifiable {
@@ -28,7 +29,7 @@ struct MainPageView: View {
             Color.white.ignoresSafeArea()
             
             VStack(spacing: 0) {
-                TopHeaderView()
+                TopHeaderView(isShowingCalendar: $isShowingCalendar)
                     .padding(.horizontal, 24)
                     .padding(.top, 12)
                 
@@ -47,6 +48,18 @@ struct MainPageView: View {
                 BottomBar(selectedTab: $selectedTab)
                     .background(Color.white)
             }
+            
+            if isShowingCalendar {
+                // Dimming background that dismisses on tap
+                Color.black.opacity(0.25)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        withAnimation(.easeInOut) { isShowingCalendar = false }
+                    }
+                // Popup content centered
+                CalendarPopupView(showCalendar: $isShowingCalendar)
+                    .transition(.scale.combined(with: .opacity))
+            }
         }
         .fullScreenCover(isPresented: $isPresentingAddTask) {
             AddTaskView(tasks: $tasks)
@@ -55,6 +68,8 @@ struct MainPageView: View {
 }
 
 private struct TopHeaderView: View {
+    @Binding var isShowingCalendar: Bool
+    
     var body: some View {
         HStack(spacing: 12) {
             // Avatar
@@ -82,7 +97,11 @@ private struct TopHeaderView: View {
             Spacer()
 
             // Calendar
-            Button {} label: {
+            Button {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
+                    isShowingCalendar = true
+                }
+            } label: {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(Color.black)
                     .frame(width: 40, height: 40)
