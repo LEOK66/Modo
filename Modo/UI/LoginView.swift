@@ -94,67 +94,6 @@ private struct LoginCard: View {
     }
 }
 
-private struct StatusBar: View {
-    var body: some View {
-        HStack {
-            // Time
-            HStack(spacing: 0) {
-                Text(Date(), style: .time)
-                    .font(.system(size: 17, weight: .semibold))
-                    .frame(minWidth: 60)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            // Dynamic Island placeholder
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(Color.black.opacity(0.08))
-                .frame(width: 124, height: 10)
-
-            // Signal / Wi‑Fi / Battery placeholders
-            HStack(spacing: 8) {
-                Capsule().fill(Color.black).frame(width: 19, height: 12)
-                Capsule().fill(Color.black).frame(width: 17, height: 12)
-                BatteryIcon()
-            }
-            .frame(maxWidth: .infinity, alignment: .trailing)
-        }
-        .frame(height: 54)
-        .padding(.horizontal, 0)
-        .padding(.top, 21)
-        .background(.thinMaterial)
-    }
-}
-
-private struct BatteryIcon: View {
-    var body: some View {
-        ZStack(alignment: .trailing) {
-            RoundedRectangle(cornerRadius: 4.3, style: .continuous)
-                .stroke(Color.black.opacity(0.35), lineWidth: 1)
-                .frame(width: 25, height: 13)
-
-            RoundedRectangle(cornerRadius: 2.5, style: .continuous)
-                .fill(Color.black)
-                .frame(width: 21, height: 9)
-
-            Rectangle()
-                .fill(Color.black.opacity(0.4))
-                .frame(width: 2, height: 6)
-                .offset(x: 14) // Battery cap
-        }
-    }
-}
-
-
-// Utility: hex color initializer
-private extension Color {
-    init(hex: UInt32, alpha: Double = 1.0) {
-        let r = Double((hex >> 16) & 0xFF) / 255.0
-        let g = Double((hex >> 8) & 0xFF) / 255.0
-        let b = Double(hex & 0xFF) / 255.0
-        self = Color(red: r, green: g, blue: b).opacity(alpha)
-    }
-}
-
 #Preview {
     LoginView()
 }
