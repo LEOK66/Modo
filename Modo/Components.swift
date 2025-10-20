@@ -446,6 +446,29 @@ public struct CalendarIcon: View {
     .padding()
 }
 
+struct PageHeader: View {
+    @Environment(\.dismiss) private var dismiss
+    let title: String
+
+    var body: some View {
+        HStack {
+            BackButton {
+                dismiss()
+            }
+
+            Spacer()
+
+            Text(title)
+                .font(.system(size: 22, weight: .bold))
+                .foregroundColor(Color(hexString: "101828"))
+
+            Spacer()
+
+            Color.clear.frame(width: 36, height: 36)
+        }
+    }
+}
+
 // Helper to preview a Binding
 struct StatefulPreviewWrapper<Value, Content: View>: View {
     @State var value: Value

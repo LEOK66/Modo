@@ -3,48 +3,33 @@ import SwiftUI
 struct AddTaskView: View {
     @Environment(\.dismiss) private var dismiss
     @Binding var tasks: [MainPageView.TaskItem] // Binding to main page tasks
-
     var body: some View {
-        ZStack(alignment: .top) {
-            Color(hexString: "F9FAFB").ignoresSafeArea()
-            
-            VStack(spacing: 0) {
-                // Header
-                addTaskHeader
-                    .padding(.top, 12)
-                    .padding(.horizontal, 24)
+            ZStack(alignment: .top) {
+                Color(hexString: "F9FAFB").ignoresSafeArea() // main background
                 
-                Spacer()
-                
-                bottomActionBar
+                VStack(spacing: 0) {
+                    // Header
+                    PageHeader(title: "Add New Task")
+                        .padding(.top, 12)
+                        .padding(.horizontal, 24)
+                    
+                    Spacer().frame(height: 12)
+                    
+                    // Slight gray scrollable container
+                    ScrollView {
+                        // Place components to add task in here
+                    }
+                    .background(Color(hexString: "F3F4F6")) // container background
+                    .cornerRadius(0) // optional if you want square edges
+                    .padding(.top, 8)
+                    
+                    Spacer()
+                    
+                    bottomActionBar
+                }
             }
+            .navigationBarBackButtonHidden(true)
         }
-        .navigationBarBackButtonHidden(true)
-    }
-}
-
-// MARK: - Header
-private extension AddTaskView {
-    var addTaskHeader: some View {
-        HStack {
-            // Back button
-            BackButton {
-                dismiss()
-            }
-            
-            Spacer()
-            
-            // Centered title
-            Text("Add New Task")
-                .font(.system(size: 22, weight: .bold))
-                .foregroundColor(Color(hexString: "101828"))
-            
-            Spacer()
-            
-            // Empty space to balance back button
-            Color.clear.frame(width: 36, height: 36)
-        }
-    }
 }
 
 // MARK: - Bottom Action Bar
