@@ -446,6 +446,7 @@ public struct CalendarIcon: View {
     .padding()
 }
 
+// MARK: - For header on each page
 struct PageHeader: View {
     @Environment(\.dismiss) private var dismiss
     let title: String
@@ -466,6 +467,109 @@ struct PageHeader: View {
 
             Color.clear.frame(width: 36, height: 36)
         }
+    }
+}
+
+// MARK: - For each card in the profile page
+struct ProfileSection<Content: View>: View {
+    let title: String
+    let content: () -> Content
+
+    init(title: String, @ViewBuilder content: @escaping () -> Content) {
+        self.title = title
+        self.content = content
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(.system(size: 14))
+                .foregroundColor(Color(hexString: "6A7282"))
+                .padding(.horizontal, 24)
+
+            VStack(spacing: 12, content: content)
+                .padding(.horizontal, 24)
+        }
+    }
+}
+
+/* COMPONENTS FOR THE PROFILE PAGE */
+
+// MARK: - Reusable navigation row component in Profile
+struct NavigationRow: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+    let destination: AnyView
+
+    init(icon: String, title: String, subtitle: String, destination: AnyView) {
+        self.icon = icon
+        self.title = title
+        self.subtitle = subtitle
+        self.destination = destination
+    }
+
+    var body: some View {
+        NavigationLink(destination: destination) {
+            HStack(spacing: 16) {
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(Color(hexString: "F3F4F6"))
+                    .frame(width: 44, height: 44)
+                    .overlay(
+                        Image(systemName: icon)
+                            .foregroundColor(Color(hexString: "364153"))
+                    )
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(Color(hexString: "101828"))
+                    Text(subtitle)
+                        .font(.system(size: 12))
+                        .foregroundColor(Color(hexString: "6A7282"))
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .foregroundColor(Color(hexString: "99A1AF"))
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.white)
+                    .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 1)
+                    .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+            )
+        }
+    }
+}
+
+// MARK: - StatCard in Profile
+struct StatCard: View {
+    let title: String
+    let value: String
+    let emoji: String
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Text(value)
+                .font(.system(size: 24))
+                .foregroundColor(Color(hexString: "0A0A0A"))
+            Text(title)
+                .font(.system(size: 12))
+                .foregroundColor(Color(hexString: "4A5565"))
+            Text(emoji)
+                .font(.system(size: 18))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 16)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.white)
+                .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 1)
+                .shadow(color: Color.black.opacity(0.1), radius: 6, x: 0, y: 4)
+        )
     }
 }
 
