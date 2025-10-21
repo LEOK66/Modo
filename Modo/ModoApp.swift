@@ -1,5 +1,3 @@
-
-
 import SwiftUI
 import SwiftData
 
@@ -24,5 +22,4 @@ struct ModoApp: App {
         }
         .modelContainer(sharedModelContainer)
     }
-    
 }
