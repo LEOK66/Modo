@@ -19,6 +19,7 @@ struct LoginView: View {
 private struct LoginCard: View {
     @State private var email: String = ""
     @State private var password: String = ""
+    @State private var showMain = false
     @State private var showEmailError: Bool = false
     @State private var showPasswordError: Bool = false
     @State private var isLoading: Bool = false
@@ -85,6 +86,7 @@ private struct LoginCard: View {
                 .frame(maxWidth: LayoutConstants.inputFieldMaxWidth)
 
                 // Sign in button
+
                 PrimaryButton(title: "Sign In", isLoading: isLoading) {
                     signIn()
                 }

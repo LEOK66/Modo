@@ -386,9 +386,129 @@ extension Color {
     }
 }
 
+// MARK: - Bottom Bar Components
+public enum Tab: String, CaseIterable {
+    case todos = "TODOs"
+    case insights = "Insights"
+}
+
+public struct BottomBar: View {
+    @Binding var selectedTab: Tab
+
+    public init(selectedTab: Binding<Tab>) {
+        self._selectedTab = selectedTab
+    }
+
+    public var body: some View {
+        VStack(spacing: 0) {
+            Rectangle()
+                .fill(Color(hexString: "E5E7EB"))
+                .frame(height: 1)
+            HStack(spacing: 64) {
+                BottomBarItem(icon: "doc.text", label: Tab.todos.rawValue, isSelected: selectedTab == .todos) {
+                    selectedTab = .todos
+                }
+                BottomBarItem(icon: "message", label: Tab.insights.rawValue, isSelected: selectedTab == .insights) {
+                    selectedTab = .insights
+                }
+            }
+            .padding(.vertical, 12)
+        }
+        .background(Color.white)
+    }
+}
+
+struct BottomBarItem: View {
+    let icon: String
+    let label: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Image(systemName: icon)
+                Text(label)
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .frame(minWidth: 72)
+            .foregroundColor(isSelected ? Color(hexString: "7C3AED") : Color(hexString: "101828"))
+            .padding(.vertical, 8)
+            .padding(.horizontal, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(isSelected ? Color(hexString: "F5F3FF") : Color.white)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(isSelected ? Color(hexString: "E9D5FF") : Color.clear, lineWidth: 1)
+            )
+        }
+    }
+}
+
+// MARK: - Calendar Icon Component
+public struct CalendarIcon: View {
+    public var strokeColor: Color
+    public var size: CGFloat
+
+    public init(strokeColor: Color = .white, size: CGFloat = 20) {
+        self.strokeColor = strokeColor
+        self.size = size
+    }
+
+    public var body: some View {
+        ZStack {
+            // Vector 1
+            Path { path in
+                path.move(to: CGPoint(x: size * 0.3333, y: size * 0.0833))
+                path.addLine(to: CGPoint(x: size * 0.6667, y: size * 0.0833))
+            }
+            .stroke(strokeColor, lineWidth: size * (1.67/20))
+            
+            // Vector 2
+            Path { path in
+                path.move(to: CGPoint(x: size * 0.6667, y: size * 0.0833))
+                path.addLine(to: CGPoint(x: size * 0.3333, y: size * 0.0833))
+            }
+            .stroke(strokeColor, lineWidth: size * (1.67/20))
+            
+            // Vector 3
+            Path { path in
+                path.addRect(CGRect(
+                    x: size * 0.125,
+                    y: size * 0.1667,
+                    width: size * (1 - 0.125 * 2),
+                    height: size * (1 - 0.1667 - 0.0833)
+                ))
+            }
+            .stroke(strokeColor, lineWidth: size * (1.67/20))
+            
+            // Vector 4
+            Path { path in
+                path.addRect(CGRect(
+                    x: size * 0.125,
+                    y: size * 0.4167,
+                    width: size * (1 - 0.125 * 2),
+                    height: size * (1 - 0.4167 - 0.5833)
+                ))
+            }
+            .stroke(strokeColor, lineWidth: size * (1.67/20))
+        }
+        .frame(width: size, height: size)
+        .accessibilityLabel("Calendar icon")
+    }
+}
+
 // MARK: - Preview
 #Preview {
     VStack(spacing: 20) {
+        CalendarIcon(strokeColor: .black, size: 24)
+
+        StatefulPreviewWrapper(Tab.todos) { selection in
+            BottomBar(selectedTab: selection)
+        }
+        
         CustomNavigationBar(title: "Test", showBackButton: true) {
             print("Back tapped")
         }
@@ -425,4 +545,146 @@ extension Color {
         DividerWithText(text: "or")
     }
     .padding()
+}
+
+// MARK: - For header on each page
+struct PageHeader: View {
+    @Environment(\.dismiss) private var dismiss
+    let title: String
+
+    var body: some View {
+        HStack {
+            BackButton {
+                dismiss()
+            }
+
+            Spacer()
+
+            Text(title)
+                .font(.system(size: 22, weight: .bold))
+                .foregroundColor(Color(hexString: "101828"))
+
+            Spacer()
+
+            Color.clear.frame(width: 36, height: 36)
+        }
+    }
+}
+
+// MARK: - For each card in the profile page
+struct ProfileSection<Content: View>: View {
+    let title: String
+    let content: () -> Content
+
+    init(title: String, @ViewBuilder content: @escaping () -> Content) {
+        self.title = title
+        self.content = content
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(.system(size: 14))
+                .foregroundColor(Color(hexString: "6A7282"))
+                .padding(.horizontal, 24)
+
+            VStack(spacing: 12, content: content)
+                .padding(.horizontal, 24)
+        }
+    }
+}
+
+/* COMPONENTS FOR THE PROFILE PAGE */
+
+// MARK: - Reusable navigation row component in Profile
+struct NavigationRow: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+    let destination: AnyView
+
+    init(icon: String, title: String, subtitle: String, destination: AnyView) {
+        self.icon = icon
+        self.title = title
+        self.subtitle = subtitle
+        self.destination = destination
+    }
+
+    var body: some View {
+        NavigationLink(destination: destination) {
+            HStack(spacing: 16) {
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(Color(hexString: "F3F4F6"))
+                    .frame(width: 44, height: 44)
+                    .overlay(
+                        Image(systemName: icon)
+                            .foregroundColor(Color(hexString: "364153"))
+                    )
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(Color(hexString: "101828"))
+                    Text(subtitle)
+                        .font(.system(size: 12))
+                        .foregroundColor(Color(hexString: "6A7282"))
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .foregroundColor(Color(hexString: "99A1AF"))
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.white)
+                    .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 1)
+                    .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+            )
+        }
+    }
+}
+
+// MARK: - StatCard in Profile
+struct StatCard: View {
+    let title: String
+    let value: String
+    let emoji: String
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Text(value)
+                .font(.system(size: 24))
+                .foregroundColor(Color(hexString: "0A0A0A"))
+            Text(title)
+                .font(.system(size: 12))
+                .foregroundColor(Color(hexString: "4A5565"))
+            Text(emoji)
+                .font(.system(size: 18))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 16)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.white)
+                .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 1)
+                .shadow(color: Color.black.opacity(0.1), radius: 6, x: 0, y: 4)
+        )
+    }
+}
+
+// Helper to preview a Binding
+struct StatefulPreviewWrapper<Value, Content: View>: View {
+    @State var value: Value
+    let content: (Binding<Value>) -> Content
+
+    init(_ value: Value, content: @escaping (Binding<Value>) -> Content) {
+        _value = State(initialValue: value)
+        self.content = content
+    }
+
+    var body: some View {
+        content($value)
+    }
 }
