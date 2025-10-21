@@ -92,7 +92,7 @@ struct RegisterView: View {
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
                             .stroke(Color(hexString: "E5E7EB"), lineWidth: 1)
                     )
-                    .frame(maxWidth: 263)
+                    .frame(maxWidth: LayoutConstants.inputFieldMaxWidth)
                     
                     VStack(spacing: 8) {
                         Text("By signing up, you agree to our")
@@ -121,10 +121,9 @@ struct RegisterView: View {
                                     .foregroundColor(Color.blue)
                             }
                         }
-                        .frame(width: 242)
                         .multilineTextAlignment(.center)
                     }
-                    .frame(maxWidth: 263)
+                    .frame(maxWidth: LayoutConstants.inputFieldMaxWidth)
                     
                     PrimaryButton(title: "Sign Up") {
                         signUp()

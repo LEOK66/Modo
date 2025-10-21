@@ -25,7 +25,6 @@ struct ForgotPasswordView: View {
                 keyboardType: .emailAddress,
                 textContentType: .emailAddress
             )
-            .frame(maxWidth: 320)
 
             // Send reset link
             PrimaryButton(
@@ -37,7 +36,6 @@ struct ForgotPasswordView: View {
                 }
             }
             .disabled(email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            .frame(maxWidth: 320)
 
             Spacer()
         }

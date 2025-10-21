@@ -1,5 +1,23 @@
 import SwiftUI
 
+// MARK: - Layout Constants: responsive layout
+struct LayoutConstants {
+    /// Get screen width
+    static var screenWidth: CGFloat {
+        UIScreen.main.bounds.width
+    }
+    
+    /// Maximum width for input fields (70% of screen width)
+    static var inputFieldMaxWidth: CGFloat {
+        screenWidth * 0.7
+    }
+    
+    /// Horizontal padding for content areas
+    static var horizontalPadding: CGFloat {
+        screenWidth * 0.06  // 6% of screen width
+    }
+}
+
 // MARK: - Back Button Component
 struct BackButton: View {
     let action: () -> Void
@@ -128,7 +146,7 @@ struct CustomInputField: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(Color(hexString: "E5E7EB"), lineWidth: 1)
         )
-        .frame(maxWidth: 263)
+        .frame(maxWidth: LayoutConstants.inputFieldMaxWidth)
     }
 }
 
@@ -160,7 +178,7 @@ struct PrimaryButton: View {
         .background(Color.black)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .disabled(isLoading)
-        .frame(maxWidth: 263)
+        .frame(maxWidth: LayoutConstants.inputFieldMaxWidth)
     }
 }
 
@@ -255,7 +273,7 @@ struct DividerWithText: View {
                 .frame(height: 1)
                 .opacity(1.0)
         }
-        .frame(width: 263, height: 16)
+        .frame(maxWidth: LayoutConstants.inputFieldMaxWidth, idealHeight: 16)
     }
 }
 

@@ -62,7 +62,7 @@ private struct LoginCard: View {
                             .foregroundColor(Color(hexString: "4A5565"))
                     }
                 }
-                .frame(maxWidth: 263)
+                .frame(maxWidth: LayoutConstants.inputFieldMaxWidth)
 
                 // Sign in button
                 PrimaryButton(title: "Sign In") {
@@ -81,7 +81,7 @@ private struct LoginCard: View {
                         // Google login action
                     }
                 }
-                .frame(maxWidth: 263)
+                .frame(maxWidth: LayoutConstants.inputFieldMaxWidth)
             }
             .padding(.top, 8)
 
