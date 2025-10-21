@@ -21,7 +21,6 @@ struct LoginView: View {
 private struct LoginCard: View {
     @State private var email: String = ""
     @State private var password: String = ""
-    @State private var isPasswordVisible: Bool = false
 
     var body: some View {
 
