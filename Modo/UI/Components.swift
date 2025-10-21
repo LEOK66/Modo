@@ -27,9 +27,9 @@ struct BackButton: View {
 struct CustomNavigationBar: View {
     let title: String?
     let showBackButton: Bool
-    let backAction: (() -> Void)?
+    let backAction: () -> Void
     
-    init(title: String? = nil, showBackButton: Bool = true, backAction: (() -> Void)? = nil) {
+    init(title: String? = nil, showBackButton: Bool = true, backAction: @escaping () -> Void) {
         self.title = title
         self.showBackButton = showBackButton
         self.backAction = backAction
@@ -37,15 +37,9 @@ struct CustomNavigationBar: View {
     
     var body: some View {
         HStack {
-            if showBackButton, let backAction = backAction {
+            if showBackButton {
                 BackButton(action: backAction)
                     .padding(.leading, 16)
-            } else if showBackButton {
-                // Default back button using environment dismiss
-                BackButton {
-                    // This will be handled by the parent view
-                }
-                .padding(.leading, 16)
             }
             
             if let title = title {

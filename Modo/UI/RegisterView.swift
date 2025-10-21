@@ -7,6 +7,7 @@ struct RegisterView: View {
     @State private var verificationCode = ""
     @State private var resendTimer = 59
     @State private var isCodeSent = false
+    @State private var timer: Timer?
     @State private var showTerms = false
     @State private var showPrivacy = false
     @State private var showEmailError = false
@@ -142,6 +143,10 @@ struct RegisterView: View {
         .fullScreenCover(isPresented: $showPrivacy) {
             PrivacyPolicyView()
         }
+        .onDisappear {
+            timer?.invalidate()
+            timer = nil
+        }
     }
     
     
@@ -173,11 +178,12 @@ struct RegisterView: View {
     }
     
     private func startResendTimer() {
-        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
             if resendTimer > 0 {
                 resendTimer -= 1
             } else {
                 timer.invalidate()
+                self.timer = nil
                 // Reset the state when timer reaches 0
                 isCodeSent = false
             }
