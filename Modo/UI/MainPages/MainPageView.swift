@@ -40,6 +40,13 @@ struct MainPageView: View {
                     TasksHeader(isPresentingAddTask: $isPresentingAddTask)
                         .padding(.horizontal, 24)
                     
+                    NavigationLink(isActive: $isPresentingAddTask) {
+                        AddTaskView(tasks: $tasks)
+                    } label: {
+                        EmptyView()
+                    }
+                    .hidden()
+                    
                     TaskListView(tasks: $tasks)
                 }
                 .padding(.top, 12)
@@ -60,9 +67,6 @@ struct MainPageView: View {
                 CalendarPopupView(showCalendar: $isShowingCalendar)
                     .transition(.scale.combined(with: .opacity))
             }
-        }
-        .fullScreenCover(isPresented: $isPresentingAddTask) {
-            AddTaskView(tasks: $tasks)
         }
     }
 }
@@ -296,3 +300,4 @@ private struct TaskListView: View {
         }
     }
 }
+
