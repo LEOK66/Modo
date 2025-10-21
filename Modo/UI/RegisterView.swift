@@ -7,10 +7,12 @@ struct RegisterView: View {
     @State private var verificationCode = ""
     @State private var resendTimer = 59
     @State private var isCodeSent = false
+    @State private var timer: Timer?
     @State private var showTerms = false
     @State private var showPrivacy = false
     @State private var showEmailError = false
     @State private var showPasswordError = false
+    @State private var showSuccessMessage = false
     
     private var isEmailAndPasswordValid: Bool {
         emailAddress.isValidEmail && password.isValidPassword
@@ -91,7 +93,7 @@ struct RegisterView: View {
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
                             .stroke(Color(hexString: "E5E7EB"), lineWidth: 1)
                     )
-                    .frame(maxWidth: 263)
+                    .frame(maxWidth: LayoutConstants.inputFieldMaxWidth)
                     
                     VStack(spacing: 8) {
                         Text("By signing up, you agree to our")
@@ -120,10 +122,9 @@ struct RegisterView: View {
                                     .foregroundColor(Color.blue)
                             }
                         }
-                        .frame(width: 242)
                         .multilineTextAlignment(.center)
                     }
-                    .frame(maxWidth: 263)
+                    .frame(maxWidth: LayoutConstants.inputFieldMaxWidth)
                     
                     PrimaryButton(title: "Sign Up") {
                         signUp()
@@ -141,6 +142,16 @@ struct RegisterView: View {
         }
         .fullScreenCover(isPresented: $showPrivacy) {
             PrivacyPolicyView()
+        }
+        .overlay(
+            SuccessToast(
+                message: "Verification code sent to your email",
+                isPresented: showSuccessMessage
+            )
+        )
+        .onDisappear {
+            timer?.invalidate()
+            timer = nil
         }
     }
     
@@ -165,19 +176,30 @@ struct RegisterView: View {
             // Send verification code logic here
             print("Sending verification code to: \(emailAddress)")
             
+            // Show success message
+            showSuccessMessage = true
+            
             // Start the timer and mark code as sent
             isCodeSent = true
             resendTimer = 59
             startResendTimer()
+            
+            // Hide success message after 3 seconds
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                withAnimation {
+                    showSuccessMessage = false
+                }
+            }
         }
     }
     
     private func startResendTimer() {
-        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
             if resendTimer > 0 {
                 resendTimer -= 1
             } else {
                 timer.invalidate()
+                self.timer = nil
                 // Reset the state when timer reaches 0
                 isCodeSent = false
             }

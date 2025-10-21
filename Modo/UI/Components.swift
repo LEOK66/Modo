@@ -1,5 +1,23 @@
 import SwiftUI
 
+// MARK: - Layout Constants: responsive layout
+struct LayoutConstants {
+    /// Get screen width
+    static var screenWidth: CGFloat {
+        UIScreen.main.bounds.width
+    }
+    
+    /// Maximum width for input fields (70% of screen width)
+    static var inputFieldMaxWidth: CGFloat {
+        screenWidth * 0.7
+    }
+    
+    /// Horizontal padding for content areas
+    static var horizontalPadding: CGFloat {
+        screenWidth * 0.06  // 6% of screen width
+    }
+}
+
 // MARK: - Back Button Component
 struct BackButton: View {
     let action: () -> Void
@@ -27,9 +45,9 @@ struct BackButton: View {
 struct CustomNavigationBar: View {
     let title: String?
     let showBackButton: Bool
-    let backAction: (() -> Void)?
+    let backAction: () -> Void
     
-    init(title: String? = nil, showBackButton: Bool = true, backAction: (() -> Void)? = nil) {
+    init(title: String? = nil, showBackButton: Bool = true, backAction: @escaping () -> Void) {
         self.title = title
         self.showBackButton = showBackButton
         self.backAction = backAction
@@ -37,15 +55,9 @@ struct CustomNavigationBar: View {
     
     var body: some View {
         HStack {
-            if showBackButton, let backAction = backAction {
+            if showBackButton {
                 BackButton(action: backAction)
                     .padding(.leading, 16)
-            } else if showBackButton {
-                // Default back button using environment dismiss
-                BackButton {
-                    // This will be handled by the parent view
-                }
-                .padding(.leading, 16)
             }
             
             if let title = title {
@@ -134,7 +146,7 @@ struct CustomInputField: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(Color(hexString: "E5E7EB"), lineWidth: 1)
         )
-        .frame(maxWidth: 263)
+        .frame(maxWidth: LayoutConstants.inputFieldMaxWidth)
     }
 }
 
@@ -166,7 +178,7 @@ struct PrimaryButton: View {
         .background(Color.black)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .disabled(isLoading)
-        .frame(maxWidth: 263)
+        .frame(maxWidth: LayoutConstants.inputFieldMaxWidth)
     }
 }
 
@@ -261,7 +273,73 @@ struct DividerWithText: View {
                 .frame(height: 1)
                 .opacity(1.0)
         }
-        .frame(width: 263, height: 16)
+        .frame(maxWidth: LayoutConstants.inputFieldMaxWidth, idealHeight: 16)
+    }
+}
+
+// MARK: - Success Toast Component
+struct SuccessToast: View {
+    let message: String
+    let isPresented: Bool
+    
+    var body: some View {
+        VStack {
+            if isPresented {
+                VStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 24))
+                        .foregroundColor(.green)
+                    Text(message)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(Color(hexString: "101828"))
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.horizontal, 24)
+                .padding(.vertical, 16)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.white)
+                        .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 4)
+                )
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .padding(.top, 60)
+            }
+            Spacer()
+        }
+        .animation(.easeInOut(duration: 0.3), value: isPresented)
+    }
+}
+
+// MARK: - Error Toast Component
+struct ErrorToast: View {
+    let message: String
+    let isPresented: Bool
+    
+    var body: some View {
+        VStack {
+            if isPresented {
+                VStack(spacing: 8) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 24))
+                        .foregroundColor(.red)
+                    Text(message)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(Color(hexString: "101828"))
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.horizontal, 24)
+                .padding(.vertical, 16)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.white)
+                        .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 4)
+                )
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .padding(.top, 60)
+            }
+            Spacer()
+        }
+        .animation(.easeInOut(duration: 0.3), value: isPresented)
     }
 }
 
