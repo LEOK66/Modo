@@ -12,6 +12,7 @@ struct RegisterView: View {
     @State private var showPrivacy = false
     @State private var showEmailError = false
     @State private var showPasswordError = false
+    @State private var showSuccessMessage = false
     
     private var isEmailAndPasswordValid: Bool {
         emailAddress.isValidEmail && password.isValidPassword
@@ -142,6 +143,12 @@ struct RegisterView: View {
         .fullScreenCover(isPresented: $showPrivacy) {
             PrivacyPolicyView()
         }
+        .overlay(
+            SuccessToast(
+                message: "Verification code sent to your email",
+                isPresented: showSuccessMessage
+            )
+        )
         .onDisappear {
             timer?.invalidate()
             timer = nil
@@ -169,10 +176,20 @@ struct RegisterView: View {
             // Send verification code logic here
             print("Sending verification code to: \(emailAddress)")
             
+            // Show success message
+            showSuccessMessage = true
+            
             // Start the timer and mark code as sent
             isCodeSent = true
             resendTimer = 59
             startResendTimer()
+            
+            // Hide success message after 3 seconds
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                withAnimation {
+                    showSuccessMessage = false
+                }
+            }
         }
     }
     
