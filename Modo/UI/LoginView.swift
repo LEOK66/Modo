@@ -9,10 +9,8 @@ struct LoginView: View {
                     .ignoresSafeArea()
 
                 LoginCard()
-                    .frame(maxWidth: 402, maxHeight: 874)
-                    .padding()
             }
-            .navigationTitle("") // keep title area compact
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
         }
     }
@@ -21,6 +19,10 @@ struct LoginView: View {
 private struct LoginCard: View {
     @State private var email: String = ""
     @State private var password: String = ""
+    @State private var showEmailError: Bool = false
+    @State private var showPasswordError: Bool = false
+    @State private var isLoading: Bool = false
+    @State private var showErrorMessage: Bool = false
 
     var body: some View {
 
@@ -33,20 +35,38 @@ private struct LoginCard: View {
             // Inputs
             VStack(spacing: 16) {
                 // Email input
-                CustomInputField(
-                    placeholder: "Email address",
-                    text: $email,
-                    keyboardType: .emailAddress,
-                    textContentType: .emailAddress
-                )
+                VStack(alignment: .leading, spacing: 4) {
+                    CustomInputField(
+                        placeholder: "Email address",
+                        text: $email,
+                        keyboardType: .emailAddress,
+                        textContentType: .emailAddress
+                    )
+                    
+                    if showEmailError {
+                        Text("Please enter a valid email address")
+                            .font(.system(size: 10))
+                            .foregroundColor(.red)
+                            .padding(.leading, 12)
+                    }
+                }
 
                 // Password input
-                CustomInputField(
-                    placeholder: "Password",
-                    text: $password,
-                    isSecure: true,
-                    showPasswordToggle: true
-                )
+                VStack(alignment: .leading, spacing: 4) {
+                    CustomInputField(
+                        placeholder: "Password",
+                        text: $password,
+                        isSecure: true,
+                        showPasswordToggle: true
+                    )
+                    
+                    if showPasswordError {
+                        Text("Password cannot be empty")
+                            .font(.system(size: 10))
+                            .foregroundColor(.red)
+                            .padding(.leading, 12)
+                    }
+                }
 
                 // Forgot password / new user
                 HStack {
@@ -65,11 +85,11 @@ private struct LoginCard: View {
                 .frame(maxWidth: LayoutConstants.inputFieldMaxWidth)
 
                 // Sign in button
-                PrimaryButton(title: "Sign In") {
-                    // Sign In action
+                PrimaryButton(title: "Sign In", isLoading: isLoading) {
+                    signIn()
                 }
 
-                // Divider "or" with left/right thin gray lines, total width 263
+                // Divider
                 DividerWithText(text: "or")
 
                 // Apple/Google login
@@ -90,6 +110,50 @@ private struct LoginCard: View {
         .padding(.horizontal, 24)
         .padding(.top, 8)
         .padding(.bottom, 12)
+        .overlay(
+            ErrorToast(
+                message: "Invalid email or password",
+                isPresented: showErrorMessage
+            )
+        )
+    }
+    
+    private func signIn() {
+        // Validate email and password
+        withAnimation(.easeInOut(duration: 0.2)) {
+            showEmailError = !email.isValidEmail || !email.isNotEmpty
+            showPasswordError = !password.isNotEmpty
+        }
+        
+        // Only proceed if both are valid
+        if email.isValidEmail && password.isNotEmpty {
+            // Simulate async login
+            isLoading = true
+            Task {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                await MainActor.run {
+                    isLoading = false
+                    
+                    // Simulate login result (for demo: password "wrong" will fail)
+                    let loginSuccess = password != "wrong"
+                    
+                    if loginSuccess {
+                        // Handle successful login here
+                        print("Login successful with email: \(email)")
+                    } else {
+                        // Show error message
+                        showErrorMessage = true
+                        
+                        // Hide error message after 3 seconds
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                            withAnimation {
+                                showErrorMessage = false
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

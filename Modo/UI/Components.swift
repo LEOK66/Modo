@@ -310,6 +310,39 @@ struct SuccessToast: View {
     }
 }
 
+// MARK: - Error Toast Component
+struct ErrorToast: View {
+    let message: String
+    let isPresented: Bool
+    
+    var body: some View {
+        VStack {
+            if isPresented {
+                VStack(spacing: 8) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 24))
+                        .foregroundColor(.red)
+                    Text(message)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(Color(hexString: "101828"))
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.horizontal, 24)
+                .padding(.vertical, 16)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.white)
+                        .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 4)
+                )
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .padding(.top, 60)
+            }
+            Spacer()
+        }
+        .animation(.easeInOut(duration: 0.3), value: isPresented)
+    }
+}
+
 // MARK: - Input Validation Extension
 extension String {
     /// Validates email format
