@@ -21,6 +21,7 @@ struct LoginView: View {
 private struct LoginCard: View {
     @State private var email: String = ""
     @State private var password: String = ""
+    @State private var showMain = false
 
     var body: some View {
 
@@ -66,7 +67,11 @@ private struct LoginCard: View {
 
                 // Sign in button
                 PrimaryButton(title: "Sign In") {
-                    // Sign In action
+                    // Sign in Logic
+                    showMain = true
+                }
+                .fullScreenCover(isPresented: $showMain) {
+                    MainContainerView()
                 }
 
                 // Divider "or" with left/right thin gray lines, total width 263
