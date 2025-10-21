@@ -1,5 +1,3 @@
-
-
 import SwiftUI
 import SwiftData
 import FirebaseCore
@@ -32,5 +30,4 @@ struct ModoApp: App {
         }
         .modelContainer(sharedModelContainer)
     }
-    
 }
