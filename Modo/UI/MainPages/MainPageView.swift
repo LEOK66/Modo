@@ -2,8 +2,8 @@ import SwiftUI
 
 struct MainPageView: View {
     @Binding var selectedTab: Tab
-    @State private var isPresentingAddTask = false
     @State private var isShowingCalendar = false
+    @State private var navigationPath = NavigationPath()
     
     // Can refactor this to different file to reuse struct
     struct TaskItem: Identifiable {
@@ -37,15 +37,8 @@ struct MainPageView: View {
                     CombinedStatsCard()
                         .padding(.horizontal, 24)
                     
-                    TasksHeader(isPresentingAddTask: $isPresentingAddTask)
+                    TasksHeader(navigationPath: $navigationPath)
                         .padding(.horizontal, 24)
-                    
-                    NavigationLink(isActive: $isPresentingAddTask) {
-                        AddTaskView(tasks: $tasks)
-                    } label: {
-                        EmptyView()
-                    }
-                    .hidden()
                     
                     TaskListView(tasks: $tasks)
                 }
@@ -68,7 +61,15 @@ struct MainPageView: View {
                     .transition(.scale.combined(with: .opacity))
             }
         }
+        .navigationDestination(for: AddTaskDestination.self) { _ in
+            AddTaskView(tasks: $tasks)
+        }
     }
+}
+
+// MARK: - Navigation Destination Type
+private enum AddTaskDestination: Hashable {
+    case addTask
 }
 
 private struct TopHeaderView: View {
@@ -169,7 +170,7 @@ private struct CombinedStatsCard: View {
 }
 
 private struct TasksHeader: View {
-    @Binding var isPresentingAddTask: Bool
+    @Binding var navigationPath: NavigationPath
 
     var body: some View {
         HStack {
@@ -178,7 +179,7 @@ private struct TasksHeader: View {
                 .foregroundColor(Color(hexString: "101828"))
             Spacer()
             Button(action: {
-                isPresentingAddTask = true
+                navigationPath.append(AddTaskDestination.addTask)
             }) {
                 HStack(spacing: 6) {
                     Image(systemName: "plus")

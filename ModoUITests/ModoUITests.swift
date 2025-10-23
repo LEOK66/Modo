@@ -1,10 +1,3 @@
-//
-//  ModoUITests.swift
-//  ModoUITests
-//
-//  Created by 李梓豪 on 2025/10/14.
-//
-
 import XCTest
 
 final class ModoUITests: XCTestCase {

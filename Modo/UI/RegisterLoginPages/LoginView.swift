@@ -27,13 +27,12 @@ private struct LoginCard: View {
     @State private var showErrorMessage: Bool = false
 
     var body: some View {
-
         VStack(spacing: 24) {
-            Spacer() 
+            Spacer()
 
             // Logo
             LogoView(title: "MODO", subtitle: "Login")
-            .padding(.top, 8)
+                .padding(.top, 8)
 
             // Inputs
             VStack(spacing: 16) {

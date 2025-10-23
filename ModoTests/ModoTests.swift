@@ -1,10 +1,3 @@
-//
-//  ModoTests.swift
-//  ModoTests
-//
-//  Created by 李梓豪 on 2025/10/14.
-//
-
 import XCTest
 @testable import Modo
 

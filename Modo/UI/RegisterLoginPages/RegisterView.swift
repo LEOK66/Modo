@@ -26,8 +26,10 @@ struct RegisterView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 24) {
+                Spacer()
+                
                 LogoView(title: "MODO", subtitle: "Register")
-                .padding(.top, 4)
+                    .padding(.top, 4)
                 
                 VStack(spacing: 16) {
                     VStack(alignment: .leading, spacing: 4) {
