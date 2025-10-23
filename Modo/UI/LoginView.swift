@@ -29,6 +29,7 @@ private struct LoginCard: View {
     var body: some View {
 
         VStack(spacing: 24) {
+            Spacer() 
 
             // Logo
             LogoView(title: "MODO", subtitle: "Login")
@@ -110,6 +111,7 @@ private struct LoginCard: View {
 
             Spacer()
         }
+        .frame(maxHeight: .infinity)
         .padding(.horizontal, 24)
         .padding(.top, 8)
         .padding(.bottom, 12)

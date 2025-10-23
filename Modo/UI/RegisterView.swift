@@ -62,40 +62,6 @@ struct RegisterView: View {
                         }
                     }
                     
-                    // Verification Code input
-                    HStack {
-                        TextField("Verification code", text: $verificationCode)
-                            .font(.system(size: 14))
-                            .foregroundColor(Color(hexString: "717182"))
-                            .kerning(-0.15)
-                        
-                        Spacer()
-                        
-                        Button {
-                            sendVerificationCode()
-                        } label: {
-                            Text(isCodeSent ? "\(resendTimer)s" : "Send Code")
-                                .font(.system(size: 14))
-                                .foregroundColor(
-                                    isCodeSent ? Color(hexString: "717182") :
-                                    (isEmailAndPasswordValid ? Color.blue : Color(hexString: "717182"))
-                                )
-                                .kerning(-0.15)
-                        }
-                        .disabled(isCodeSent && resendTimer > 0)
-                    }
-                    .padding(.horizontal, 12)
-                    .frame(height: 48)
-                    .background(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(Color(hexString: "F9FAFB").opacity(0.5))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(Color(hexString: "E5E7EB"), lineWidth: 1)
-                    )
-                    .frame(maxWidth: LayoutConstants.inputFieldMaxWidth)
-                    
                     VStack(spacing: 8) {
                         Text("By signing up, you agree to our")
                             .font(.system(size: 12))
@@ -127,13 +93,14 @@ struct RegisterView: View {
                     }
                     .frame(maxWidth: LayoutConstants.inputFieldMaxWidth)
                     
-                    PrimaryButton(title: "Sign Up") {
-                        signUp()
+                    PrimaryButton(title: "Send Verify Link") {
+                        sendLink()
                     }
                 }
                 
                 Spacer()
             }
+            .frame(maxHeight: .infinity)
             .padding(.horizontal, 24)
             .padding(.top, 4)
             .padding(.bottom, 12)
@@ -157,7 +124,7 @@ struct RegisterView: View {
     }
     
     
-    private func signUp() {
+    private func sendLink() {
         // Validate email and password
         withAnimation(.easeInOut(duration: 0.2)) {
             showEmailError = !emailAddress.isValidEmail || !emailAddress.isNotEmpty
