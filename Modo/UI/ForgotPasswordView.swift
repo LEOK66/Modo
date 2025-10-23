@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ForgotPasswordView: View {
+    @EnvironmentObject var authService: AuthService
     @State private var email: String = ""
     @State private var isSending: Bool = false
     @State private var showEmailError: Bool = false
@@ -73,32 +74,38 @@ struct ForgotPasswordView: View {
         
         // Only send if email is valid
         if email.isValidEmail {
-            // Simulate async sending
             isSending = true
-            Task {
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
-                await MainActor.run {
-                    isSending = false
+            
+            authService.resetPassword(email: email) { result in
+                DispatchQueue.main.async {
+                    isSending = false  
                     
-                    // Show success message
-                    showSuccessMessage = true
-                    
-                    // Start resend timer
-                    isCodeSent = true
-                    resendTimer = 59
-                    startResendTimer()
-                    
-                    // Hide success message after 3 seconds
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                        withAnimation {
-                            showSuccessMessage = false
+                    switch result {
+                    case .success:
+                        // Show success message
+                        showSuccessMessage = true
+                        
+                        // Start resend timer
+                        isCodeSent = true
+                        resendTimer = 59
+                        startResendTimer()
+                        
+                        // Hide success message after 3 seconds
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                            withAnimation {
+                                showSuccessMessage = false
+                            }
                         }
+                    case .failure(let error):
+                        print("Reset password error: \(error.localizedDescription)")
+                        // Handle error here if needed
                     }
                 }
             }
+        } else {
+            isSending = false
         }
     }
-    
     private func startResendTimer() {
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
             if resendTimer > 0 {

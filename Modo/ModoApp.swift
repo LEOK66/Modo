@@ -4,6 +4,7 @@ import FirebaseCore
 
 @main
 struct ModoApp: App {
+    @StateObject private var authService = AuthService.shared
     
     init() {
         FirebaseApp.configure()
@@ -26,7 +27,13 @@ struct ModoApp: App {
 
     var body: some Scene {
         WindowGroup {
-            LoginView()
+            if authService.isAuthenticated {
+                AuthenticatedView()
+                    .environmentObject(authService)
+            } else {
+                LoginView()
+                    .environmentObject(authService)
+            }
         }
         .modelContainer(sharedModelContainer)
     }
