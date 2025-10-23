@@ -1,8 +1,17 @@
 import SwiftUI
 import SwiftData
+import FirebaseCore
 
 @main
 struct ModoApp: App {
+    @StateObject private var authService = AuthService.shared
+    
+    init() {
+        FirebaseApp.configure()
+        // TODO: remove print
+        print("firebase configured?")
+    }
+    
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Item.self,
@@ -18,7 +27,13 @@ struct ModoApp: App {
 
     var body: some Scene {
         WindowGroup {
-            LoginView()
+            if authService.isAuthenticated {
+                AuthenticatedView()
+                    .environmentObject(authService)
+            } else {
+                LoginView()
+                    .environmentObject(authService)
+            }
         }
         .modelContainer(sharedModelContainer)
     }

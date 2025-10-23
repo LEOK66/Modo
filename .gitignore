@@ -63,3 +63,6 @@ fastlane/test_output
 
 # macOS
 .DS_Store
+
+# Firebase/Google Services
+GoogleService-Info.plist

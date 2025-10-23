@@ -2,6 +2,7 @@
 import SwiftUI
 
 struct RegisterView: View {
+    @EnvironmentObject var authService: AuthService
     @State private var emailAddress = ""
     @State private var password = ""
     @State private var verificationCode = ""
@@ -157,10 +158,27 @@ struct RegisterView: View {
     
     
     private func signUp() {
-        // Implement your sign up logic here
-        print("Signing up with email: \(emailAddress)")
-        print("Password: \(password)")
-        print("Verification code: \(verificationCode)")
+        // Validate email and password
+        withAnimation(.easeInOut(duration: 0.2)) {
+            showEmailError = !emailAddress.isValidEmail || !emailAddress.isNotEmpty
+            showPasswordError = !password.isValidPassword || !password.isNotEmpty
+        }
+        
+        // Only proceed if both are valid
+        if emailAddress.isValidEmail && password.isValidPassword {
+            authService.signUp(email: emailAddress, password: password) { result in
+                DispatchQueue.main.async {
+                    switch result {
+                    case .success:
+                        // Auth state will automatically update via the listener
+                        break
+                    case .failure(let error):
+                        print("Sign up error: \(error.localizedDescription)")
+                        // Handle error here if needed
+                    }
+                }
+            }
+        }
     }
     
     private func sendVerificationCode() {

@@ -17,6 +17,7 @@ struct LoginView: View {
 }
 
 private struct LoginCard: View {
+    @EnvironmentObject var authService: AuthService
     @State private var email: String = ""
     @State private var password: String = ""
     @State private var showMain = false
@@ -129,21 +130,18 @@ private struct LoginCard: View {
         
         // Only proceed if both are valid
         if email.isValidEmail && password.isNotEmpty {
-            // Simulate async login
             isLoading = true
-            Task {
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
-                await MainActor.run {
+            
+            authService.signIn(email: email, password: password) { result in
+                DispatchQueue.main.async {
                     isLoading = false
                     
-                    // Simulate login result (for demo: password "wrong" will fail)
-                    let loginSuccess = password != "wrong"
-                    
-                    if loginSuccess {
-                        // Handle successful login here
-                        print("Login successful with email: \(email)")
-                    } else {
-                        // Show error message
+                    switch result {
+                    case .success:
+                        // Auth state will automatically update via the listener
+                        break
+                    case .failure(let error):
+                        print("Sign in error: \(error.localizedDescription)")
                         showErrorMessage = true
                         
                         // Hide error message after 3 seconds
