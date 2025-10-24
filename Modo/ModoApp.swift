@@ -15,6 +15,7 @@ struct ModoApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Item.self,
+            UserProfile.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
@@ -28,8 +29,13 @@ struct ModoApp: App {
     var body: some Scene {
         WindowGroup {
             if authService.isAuthenticated {
-                AuthenticatedView()
-                    .environmentObject(authService)
+                if authService.hasCompletedOnboarding {
+                    MainContainerView()
+                        .environmentObject(authService)
+                } else {
+                    InfoGatheringView()
+                        .environmentObject(authService)
+                }
             } else {
                 LoginView()
                     .environmentObject(authService)
