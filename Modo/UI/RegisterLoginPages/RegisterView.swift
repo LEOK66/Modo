@@ -149,7 +149,6 @@ struct RegisterView: View {
     }
 }
 
-// Keep the TermsOfServiceView and PrivacyPolicyView here
 private struct TermsOfServiceView: View {
     @Environment(\.dismiss) private var dismiss
     var body: some View {
