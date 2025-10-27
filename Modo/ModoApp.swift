@@ -9,8 +9,6 @@ struct ModoApp: App {
     
     init() {
         FirebaseApp.configure()
-        // TODO: remove print
-        print("firebase configured?")
     }
     
     var sharedModelContainer: ModelContainer = {
