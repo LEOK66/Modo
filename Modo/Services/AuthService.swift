@@ -1,5 +1,10 @@
 import FirebaseAuth
 import Combine
+import UIKit
+import FirebaseCore
+import GoogleSignIn
+import GoogleSignInSwift
+
 
 final class AuthService: ObservableObject {
     static let shared = AuthService()
@@ -80,6 +85,48 @@ final class AuthService: ObservableObject {
                 completion(false)
             } else {
                 completion(user.isEmailVerified)
+            }
+        }
+    }
+    
+    // MARK: - Google Sign-In
+    func signInWithGoogle(presentingViewController: UIViewController,
+                          completion: @escaping (Result<User, Error>) -> Void) {
+        guard let clientID = FirebaseApp.app()?.options.clientID else {
+            completion(.failure(NSError(domain: "AuthService", code: -1,
+                                        userInfo: [NSLocalizedDescriptionKey: "Missing client ID"])))
+            return
+        }
+        
+        // Configure Google Sign-In
+        let config = GIDConfiguration(clientID: clientID)
+        GIDSignIn.sharedInstance.configuration = config
+        
+        // Start the sign-in flow
+        GIDSignIn.sharedInstance.signIn(withPresenting: presentingViewController) { result, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+            
+            guard
+                let idToken = result?.user.idToken?.tokenString,
+                let accessToken = result?.user.accessToken.tokenString
+            else {
+                completion(.failure(NSError(domain: "AuthService", code: -2,
+                                            userInfo: [NSLocalizedDescriptionKey: "Missing tokens"])))
+                return
+            }
+            
+            let credential = GoogleAuthProvider.credential(withIDToken: idToken, accessToken: accessToken)
+            
+            // Sign in to Firebase
+            Auth.auth().signIn(with: credential) { authResult, error in
+                if let error = error {
+                    completion(.failure(error))
+                } else if let user = authResult?.user {
+                    completion(.success(user))
+                }
             }
         }
     }
