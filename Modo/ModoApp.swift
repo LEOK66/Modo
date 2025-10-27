@@ -31,9 +31,11 @@ struct ModoApp: App {
                     if isEmailVerified {
                         AuthenticatedView()
                             .environmentObject(authService)
+                            .transition(.opacity)
                     } else {
                         EmailVerificationView()
                             .environmentObject(authService)
+                            .transition(.opacity)
                             .onAppear {
                                 startVerificationPolling()
                             }
@@ -44,14 +46,19 @@ struct ModoApp: App {
                 } else {
                     LoginView()
                         .environmentObject(authService)
+                        .transition(.opacity)
                 }
             }
+            .animation(.easeInOut(duration: 0.5), value: authService.isAuthenticated)
+            .animation(.easeInOut(duration: 0.5), value: isEmailVerified)
             .onAppear {
                 checkVerificationStatus()
             }
             .onChange(of: authService.isAuthenticated) { _, newValue in
                 if newValue {
-                    checkVerificationStatus()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                        checkVerificationStatus()
+                    }
                 } else {
                     isEmailVerified = false
                 }
