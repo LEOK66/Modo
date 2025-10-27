@@ -16,6 +16,11 @@ final class AuthService: ObservableObject {
             if let error = error {
                 completion(.failure(error))
             } else if let user = result?.user {
+                user.sendEmailVerification { error in
+                    if let error = error {
+                        print("Error sending verification: \(error)")
+                    }
+                }
                 completion(.success(user))
             }
         }
@@ -59,6 +64,22 @@ final class AuthService: ObservableObject {
                 completion(.failure(error))
             } else {
                 completion(.success(()))
+            }
+        }
+    }
+
+    func checkEmailVerification(completion: @escaping (Bool) -> Void) {
+        guard let user = Auth.auth().currentUser else {
+            completion(false)
+            return
+        }
+        
+        user.reload { error in
+            if let error = error {
+                print("Error reloading user: \(error)")
+                completion(false)
+            } else {
+                completion(user.isEmailVerified)
             }
         }
     }
