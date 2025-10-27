@@ -25,44 +25,46 @@ struct MainPageView: View {
     ]
     
     var body: some View {
-        ZStack {
-            Color.white.ignoresSafeArea()
-            
-            VStack(spacing: 0) {
-                TopHeaderView(isShowingCalendar: $isShowingCalendar)
-                    .padding(.horizontal, 24)
-                    .padding(.top, 12)
+        NavigationStack(path: $navigationPath) {
+            ZStack {
+                Color.white.ignoresSafeArea()
                 
-                VStack(spacing: 16) {
-                    CombinedStatsCard()
+                VStack(spacing: 0) {
+                    TopHeaderView(isShowingCalendar: $isShowingCalendar)
                         .padding(.horizontal, 24)
+                        .padding(.top, 12)
                     
-                    TasksHeader(navigationPath: $navigationPath)
-                        .padding(.horizontal, 24)
-                    
-                    TaskListView(tasks: $tasks)
-                }
-                .padding(.top, 12)
-                
-                // MARK: - Bottom Bar with navigation
-                BottomBar(selectedTab: $selectedTab)
-                    .background(Color.white)
-            }
-            
-            if isShowingCalendar {
-                // Dimming background that dismisses on tap
-                Color.black.opacity(0.25)
-                    .ignoresSafeArea()
-                    .onTapGesture {
-                        withAnimation(.easeInOut) { isShowingCalendar = false }
+                    VStack(spacing: 16) {
+                        CombinedStatsCard()
+                            .padding(.horizontal, 24)
+                        
+                        TasksHeader(navigationPath: $navigationPath)
+                            .padding(.horizontal, 24)
+                        
+                        TaskListView(tasks: $tasks)
                     }
-                // Popup content centered
-                CalendarPopupView(showCalendar: $isShowingCalendar)
-                    .transition(.scale.combined(with: .opacity))
+                    .padding(.top, 12)
+                    
+                    // MARK: - Bottom Bar with navigation
+                    BottomBar(selectedTab: $selectedTab)
+                        .background(Color.white)
+                }
+                
+                if isShowingCalendar {
+                    // Dimming background that dismisses on tap
+                    Color.black.opacity(0.25)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            withAnimation(.easeInOut) { isShowingCalendar = false }
+                        }
+                    // Popup content centered
+                    CalendarPopupView(showCalendar: $isShowingCalendar)
+                        .transition(.scale.combined(with: .opacity))
+                }
             }
-        }
-        .navigationDestination(for: AddTaskDestination.self) { _ in
-            AddTaskView(tasks: $tasks)
+            .navigationDestination(for: AddTaskDestination.self) { _ in
+                AddTaskView(tasks: $tasks)
+            }
         }
     }
 }
