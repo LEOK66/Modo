@@ -113,7 +113,8 @@ struct RegisterView: View {
         .overlay(
             ErrorToast(
                 message: errorMessage,
-                isPresented: showErrorMessage
+                isPresented: showErrorMessage,
+                topInset: 20 // push lower to avoid overlapping logo
             )
         )
     }

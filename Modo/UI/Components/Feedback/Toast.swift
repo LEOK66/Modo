@@ -25,6 +25,7 @@ struct Toast: View {
     let message: String
     let type: ToastType
     let isPresented: Bool
+    let topInset: CGFloat
     
     var body: some View {
         VStack {
@@ -46,7 +47,7 @@ struct Toast: View {
                         .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 4)
                 )
                 .transition(.move(edge: .top).combined(with: .opacity))
-                .padding(.top, 60)
+                .padding(.top, topInset)
             }
             Spacer()
         }
@@ -61,27 +62,29 @@ typealias SuccessToast = LegacySuccessToast
 struct LegacyErrorToast: View {
     let message: String
     let isPresented: Bool
+    var topInset: CGFloat = 10
     
     var body: some View {
-        Toast(message: message, type: .error, isPresented: isPresented)
+        Toast(message: message, type: .error, isPresented: isPresented, topInset: topInset)
     }
 }
 
 struct LegacySuccessToast: View {
     let message: String
     let isPresented: Bool
+    var topInset: CGFloat = 10
     
     var body: some View {
-        Toast(message: message, type: .success, isPresented: isPresented)
+        Toast(message: message, type: .success, isPresented: isPresented, topInset: topInset)
     }
 }
 
 // MARK: - Preview
 #Preview("Success Toast") {
-    Toast(message: "Successfully saved!", type: .success, isPresented: true)
+    Toast(message: "Successfully saved!", type: .success, isPresented: true, topInset: 30)
 }
 
 #Preview("Error Toast") {
-    Toast(message: "Something went wrong!", type: .error, isPresented: true)
+    Toast(message: "Something went wrong!", type: .error, isPresented: true, topInset: 30)
 }
 
