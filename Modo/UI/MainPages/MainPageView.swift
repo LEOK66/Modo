@@ -180,21 +180,46 @@ private struct TasksHeader: View {
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(Color(hexString: "101828"))
             Spacer()
-            Button(action: {
-                navigationPath.append(AddTaskDestination.addTask)
-            }) {
-                HStack(spacing: 6) {
-                    Image(systemName: "plus")
-                    Text("Add Task")
+            HStack(spacing: 8) {
+                // AI Tasks button (purple)
+                Button(action: {
+                    print("AI Task here!")
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(width: 16, height: 16)
+                        Text("AI Tasks")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                    }
+                    .frame(width: 96, height: 36)
+                    .background(Color(hexString: "9810FA"))
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                 }
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(.white)
-                .frame(height: 40)
-                .padding(.horizontal, 16)
-                .background(Color.black)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                // Add Task button (black)
+                Button(action: {
+                    navigationPath.append(AddTaskDestination.addTask)
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "plus")
+                            .foregroundColor(.white)
+                        Text("Add Task")
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                    }
+                    .font(.system(size: 14, weight: .medium))
+                    .frame(width: 108, height: 36)
+                    .background(Color.black)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                }
             }
         }
+        .frame(height: 60)
+        .background(Color.white)
     }
 }
 
