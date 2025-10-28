@@ -7,7 +7,7 @@ struct ModoApp: App {
     @StateObject private var authService = AuthService.shared
     @State private var isEmailVerified = false
     @State private var verificationTimer: Timer?
-    @State private var hasCheckedInitialVerification = false
+    @State private var showAuthenticatedUI = false
     
     init() {
         print("newest version")
@@ -30,11 +30,8 @@ struct ModoApp: App {
     var body: some Scene {
         WindowGroup {
             ZStack {
-                if authService.isAuthenticated {
-                    if !hasCheckedInitialVerification {
-                        Color.white
-                            .ignoresSafeArea()
-                    } else if isEmailVerified {
+                if showAuthenticatedUI {
+                    if isEmailVerified {
                         AuthenticatedView()
                             .environmentObject(authService)
                             .transition(.opacity)
@@ -54,41 +51,24 @@ struct ModoApp: App {
                         .environmentObject(authService)
                         .transition(.opacity)
                 }
-                
-                if authService.isCheckingEmailVerification {
-                    Color.black.opacity(0.4)
-                        .ignoresSafeArea()
-                        .overlay(
-                            VStack(spacing: 16) {
-                                ProgressView()
-                                    .scaleEffect(1.5)
-                                    .tint(.white)
-                                
-                                Text("Signing in...")
-                                    .foregroundColor(.white)
-                                    .font(.system(size: 16))
-                            }
-                        )
-                        .transition(.opacity)
-                }
             }
             .animation(.easeInOut(duration: 0.3), value: authService.isAuthenticated)
             .animation(.easeInOut(duration: 0.3), value: isEmailVerified)
-            .animation(.easeInOut(duration: 0.3), value: authService.isCheckingEmailVerification)
-            .animation(.easeInOut(duration: 0.3), value: hasCheckedInitialVerification)
+            .animation(.easeInOut(duration: 0.3), value: showAuthenticatedUI)
             .onChange(of: authService.isAuthenticated) { _, newValue in
                 if newValue {
-                    hasCheckedInitialVerification = false
-                    hasCheckedInitialVerification = false
+                    showAuthenticatedUI = false
                     checkVerificationStatus()
+                    
                 } else {
+                    showAuthenticatedUI = false
                     isEmailVerified = false
                     stopVerificationPolling()
                 }
             }
             .onAppear {
                 if authService.isAuthenticated {
-                    hasCheckedInitialVerification = false
+                    showAuthenticatedUI = false
                     checkVerificationStatus()
                 }
             }
@@ -113,7 +93,7 @@ struct ModoApp: App {
         authService.checkEmailVerification { verified in
             DispatchQueue.main.async {
                 self.isEmailVerified = verified
-                self.hasCheckedInitialVerification = true
+                self.showAuthenticatedUI = true
                 
                 if verified {
                     self.stopVerificationPolling()

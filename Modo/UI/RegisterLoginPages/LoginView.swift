@@ -120,11 +120,6 @@ private struct LoginCard: View {
                 isPresented: showErrorMessage
             )
         )
-        .onChange(of: authService.isCheckingEmailVerification) { oldValue, newValue in
-            if oldValue == true && newValue == false {
-                isLoading = false
-            }
-        }
     }
     
     private func signIn() {
