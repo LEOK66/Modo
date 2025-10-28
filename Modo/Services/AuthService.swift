@@ -11,9 +11,11 @@ final class AuthService: ObservableObject {
     private var authStateListener: AuthStateDidChangeListenerHandle?
     private init() {
         setupAuthStateListener()
+        loadOnboardingStatus()
     }   
     @Published var isAuthenticated = false
     @Published var currentUser: User?
+    @Published var hasCompletedOnboarding = false
 
     // MARK: - Create Account
     func signUp(email: String, password: String, completion: @escaping (Result<User, Error>) -> Void) {
@@ -58,6 +60,11 @@ final class AuthService: ObservableObject {
             DispatchQueue.main.async {
                 self?.currentUser = user
                 self?.isAuthenticated = user != nil
+                if user != nil {
+                    self?.loadOnboardingStatus()
+                } else {
+                    self?.hasCompletedOnboarding = false
+                }
             }
         }
     }
@@ -131,6 +138,26 @@ final class AuthService: ObservableObject {
                     completion(.success(user))
                 }
             }
+        }
+    }
+    
+    // MARK: - Onboarding Status
+    func completeOnboarding() {
+        hasCompletedOnboarding = true
+        saveOnboardingStatus()
+    }
+    
+    private func loadOnboardingStatus() {
+        // Load from UserDefaults or Firebase
+        // For now, using UserDefaults
+        if let userId = Auth.auth().currentUser?.uid {
+            hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding_\(userId)")
+        }
+    }
+    
+    private func saveOnboardingStatus() {
+        if let userId = Auth.auth().currentUser?.uid {
+            UserDefaults.standard.set(hasCompletedOnboarding, forKey: "hasCompletedOnboarding_\(userId)")
         }
     }
 }
