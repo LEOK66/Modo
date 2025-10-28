@@ -1,10 +1,14 @@
 import SwiftUI
+import FirebaseAuth
 
 struct ForgotPasswordView: View {
+    @EnvironmentObject var authService: AuthService
     @State private var email: String = ""
     @State private var isSending: Bool = false
     @State private var showEmailError: Bool = false
     @State private var showSuccessMessage: Bool = false
+    @State private var showErrorMessage: Bool = false
+    @State private var errorMessage: String = ""
     @State private var isCodeSent: Bool = false
     @State private var resendTimer: Int = 59
     @State private var timer: Timer?
@@ -18,11 +22,19 @@ struct ForgotPasswordView: View {
                 .padding(.top, 8)
 
             // Description
-            Text("Enter your email address and we'll send you a reset link.")
-                .font(.system(size: 15))
-                .foregroundColor(Color(hexString: "6A7282"))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 24)
+            VStack(spacing: 8) {
+                Text("Enter your email address and we'll send you a reset link.")
+                    .font(.system(size: 15))
+                    .foregroundColor(Color(hexString: "6A7282"))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 24)
+                
+                Text("Note: You will only receive the link if this email is registered.")
+                    .font(.system(size: 13))
+                    .foregroundColor(Color(hexString: "8B92A4"))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 24)
+            }
 
             // Email input
             VStack(alignment: .leading, spacing: 4) {
@@ -61,6 +73,12 @@ struct ForgotPasswordView: View {
                 isPresented: showSuccessMessage
             )
         )
+        .overlay(
+            ErrorToast(
+                message: errorMessage,
+                isPresented: showErrorMessage
+            )
+        )
         .onDisappear {
             timer?.invalidate()
             timer = nil
@@ -75,25 +93,49 @@ struct ForgotPasswordView: View {
         
         // Only send if email is valid
         if email.isValidEmail {
-            // Simulate async sending
             isSending = true
-            Task {
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
-                await MainActor.run {
+            
+            authService.resetPassword(email: email) { result in
+                DispatchQueue.main.async {
                     isSending = false
                     
-                    // Show success message
-                    showSuccessMessage = true
-                    
-                    // Start resend timer
-                    isCodeSent = true
-                    resendTimer = 59
-                    startResendTimer()
-                    
-                    // Hide success message after 3 seconds
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                        withAnimation {
-                            showSuccessMessage = false
+                    switch result {
+                    case .success:
+                        // Show success message
+                        showSuccessMessage = true
+                        
+                        // Start resend timer
+                        isCodeSent = true
+                        resendTimer = 59
+                        startResendTimer()
+                        
+                        // Hide success message after 3 seconds
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                            withAnimation {
+                                showSuccessMessage = false
+                            }
+                        }
+                        
+                    case .failure(let error):
+                        print("Password reset error: \(error.localizedDescription)")
+                        
+                        // Check for specific error codes
+                        let nsError = error as NSError
+                        
+                        if nsError.code == 17011 {
+                            // User not found
+                            errorMessage = "No account found with this email address. Please check your email or sign up."
+                        } else if nsError.code == 17008 {
+                            // Invalid email
+                            errorMessage = "The email address is invalid. Please enter a valid email."
+                        } else {
+                            // Other errors
+                            errorMessage = error.localizedDescription
+                        }
+                        
+                        showErrorMessage = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                            showErrorMessage = false
                         }
                     }
                 }

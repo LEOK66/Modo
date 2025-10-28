@@ -1,27 +1,20 @@
-
 import SwiftUI
+import FirebaseAuth
 
 struct RegisterView: View {
     @EnvironmentObject var authService: AuthService
     @State private var emailAddress = ""
     @State private var password = ""
-    @State private var verificationCode = ""
-    @State private var resendTimer = 59
-    @State private var isCodeSent = false
-    @State private var timer: Timer?
     @State private var showTerms = false
     @State private var showPrivacy = false
     @State private var showEmailError = false
     @State private var showPasswordError = false
-    @State private var showSuccessMessage = false
-    
-    private var isEmailAndPasswordValid: Bool {
-        emailAddress.isValidEmail && password.isValidPassword
-    }
+    @State private var showErrorMessage = false
+    @State private var errorMessage = ""
+    @State private var isLoading = false
     
     var body: some View {
         ZStack {
-
             Color.white
                 .ignoresSafeArea()
 
@@ -32,6 +25,7 @@ struct RegisterView: View {
                     .padding(.top, 4)
                 
                 VStack(spacing: 16) {
+                    // Email input field with validation
                     VStack(alignment: .leading, spacing: 4) {
                         CustomInputField(
                             placeholder: "Email address",
@@ -48,6 +42,7 @@ struct RegisterView: View {
                         }
                     }
                     
+                    // Password input field with validation
                     VStack(alignment: .leading, spacing: 4) {
                         CustomInputField(
                             placeholder: "Password",
@@ -64,6 +59,7 @@ struct RegisterView: View {
                         }
                     }
                     
+                    // Terms and Privacy
                     VStack(spacing: 8) {
                         Text("By signing up, you agree to our")
                             .font(.system(size: 12))
@@ -95,8 +91,9 @@ struct RegisterView: View {
                     }
                     .frame(maxWidth: LayoutConstants.inputFieldMaxWidth)
                     
-                    PrimaryButton(title: "Send Verify Link") {
-                        sendLink()
+                    // Sign up button
+                    PrimaryButton(title: "Sign Up", isLoading: isLoading) {
+                        signUp()
                     }
                 }
                 
@@ -114,19 +111,15 @@ struct RegisterView: View {
             PrivacyPolicyView()
         }
         .overlay(
-            SuccessToast(
-                message: "Verification code sent to your email",
-                isPresented: showSuccessMessage
+            ErrorToast(
+                message: errorMessage,
+                isPresented: showErrorMessage,
+                topInset: 20 // push lower to avoid overlapping logo
             )
         )
-        .onDisappear {
-            timer?.invalidate()
-            timer = nil
-        }
     }
     
-    
-    private func sendLink() {
+    private func signUp() {
         // Validate email and password
         withAnimation(.easeInOut(duration: 0.2)) {
             showEmailError = !emailAddress.isValidEmail || !emailAddress.isNotEmpty
@@ -135,60 +128,34 @@ struct RegisterView: View {
         
         // Only proceed if both are valid
         if emailAddress.isValidEmail && password.isValidPassword {
+            isLoading = true
+            
             authService.signUp(email: emailAddress, password: password) { result in
                 DispatchQueue.main.async {
                     switch result {
                     case .success:
+                        isLoading = false
                         // Auth state will automatically update via the listener
-                        break
+                        // User will be taken to EmailVerificationView
                     case .failure(let error):
+                        isLoading = false
                         print("Sign up error: \(error.localizedDescription)")
-                        // Handle error here if needed
+                        
+                        // Check for error code 17007 (email already in use)
+                        let nsError = error as NSError
+                        if nsError.code == 17007 {
+                            errorMessage = "This email is already registered. Please use a different email or try logging in."
+                        } else {
+                            // Handle other errors
+                            errorMessage = error.localizedDescription
+                        }
+                        
+                        showErrorMessage = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                            showErrorMessage = false
+                        }
                     }
                 }
-            }
-        }
-    }
-    
-    private func sendVerificationCode() {
-        print("Sending verification code...")
-        // Check if email and password are valid
-        withAnimation(.easeInOut(duration: 0.2)) {
-            showEmailError = !emailAddress.isValidEmail || !emailAddress.isNotEmpty
-            showPasswordError = !password.isValidPassword || !password.isNotEmpty
-        }
-        
-        // Only send if both are valid
-        if emailAddress.isValidEmail && password.isValidPassword {
-            // Send verification code logic here
-            print("Sending verification code to: \(emailAddress)")
-            
-            // Show success message
-            showSuccessMessage = true
-            
-            // Start the timer and mark code as sent
-            isCodeSent = true
-            resendTimer = 59
-            startResendTimer()
-            
-            // Hide success message after 3 seconds
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                withAnimation {
-                    showSuccessMessage = false
-                }
-            }
-        }
-    }
-    
-    private func startResendTimer() {
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
-            if resendTimer > 0 {
-                resendTimer -= 1
-            } else {
-                timer.invalidate()
-                self.timer = nil
-                // Reset the state when timer reaches 0
-                isCodeSent = false
             }
         }
     }
