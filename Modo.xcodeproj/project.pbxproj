@@ -117,12 +117,14 @@
 			fileSystemSynchronizedGroups = (
 				99F7495D2E9EEDFD006319FF /* Modo */,
 			);
-			name = Modo;
-			packageProductDependencies = (
-				99F749872E9EEE00006319FF /* FirebaseAuth */,
-				99F749882E9EEE00006319FF /* FirebaseCore */,
-			);
-			productName = Modo;
+		name = Modo;
+		packageProductDependencies = (
+			99F749872E9EEE00006319FF /* FirebaseAuth */,
+			99F749882E9EEE00006319FF /* FirebaseCore */,
+			99F7498A2E9EEE00006319FF /* GoogleSignIn */,
+			99F7498B2E9EEE00006319FF /* GoogleSignInSwift */,
+		);
+		productName = Modo;
 			productReference = 99F7495B2E9EEDFD006319FF /* Modo.app */;
 			productType = "com.apple.product-type.application";
 		};
@@ -202,12 +204,13 @@
 				en,
 				Base,
 			);
-			mainGroup = 99F749522E9EEDFD006319FF;
-			minimizedProjectReferenceProxies = 1;
-			packageReferences = (
-				99F749892E9EEE00006319FF /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
-			);
-			preferredProjectObjectVersion = 77;
+		mainGroup = 99F749522E9EEDFD006319FF;
+		minimizedProjectReferenceProxies = 1;
+		packageReferences = (
+			99F749892E9EEE00006319FF /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+			99F7498C2E9EEE00006319FF /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+		);
+		preferredProjectObjectVersion = 77;
 			productRefGroup = 99F7495C2E9EEDFD006319FF /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -584,27 +587,45 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		99F749892E9EEE00006319FF /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 11.0.0;
-			};
+	99F749892E9EEE00006319FF /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+		isa = XCRemoteSwiftPackageReference;
+		repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+		requirement = {
+			kind = upToNextMajorVersion;
+			minimumVersion = 11.0.0;
 		};
+	};
+	99F7498C2E9EEE00006319FF /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+		isa = XCRemoteSwiftPackageReference;
+		repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
+		requirement = {
+			kind = upToNextMajorVersion;
+			minimumVersion = 8.0.0;
+		};
+	};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		99F749872E9EEE00006319FF /* FirebaseAuth */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 99F749892E9EEE00006319FF /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseAuth;
-		};
-		99F749882E9EEE00006319FF /* FirebaseCore */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 99F749892E9EEE00006319FF /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseCore;
-		};
+	99F749872E9EEE00006319FF /* FirebaseAuth */ = {
+		isa = XCSwiftPackageProductDependency;
+		package = 99F749892E9EEE00006319FF /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+		productName = FirebaseAuth;
+	};
+	99F749882E9EEE00006319FF /* FirebaseCore */ = {
+		isa = XCSwiftPackageProductDependency;
+		package = 99F749892E9EEE00006319FF /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+		productName = FirebaseCore;
+	};
+	99F7498A2E9EEE00006319FF /* GoogleSignIn */ = {
+		isa = XCSwiftPackageProductDependency;
+		package = 99F7498C2E9EEE00006319FF /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+		productName = GoogleSignIn;
+	};
+	99F7498B2E9EEE00006319FF /* GoogleSignInSwift */ = {
+		isa = XCSwiftPackageProductDependency;
+		package = 99F7498C2E9EEE00006319FF /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+		productName = GoogleSignInSwift;
+	};
 /* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 99F749532E9EEDFD006319FF /* Project object */;
