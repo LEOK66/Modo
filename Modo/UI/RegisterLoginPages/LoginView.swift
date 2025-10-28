@@ -135,13 +135,12 @@ private struct LoginCard: View {
             
             authService.signIn(email: email, password: password) { result in
                 DispatchQueue.main.async {
-                    isLoading = false
-                    
                     switch result {
                     case .success:
                         // Auth state will automatically update via the listener
                         break
                     case .failure(let error):
+                        isLoading = false
                         print("Sign in error: \(error.localizedDescription)")
                         showErrorMessage = true
                         
