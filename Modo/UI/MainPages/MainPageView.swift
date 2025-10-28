@@ -25,44 +25,46 @@ struct MainPageView: View {
     ]
     
     var body: some View {
-        ZStack {
-            Color.white.ignoresSafeArea()
-            
-            VStack(spacing: 0) {
-                TopHeaderView(isShowingCalendar: $isShowingCalendar)
-                    .padding(.horizontal, 24)
-                    .padding(.top, 12)
+        NavigationStack(path: $navigationPath) {
+            ZStack {
+                Color.white.ignoresSafeArea()
                 
-                VStack(spacing: 16) {
-                    CombinedStatsCard()
+                VStack(spacing: 0) {
+                    TopHeaderView(isShowingCalendar: $isShowingCalendar)
                         .padding(.horizontal, 24)
+                        .padding(.top, 12)
                     
-                    TasksHeader(navigationPath: $navigationPath)
-                        .padding(.horizontal, 24)
-                    
-                    TaskListView(tasks: $tasks)
-                }
-                .padding(.top, 12)
-                
-                // MARK: - Bottom Bar with navigation
-                BottomBar(selectedTab: $selectedTab)
-                    .background(Color.white)
-            }
-            
-            if isShowingCalendar {
-                // Dimming background that dismisses on tap
-                Color.black.opacity(0.25)
-                    .ignoresSafeArea()
-                    .onTapGesture {
-                        withAnimation(.easeInOut) { isShowingCalendar = false }
+                    VStack(spacing: 16) {
+                        CombinedStatsCard()
+                            .padding(.horizontal, 24)
+                        
+                        TasksHeader(navigationPath: $navigationPath)
+                            .padding(.horizontal, 24)
+                        
+                        TaskListView(tasks: $tasks)
                     }
-                // Popup content centered
-                CalendarPopupView(showCalendar: $isShowingCalendar)
-                    .transition(.scale.combined(with: .opacity))
+                    .padding(.top, 12)
+                    
+                    // MARK: - Bottom Bar with navigation
+                    BottomBar(selectedTab: $selectedTab)
+                        .background(Color.white)
+                }
+                
+                if isShowingCalendar {
+                    // Dimming background that dismisses on tap
+                    Color.black.opacity(0.25)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            withAnimation(.easeInOut) { isShowingCalendar = false }
+                        }
+                    // Popup content centered
+                    CalendarPopupView(showCalendar: $isShowingCalendar)
+                        .transition(.scale.combined(with: .opacity))
+                }
             }
-        }
-        .navigationDestination(for: AddTaskDestination.self) { _ in
-            AddTaskView(tasks: $tasks)
+            .navigationDestination(for: AddTaskDestination.self) { _ in
+                AddTaskView(tasks: $tasks)
+            }
         }
     }
 }
@@ -178,21 +180,46 @@ private struct TasksHeader: View {
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(Color(hexString: "101828"))
             Spacer()
-            Button(action: {
-                navigationPath.append(AddTaskDestination.addTask)
-            }) {
-                HStack(spacing: 6) {
-                    Image(systemName: "plus")
-                    Text("Add Task")
+            HStack(spacing: 8) {
+                // AI Tasks button (purple)
+                Button(action: {
+                    print("AI Task here!")
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(width: 16, height: 16)
+                        Text("AI Tasks")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                    }
+                    .frame(width: 96, height: 36)
+                    .background(Color(hexString: "9810FA"))
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                 }
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(.white)
-                .frame(height: 40)
-                .padding(.horizontal, 16)
-                .background(Color.black)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                // Add Task button (black)
+                Button(action: {
+                    navigationPath.append(AddTaskDestination.addTask)
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "plus")
+                            .foregroundColor(.white)
+                        Text("Add Task")
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                    }
+                    .font(.system(size: 14, weight: .medium))
+                    .frame(width: 108, height: 36)
+                    .background(Color.black)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                }
             }
         }
+        .frame(height: 60)
+        .background(Color.white)
     }
 }
 
