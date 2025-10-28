@@ -6,8 +6,11 @@ import FirebaseCore
 struct ModoApp: App {
     @StateObject private var authService = AuthService.shared
     @State private var isEmailVerified = false
+    @State private var verificationTimer: Timer?
+    @State private var hasCheckedInitialVerification = false
     
     init() {
+        print("newest version")
         FirebaseApp.configure()
     }
     
@@ -28,7 +31,10 @@ struct ModoApp: App {
         WindowGroup {
             ZStack {
                 if authService.isAuthenticated {
-                    if isEmailVerified {
+                    if !hasCheckedInitialVerification {
+                        Color.white
+                            .ignoresSafeArea()
+                    } else if isEmailVerified {
                         AuthenticatedView()
                             .environmentObject(authService)
                             .transition(.opacity)
@@ -48,26 +54,48 @@ struct ModoApp: App {
                         .environmentObject(authService)
                         .transition(.opacity)
                 }
+                
+                if authService.isCheckingEmailVerification {
+                    Color.black.opacity(0.4)
+                        .ignoresSafeArea()
+                        .overlay(
+                            VStack(spacing: 16) {
+                                ProgressView()
+                                    .scaleEffect(1.5)
+                                    .tint(.white)
+                                
+                                Text("Signing in...")
+                                    .foregroundColor(.white)
+                                    .font(.system(size: 16))
+                            }
+                        )
+                        .transition(.opacity)
+                }
             }
-            .animation(.easeInOut(duration: 0.5), value: authService.isAuthenticated)
-            .animation(.easeInOut(duration: 0.5), value: isEmailVerified)
-            .onAppear {
-                checkVerificationStatus()
-            }
+            .animation(.easeInOut(duration: 0.3), value: authService.isAuthenticated)
+            .animation(.easeInOut(duration: 0.3), value: isEmailVerified)
+            .animation(.easeInOut(duration: 0.3), value: authService.isCheckingEmailVerification)
+            .animation(.easeInOut(duration: 0.3), value: hasCheckedInitialVerification)
             .onChange(of: authService.isAuthenticated) { _, newValue in
                 if newValue {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                        checkVerificationStatus()
-                    }
+                    hasCheckedInitialVerification = false
+                    hasCheckedInitialVerification = false
+                    checkVerificationStatus()
                 } else {
                     isEmailVerified = false
+                    stopVerificationPolling()
+                }
+            }
+            .onAppear {
+                if authService.isAuthenticated {
+                    hasCheckedInitialVerification = false
+                    checkVerificationStatus()
                 }
             }
         }
         .modelContainer(sharedModelContainer)
     }
 
-    @State private var verificationTimer: Timer?
 
     private func startVerificationPolling() {
         // Check verification every 2 seconds while on the view
@@ -82,12 +110,13 @@ struct ModoApp: App {
     }
 
     private func checkVerificationStatus() {
-        if authService.isAuthenticated && !isEmailVerified {
-            authService.checkEmailVerification { verified in
+        authService.checkEmailVerification { verified in
+            DispatchQueue.main.async {
+                self.isEmailVerified = verified
+                self.hasCheckedInitialVerification = true
+                
                 if verified {
-                    self.isEmailVerified = verified
-                    // Stop polling since they're verified
-                    stopVerificationPolling()
+                    self.stopVerificationPolling()
                 }
             }
         }
