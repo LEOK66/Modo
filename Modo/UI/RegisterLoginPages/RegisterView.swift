@@ -131,14 +131,13 @@ struct RegisterView: View {
             
             authService.signUp(email: emailAddress, password: password) { result in
                 DispatchQueue.main.async {
-                    isLoading = false
-                    
                     switch result {
                     case .success:
-                        break
+                        isLoading = false
                         // Auth state will automatically update via the listener
                         // User will be taken to EmailVerificationView
                     case .failure(let error):
+                        isLoading = false
                         print("Sign up error: \(error.localizedDescription)")
                         
                         // Check for error code 17007 (email already in use)
