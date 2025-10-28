@@ -52,7 +52,6 @@ struct ModoApp: App {
                         .transition(.opacity)
                 }
             }
-            .animation(.easeInOut(duration: 0.3), value: authService.isAuthenticated)
             .animation(.easeInOut(duration: 0.3), value: isEmailVerified)
             .animation(.easeInOut(duration: 0.3), value: showAuthenticatedUI)
             .onChange(of: authService.isAuthenticated) { _, newValue in
