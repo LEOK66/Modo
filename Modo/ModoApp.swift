@@ -17,6 +17,7 @@ struct ModoApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Item.self,
+            UserProfile.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
@@ -32,13 +33,28 @@ struct ModoApp: App {
             ZStack {
                 if showAuthenticatedUI {
                     if isEmailVerified {
-                        AuthenticatedView()
-                            .environmentObject(authService)
-                            .transition(.opacity)
+                        if authService.hasCompletedOnboarding {
+                            MainContainerView()
+                                .environmentObject(authService)
+                                .transition(.asymmetric(
+                                    insertion: .opacity.combined(with: .scale(scale: 0.95)),
+                                    removal: .opacity.combined(with: .scale(scale: 1.05))
+                                ))
+                        } else {
+                            InfoGatheringView()
+                                .environmentObject(authService)
+                                .transition(.asymmetric(
+                                    insertion: .opacity.combined(with: .scale(scale: 0.95)),
+                                    removal: .opacity.combined(with: .scale(scale: 1.05))
+                                ))
+                        }
                     } else {
                         EmailVerificationView()
                             .environmentObject(authService)
-                            .transition(.opacity)
+                            .transition(.asymmetric(
+                                insertion: .opacity.combined(with: .scale(scale: 0.95)),
+                                removal: .opacity.combined(with: .scale(scale: 1.05))
+                            ))
                             .onAppear {
                                 startVerificationPolling()
                             }
@@ -49,12 +65,16 @@ struct ModoApp: App {
                 } else {
                     LoginView()
                         .environmentObject(authService)
-                        .transition(.opacity)
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .scale(scale: 0.95)),
+                            removal: .opacity.combined(with: .scale(scale: 1.05))
+                        ))
                 }
             }
-            .animation(.easeInOut(duration: 0.3), value: authService.isAuthenticated)
-            .animation(.easeInOut(duration: 0.3), value: isEmailVerified)
-            .animation(.easeInOut(duration: 0.3), value: showAuthenticatedUI)
+            .animation(.spring(response: 0.5, dampingFraction: 0.8), value: authService.isAuthenticated)
+            .animation(.spring(response: 0.5, dampingFraction: 0.8), value: isEmailVerified)
+            .animation(.spring(response: 0.5, dampingFraction: 0.8), value: showAuthenticatedUI)
+            .animation(.spring(response: 0.5, dampingFraction: 0.8), value: authService.hasCompletedOnboarding)
             .onChange(of: authService.isAuthenticated) { _, newValue in
                 if newValue {
                     showAuthenticatedUI = false

@@ -8,6 +8,7 @@ struct CustomInputField: View {
     let keyboardType: UIKeyboardType
     let textContentType: UITextContentType?
     let showPasswordToggle: Bool
+    let suffix: String?
     @State private var isPasswordVisible: Bool = false
     
     init(
@@ -16,7 +17,8 @@ struct CustomInputField: View {
         isSecure: Bool = false,
         keyboardType: UIKeyboardType = .default,
         textContentType: UITextContentType? = nil,
-        showPasswordToggle: Bool = false
+        showPasswordToggle: Bool = false,
+        suffix: String? = nil
     ) {
         self.placeholder = placeholder
         self._text = text
@@ -24,10 +26,11 @@ struct CustomInputField: View {
         self.keyboardType = keyboardType
         self.textContentType = textContentType
         self.showPasswordToggle = showPasswordToggle
+        self.suffix = suffix
     }
     
     var body: some View {
-        HStack {
+        HStack(spacing: 8) {
             if isSecure && !isPasswordVisible {
                 SecureField(placeholder, text: $text)
                     .font(.system(size: 14))
@@ -46,6 +49,12 @@ struct CustomInputField: View {
                     .keyboardType(keyboardType)
                     .autocapitalization(.none)
                     .disableAutocorrection(true)
+            }
+            
+            if let suffix = suffix {
+                Text(suffix)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(Color(hexString: "6A7282"))
             }
             
             if showPasswordToggle {
