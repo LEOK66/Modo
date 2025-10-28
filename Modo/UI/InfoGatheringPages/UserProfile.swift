@@ -4,8 +4,8 @@ import SwiftData
 @Model
 final class UserProfile {
     var userId: String
-    var height: Double? // in cm
-    var weight: Double? // in kg
+    var height: Double? // in inches
+    var weight: Double? // in lbs
     var age: Int?
     var lifestyle: String?
     var goal: String?

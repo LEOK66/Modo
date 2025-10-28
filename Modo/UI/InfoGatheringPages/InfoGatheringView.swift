@@ -6,7 +6,6 @@ struct InfoGatheringView: View {
     @EnvironmentObject var authService: AuthService
     @Environment(\.modelContext) private var modelContext
     @State private var currentStep = 1
-    @State private var isCompleted = false
     
     // User data
     @State private var height = ""
@@ -17,50 +16,51 @@ struct InfoGatheringView: View {
     @State private var targetWeightLoss = ""
     @State private var targetDays = ""
     
+    // Validation states
+    @State private var showHeightError = false
+    @State private var showWeightError = false
+    @State private var showAgeError = false
+    @State private var showTargetWeightError = false
+    @State private var showTargetDaysError = false
+    
     let totalSteps = 6
     
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color.white.ignoresSafeArea()
+        ZStack {
+            Color.white.ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                // Progress bar
+                ProgressBar(currentStep: currentStep, totalSteps: totalSteps)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 12)
                 
-                VStack(spacing: 0) {
-                    // Progress bar
-                    ProgressBar(currentStep: currentStep, totalSteps: totalSteps)
-                        .padding(.horizontal, 24)
-                        .padding(.top, 12)
-                    
-                    // Content area with transition
-                    ZStack {
-                        switch currentStep {
-                        case 1:
-                            HeightStepView(height: $height, onContinue: nextStep, onSkip: nextStep)
-                                .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
-                        case 2:
-                            WeightStepView(weight: $weight, onContinue: nextStep, onSkip: nextStep)
-                                .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
-                        case 3:
-                            AgeStepView(age: $age, onContinue: nextStep, onSkip: nextStep)
-                                .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
-                        case 4:
-                            LifestyleStepView(lifestyle: $lifestyle, onContinue: nextStep, onSkip: nextStep)
-                                .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
-                        case 5:
-                            GoalStepView(goal: $goal, onContinue: nextStep, onSkip: nextStep)
-                                .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
-                        case 6:
-                            FinalStepView(targetWeightLoss: $targetWeightLoss, targetDays: $targetDays, onDone: completeOnboarding, onSkip: completeOnboarding)
-                                .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
-                        default:
-                            EmptyView()
-                        }
+                // Content area with transition
+                ZStack {
+                    switch currentStep {
+                    case 1:
+                        HeightStepView(height: $height, showError: $showHeightError, onContinue: validateAndNextStep(field: height, validator: \.isValidHeight, errorBinding: $showHeightError), onSkip: nextStep)
+                            .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
+                    case 2:
+                        WeightStepView(weight: $weight, showError: $showWeightError, onContinue: validateAndNextStep(field: weight, validator: \.isValidWeight, errorBinding: $showWeightError), onSkip: nextStep)
+                            .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
+                    case 3:
+                        AgeStepView(age: $age, showError: $showAgeError, onContinue: validateAndNextStep(field: age, validator: \.isValidAge, errorBinding: $showAgeError), onSkip: nextStep)
+                            .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
+                    case 4:
+                        LifestyleStepView(lifestyle: $lifestyle, onContinue: nextStep, onSkip: nextStep)
+                            .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
+                    case 5:
+                        GoalStepView(goal: $goal, onContinue: nextStep, onSkip: nextStep)
+                            .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
+                    case 6:
+                        FinalStepView(targetWeightLoss: $targetWeightLoss, targetDays: $targetDays, showWeightError: $showTargetWeightError, showDaysError: $showTargetDaysError, onDone: validateAndComplete, onSkip: completeOnboarding)
+                            .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
+                    default:
+                        EmptyView()
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-            }
-            .navigationDestination(isPresented: $isCompleted) {
-                MainContainerView()
-                    .navigationBarBackButtonHidden(true)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
     }
@@ -73,32 +73,62 @@ struct InfoGatheringView: View {
         }
     }
     
+    private func validateAndNextStep(field: String, validator: KeyPath<String, Bool>, errorBinding: Binding<Bool>) -> () -> Void {
+        return {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                errorBinding.wrappedValue = !field[keyPath: validator] && field.isNotEmpty
+            }
+            
+            // Only proceed if valid or empty (allow skip)
+            if field.isEmpty || field[keyPath: validator] {
+                errorBinding.wrappedValue = false
+                nextStep()
+            }
+        }
+    }
+    
+    private func validateAndComplete() {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            showTargetWeightError = !targetWeightLoss.isValidTargetWeight && targetWeightLoss.isNotEmpty
+            showTargetDaysError = !targetDays.isValidTargetDays && targetDays.isNotEmpty
+        }
+        
+        // Only complete if both are valid or empty
+        if (targetWeightLoss.isEmpty || targetWeightLoss.isValidTargetWeight) &&
+           (targetDays.isEmpty || targetDays.isValidTargetDays) {
+            completeOnboarding()
+        }
+    }
+    
     private func completeOnboarding() {
         // Save user data here (to Firebase/SwiftData)
         saveUserData()
         
         // Mark onboarding as completed
+        // ModoApp will automatically navigate to MainContainerView
         authService.completeOnboarding()
-        
-        // Navigate to main page
-        withAnimation {
-            isCompleted = true
-        }
     }
     
     private func saveUserData() {
         guard let userId = authService.currentUser?.uid else { return }
         
+        // Only save valid data, skip invalid inputs
+        let validHeight = height.isValidHeight ? Double(height) : nil
+        let validWeight = weight.isValidWeight ? Double(weight) : nil
+        let validAge = age.isValidAge ? Int(age) : nil
+        let validTargetWeightLoss = targetWeightLoss.isValidTargetWeight ? Double(targetWeightLoss) : nil
+        let validTargetDays = targetDays.isValidTargetDays ? Int(targetDays) : nil
+        
         // Create user profile
         let profile = UserProfile(userId: userId)
         profile.updateProfile(
-            height: Double(height),
-            weight: Double(weight),
-            age: Int(age),
+            height: validHeight,
+            weight: validWeight,
+            age: validAge,
             lifestyle: lifestyle?.rawValue,
             goal: goal?.rawValue,
-            targetWeightLoss: Double(targetWeightLoss),
-            targetDays: Int(targetDays)
+            targetWeightLoss: validTargetWeightLoss,
+            targetDays: validTargetDays
         )
         
         // Save to SwiftData
@@ -113,13 +143,13 @@ struct InfoGatheringView: View {
         
         // TODO: Also save to Firebase for cloud backup
         print("Saving user data:")
-        print("Height: \(height) cm")
-        print("Weight: \(weight) kg")
-        print("Age: \(age) years")
-        print("Lifestyle: \(lifestyle?.rawValue ?? "none")")
-        print("Goal: \(goal?.rawValue ?? "none")")
-        print("Target weight loss: \(targetWeightLoss)")
-        print("Target days: \(targetDays)")
+        print("Height: \(validHeight != nil ? "\(validHeight!) inches" : "not provided")")
+        print("Weight: \(validWeight != nil ? "\(validWeight!) lbs" : "not provided")")
+        print("Age: \(validAge != nil ? "\(validAge!) years" : "not provided")")
+        print("Lifestyle: \(lifestyle?.rawValue ?? "not provided")")
+        print("Goal: \(goal?.rawValue ?? "not provided")")
+        print("Target weight loss: \(validTargetWeightLoss != nil ? "\(validTargetWeightLoss!) lbs" : "not provided")")
+        print("Target days: \(validTargetDays != nil ? "\(validTargetDays!) days" : "not provided")")
     }
 }
 
@@ -156,6 +186,7 @@ private struct ProgressBar: View {
 // MARK: - Step 1: Height
 private struct HeightStepView: View {
     @Binding var height: String
+    @Binding var showError: Bool
     let onContinue: () -> Void
     let onSkip: () -> Void
     
@@ -168,28 +199,21 @@ private struct HeightStepView: View {
             onButtonTap: onContinue,
             onSkip: onSkip
         ) {
-            HStack(spacing: 12) {
-                TextField("", text: $height)
-                    .font(.system(size: 40, weight: .regular))
-                    .foregroundColor(Color(hexString: "101828"))
-                    .keyboardType(.numberPad)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
+            VStack(alignment: .leading, spacing: 4) {
+                CustomInputField(
+                    placeholder: "Enter height",
+                    text: $height,
+                    keyboardType: .decimalPad,
+                    suffix: "inches"
+                )
                 
-                Text("cm")
-                    .font(.system(size: 24))
-                    .foregroundColor(Color(hexString: "6A7282"))
+                if showError {
+                    Text("Please enter a valid height (20-96 inches)")
+                        .font(.system(size: 10))
+                        .foregroundColor(.red)
+                        .padding(.leading, 12)
+                }
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 20)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color(hexString: "F9FAFB"))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(Color(hexString: "E5E7EB"), lineWidth: 1)
-            )
         }
     }
 }
@@ -197,6 +221,7 @@ private struct HeightStepView: View {
 // MARK: - Step 2: Weight
 private struct WeightStepView: View {
     @Binding var weight: String
+    @Binding var showError: Bool
     let onContinue: () -> Void
     let onSkip: () -> Void
     
@@ -209,28 +234,21 @@ private struct WeightStepView: View {
             onButtonTap: onContinue,
             onSkip: onSkip
         ) {
-            HStack(spacing: 12) {
-                TextField("", text: $weight)
-                    .font(.system(size: 40, weight: .regular))
-                    .foregroundColor(Color(hexString: "101828"))
-                    .keyboardType(.numberPad)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
+            VStack(alignment: .leading, spacing: 4) {
+                CustomInputField(
+                    placeholder: "Enter weight",
+                    text: $weight,
+                    keyboardType: .decimalPad,
+                    suffix: "lbs"
+                )
                 
-                Text("kg")
-                    .font(.system(size: 24))
-                    .foregroundColor(Color(hexString: "6A7282"))
+                if showError {
+                    Text("Please enter a valid weight (44-1100 lbs)")
+                        .font(.system(size: 10))
+                        .foregroundColor(.red)
+                        .padding(.leading, 12)
+                }
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 20)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color(hexString: "F9FAFB"))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(Color(hexString: "E5E7EB"), lineWidth: 1)
-            )
         }
     }
 }
@@ -238,6 +256,7 @@ private struct WeightStepView: View {
 // MARK: - Step 3: Age
 private struct AgeStepView: View {
     @Binding var age: String
+    @Binding var showError: Bool
     let onContinue: () -> Void
     let onSkip: () -> Void
     
@@ -250,28 +269,21 @@ private struct AgeStepView: View {
             onButtonTap: onContinue,
             onSkip: onSkip
         ) {
-            HStack(spacing: 12) {
-                TextField("", text: $age)
-                    .font(.system(size: 40, weight: .regular))
-                    .foregroundColor(Color(hexString: "101828"))
-                    .keyboardType(.numberPad)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
+            VStack(alignment: .leading, spacing: 4) {
+                CustomInputField(
+                    placeholder: "Enter age",
+                    text: $age,
+                    keyboardType: .numberPad,
+                    suffix: "years"
+                )
                 
-                Text("years")
-                    .font(.system(size: 24))
-                    .foregroundColor(Color(hexString: "6A7282"))
+                if showError {
+                    Text("Please enter a valid age (10-120 years)")
+                        .font(.system(size: 10))
+                        .foregroundColor(.red)
+                        .padding(.leading, 12)
+                }
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 20)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color(hexString: "F9FAFB"))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(Color(hexString: "E5E7EB"), lineWidth: 1)
-            )
         }
     }
 }
@@ -356,6 +368,8 @@ private struct GoalStepView: View {
 private struct FinalStepView: View {
     @Binding var targetWeightLoss: String
     @Binding var targetDays: String
+    @Binding var showWeightError: Bool
+    @Binding var showDaysError: Bool
     let onDone: () -> Void
     let onSkip: () -> Void
     
@@ -368,65 +382,49 @@ private struct FinalStepView: View {
             onButtonTap: onDone,
             onSkip: onSkip
         ) {
-            VStack(spacing: 24) {
+            VStack(spacing: 20) {
                 // Weight loss input
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text("Weight loss")
-                        .font(.system(size: 14))
+                        .font(.system(size: 14, weight: .medium))
                         .foregroundColor(Color(hexString: "6A7282"))
+                        .padding(.leading, 4)
                     
-                    HStack(spacing: 12) {
-                        TextField("", text: $targetWeightLoss)
-                            .font(.system(size: 32, weight: .regular))
-                            .foregroundColor(Color(hexString: "101828"))
-                            .keyboardType(.numberPad)
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: .infinity)
-                        
-                        Text("lbs")
-                            .font(.system(size: 20))
-                            .foregroundColor(Color(hexString: "6A7282"))
+                    CustomInputField(
+                        placeholder: "Target weight",
+                        text: $targetWeightLoss,
+                        keyboardType: .decimalPad,
+                        suffix: "lbs"
+                    )
+                    
+                    if showWeightError {
+                        Text("Please enter a valid target (0.5-100 lbs)")
+                            .font(.system(size: 10))
+                            .foregroundColor(.red)
+                            .padding(.leading, 12)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 16)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(Color(hexString: "F9FAFB"))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(Color(hexString: "E5E7EB"), lineWidth: 1)
-                    )
                 }
                 
                 // Timeframe input
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text("Timeframe")
-                        .font(.system(size: 14))
+                        .font(.system(size: 14, weight: .medium))
                         .foregroundColor(Color(hexString: "6A7282"))
+                        .padding(.leading, 4)
                     
-                    HStack(spacing: 12) {
-                        TextField("", text: $targetDays)
-                            .font(.system(size: 32, weight: .regular))
-                            .foregroundColor(Color(hexString: "101828"))
-                            .keyboardType(.numberPad)
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: .infinity)
-                        
-                        Text("days")
-                            .font(.system(size: 20))
-                            .foregroundColor(Color(hexString: "6A7282"))
+                    CustomInputField(
+                        placeholder: "Number of days",
+                        text: $targetDays,
+                        keyboardType: .numberPad,
+                        suffix: "days"
+                    )
+                    
+                    if showDaysError {
+                        Text("Please enter a valid timeframe (1-365 days)")
+                            .font(.system(size: 10))
+                            .foregroundColor(.red)
+                            .padding(.leading, 12)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 16)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(Color(hexString: "F9FAFB"))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(Color(hexString: "E5E7EB"), lineWidth: 1)
-                    )
                 }
             }
         }
