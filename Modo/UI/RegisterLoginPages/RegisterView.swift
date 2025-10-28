@@ -1,4 +1,5 @@
 import SwiftUI
+import FirebaseAuth
 
 struct RegisterView: View {
     @EnvironmentObject var authService: AuthService
@@ -8,6 +9,8 @@ struct RegisterView: View {
     @State private var showPrivacy = false
     @State private var showEmailError = false
     @State private var showPasswordError = false
+    @State private var showErrorMessage = false
+    @State private var errorMessage = ""
     @State private var isLoading = false
     
     var body: some View {
@@ -107,6 +110,12 @@ struct RegisterView: View {
         .fullScreenCover(isPresented: $showPrivacy) {
             PrivacyPolicyView()
         }
+        .overlay(
+            ErrorToast(
+                message: errorMessage,
+                isPresented: showErrorMessage
+            )
+        )
     }
     
     private func signUp() {
@@ -122,6 +131,7 @@ struct RegisterView: View {
             
             authService.signUp(email: emailAddress, password: password) { result in
                 DispatchQueue.main.async {
+                    isLoading = false
                     
                     switch result {
                     case .success:
@@ -130,7 +140,20 @@ struct RegisterView: View {
                         // User will be taken to EmailVerificationView
                     case .failure(let error):
                         print("Sign up error: \(error.localizedDescription)")
-                        // Handle error here if needed
+                        
+                        // Check for error code 17007 (email already in use)
+                        let nsError = error as NSError
+                        if nsError.code == 17007 {
+                            errorMessage = "This email is already registered. Please use a different email or try logging in."
+                        } else {
+                            // Handle other errors
+                            errorMessage = error.localizedDescription
+                        }
+                        
+                        showErrorMessage = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                            showErrorMessage = false
+                        }
                     }
                 }
             }
