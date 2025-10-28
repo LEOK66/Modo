@@ -290,9 +290,9 @@ private struct AgeStepView: View {
 
 // MARK: - Lifestyle Option
 enum LifestyleOption: String, CaseIterable {
-    case longSitting = "Long Sitting"
+    case longSitting = "Sedentary"
     case moderatelyActive = "Moderately Active"
-    case veryActive = "Very Active"
+    case veryActive = "Athletic"
 }
 
 // MARK: - Step 4: Lifestyle
