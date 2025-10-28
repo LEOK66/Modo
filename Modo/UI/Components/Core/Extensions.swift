@@ -40,5 +40,53 @@ extension String {
     var isNotEmpty: Bool {
         !self.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
+    
+    /// Validates if string is a valid positive number
+    var isValidNumber: Bool {
+        guard let number = Double(self.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            return false
+        }
+        return number > 0
+    }
+    
+    /// Validates if string is a valid height (20-96 inches, ~1.5-8 feet)
+    var isValidHeight: Bool {
+        guard let height = Double(self.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            return false
+        }
+        return height >= 20 && height <= 96
+    }
+    
+    /// Validates if string is a valid weight (44-1100 lbs, ~20-500 kg)
+    var isValidWeight: Bool {
+        guard let weight = Double(self.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            return false
+        }
+        return weight >= 44 && weight <= 1100
+    }
+    
+    /// Validates if string is a valid age (10-120 years)
+    var isValidAge: Bool {
+        guard let age = Int(self.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            return false
+        }
+        return age >= 10 && age <= 120
+    }
+    
+    /// Validates if string is a valid target weight loss (0.5-100 lbs/kg)
+    var isValidTargetWeight: Bool {
+        guard let target = Double(self.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            return false
+        }
+        return target >= 0.5 && target <= 100
+    }
+    
+    /// Validates if string is a valid target days (1-365 days)
+    var isValidTargetDays: Bool {
+        guard let days = Int(self.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            return false
+        }
+        return days >= 1 && days <= 365
+    }
 }
 

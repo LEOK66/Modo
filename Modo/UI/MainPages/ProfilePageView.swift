@@ -1,6 +1,9 @@
 import SwiftUI
 
 struct ProfilePageView: View {
+    @EnvironmentObject var authService: AuthService
+    @State private var showLogoutConfirmation = false
+    
     var body: some View {
         ZStack(alignment: .top) {
             Color(hexString: "F9FAFB").ignoresSafeArea()
@@ -66,40 +69,53 @@ struct ProfilePageView: View {
                         }
 
                         // MARK: - Logout
-                        HStack(spacing: 12) {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 14)
-                                    .fill(Color(hexString: "FEF2F2"))
-                                    .frame(width: 44, height: 44)
-                                Image(systemName: "rectangle.portrait.and.arrow.right")
-                                    .font(.system(size: 18, weight: .semibold))
-                                    .foregroundColor(Color(hexString: "E7000B"))
-                            }
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Logout")
-                                    .font(.system(size: 16))
-                                    .foregroundColor(Color(hexString: "E7000B"))
-                                Text("Sign out of your account")
-                                    .font(.system(size: 12))
+                        Button {
+                            showLogoutConfirmation = true
+                        } label: {
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 14)
+                                        .fill(Color(hexString: "FEF2F2"))
+                                        .frame(width: 44, height: 44)
+                                    Image(systemName: "rectangle.portrait.and.arrow.right")
+                                        .font(.system(size: 18, weight: .semibold))
+                                        .foregroundColor(Color(hexString: "E7000B"))
+                                }
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Logout")
+                                        .font(.system(size: 16))
+                                        .foregroundColor(Color(hexString: "E7000B"))
+                                    Text("Sign out of your account")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(Color(hexString: "FF6467"))
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
                                     .foregroundColor(Color(hexString: "FF6467"))
                             }
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .foregroundColor(Color(hexString: "FF6467"))
+                            .padding(16)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(Color.white)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 16)
+                                            .stroke(Color(hexString: "FFE2E2"), lineWidth: 1)
+                                    )
+                                    .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 1)
+                                    .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+                            )
                         }
-                        .padding(16)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(Color.white)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 16)
-                                        .stroke(Color(hexString: "FFE2E2"), lineWidth: 1)
-                                )
-                                .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 1)
-                                .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
-                        )
+                        .buttonStyle(PlainButtonStyle())
                         .padding(.horizontal, 24)
                         .padding(.bottom, 24)
+                        .alert("Logout", isPresented: $showLogoutConfirmation) {
+                            Button("Cancel", role: .cancel) { }
+                            Button("Logout", role: .destructive) {
+                                performLogout()
+                            }
+                        } message: {
+                            Text("Are you sure you want to logout?")
+                        }
                     }
                     .padding(.top, 8)
                 }
@@ -109,7 +125,15 @@ struct ProfilePageView: View {
         }
         .navigationBarBackButtonHidden(true)
     }
-
+    
+    private func performLogout() {
+        do {
+            try authService.signOut()
+            // ModoApp will automatically navigate to LoginView
+        } catch {
+            print("Logout error: \(error.localizedDescription)")
+        }
+    }
 }
 
 #Preview {
