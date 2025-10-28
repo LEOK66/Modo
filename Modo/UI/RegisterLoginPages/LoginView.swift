@@ -120,6 +120,11 @@ private struct LoginCard: View {
                 isPresented: showErrorMessage
             )
         )
+        .onChange(of: authService.isCheckingEmailVerification) { oldValue, newValue in
+            if oldValue == true && newValue == false {
+                isLoading = false
+            }
+        }
     }
     
     private func signIn() {
@@ -135,13 +140,12 @@ private struct LoginCard: View {
             
             authService.signIn(email: email, password: password) { result in
                 DispatchQueue.main.async {
-                    isLoading = false
-                    
                     switch result {
                     case .success:
                         // Auth state will automatically update via the listener
                         break
                     case .failure(let error):
+                        isLoading = false
                         print("Sign in error: \(error.localizedDescription)")
                         showErrorMessage = true
                         

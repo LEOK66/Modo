@@ -14,6 +14,7 @@ final class AuthService: ObservableObject {
     }   
     @Published var isAuthenticated = false
     @Published var currentUser: User?
+    @Published var isCheckingEmailVerification = false
 
     // MARK: - Create Account
     func signUp(email: String, password: String, completion: @escaping (Result<User, Error>) -> Void) {
@@ -79,12 +80,18 @@ final class AuthService: ObservableObject {
             return
         }
         
+        isCheckingEmailVerification = true
+        
         user.reload { error in
-            if let error = error {
-                print("Error reloading user: \(error)")
-                completion(false)
-            } else {
-                completion(user.isEmailVerified)
+            DispatchQueue.main.async {
+                self.isCheckingEmailVerification = false
+                
+                if let error = error {
+                    print("Error reloading user: \(error)")
+                    completion(false)
+                } else {
+                    completion(user.isEmailVerified)
+                }
             }
         }
     }
