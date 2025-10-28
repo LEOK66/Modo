@@ -80,11 +80,14 @@ final class AuthService: ObservableObject {
         }
         
         user.reload { error in
-            if let error = error {
-                print("Error reloading user: \(error)")
-                completion(false)
-            } else {
-                completion(user.isEmailVerified)
+            DispatchQueue.main.async {
+                
+                if let error = error {
+                    print("Error reloading user: \(error)")
+                    completion(false)
+                } else {
+                    completion(user.isEmailVerified)
+                }
             }
         }
     }

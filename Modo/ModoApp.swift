@@ -6,11 +6,12 @@ import FirebaseCore
 struct ModoApp: App {
     @StateObject private var authService = AuthService.shared
     @State private var isEmailVerified = false
+    @State private var verificationTimer: Timer?
+    @State private var showAuthenticatedUI = false
     
     init() {
+        print("newest version")
         FirebaseApp.configure()
-        // TODO: remove print
-        print("firebase configured?")
     }
     
     var sharedModelContainer: ModelContainer = {
@@ -29,13 +30,15 @@ struct ModoApp: App {
     var body: some Scene {
         WindowGroup {
             ZStack {
-                if authService.isAuthenticated {
+                if showAuthenticatedUI {
                     if isEmailVerified {
                         AuthenticatedView()
                             .environmentObject(authService)
+                            .transition(.opacity)
                     } else {
                         EmailVerificationView()
                             .environmentObject(authService)
+                            .transition(.opacity)
                             .onAppear {
                                 startVerificationPolling()
                             }
@@ -46,23 +49,33 @@ struct ModoApp: App {
                 } else {
                     LoginView()
                         .environmentObject(authService)
+                        .transition(.opacity)
+                }
+            }
+            .animation(.easeInOut(duration: 0.3), value: authService.isAuthenticated)
+            .animation(.easeInOut(duration: 0.3), value: isEmailVerified)
+            .animation(.easeInOut(duration: 0.3), value: showAuthenticatedUI)
+            .onChange(of: authService.isAuthenticated) { _, newValue in
+                if newValue {
+                    showAuthenticatedUI = false
+                    checkVerificationStatus()
+                    
+                } else {
+                    showAuthenticatedUI = false
+                    isEmailVerified = false
+                    stopVerificationPolling()
                 }
             }
             .onAppear {
-                checkVerificationStatus()
-            }
-            .onChange(of: authService.isAuthenticated) { _, newValue in
-                if newValue {
+                if authService.isAuthenticated {
+                    showAuthenticatedUI = false
                     checkVerificationStatus()
-                } else {
-                    isEmailVerified = false
                 }
             }
         }
         .modelContainer(sharedModelContainer)
     }
 
-    @State private var verificationTimer: Timer?
 
     private func startVerificationPolling() {
         // Check verification every 2 seconds while on the view
@@ -77,12 +90,13 @@ struct ModoApp: App {
     }
 
     private func checkVerificationStatus() {
-        if authService.isAuthenticated && !isEmailVerified {
-            authService.checkEmailVerification { verified in
+        authService.checkEmailVerification { verified in
+            DispatchQueue.main.async {
+                self.isEmailVerified = verified
+                self.showAuthenticatedUI = true
+                
                 if verified {
-                    self.isEmailVerified = verified
-                    // Stop polling since they're verified
-                    stopVerificationPolling()
+                    self.stopVerificationPolling()
                 }
             }
         }

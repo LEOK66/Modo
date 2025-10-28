@@ -1,6 +1,5 @@
 import SwiftUI
 
-// MARK: - Primary Button Component
 struct PrimaryButton: View {
     let title: String
     let action: () -> Void
@@ -14,35 +13,47 @@ struct PrimaryButton: View {
     
     var body: some View {
         Button(action: action) {
-            if isLoading {
-                ProgressView()
-                    .tint(.white)
-                    .frame(maxWidth: .infinity, minHeight: 48)
-            } else {
+            ZStack {
                 Text(title)
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.white)
-                    .frame(maxWidth: .infinity, minHeight: 48)
+                    .opacity(isLoading ? 0 : 1)
+                
+                if isLoading {
+                    HStack(spacing: 8) {
+                        Circle()
+                            .fill(Color.white)
+                            .frame(width: 8, height: 8)
+                            .scaleEffect(isLoading ? 1 : 0.5)
+                            .animation(.easeInOut(duration: 0.6).repeatForever(), value: isLoading)
+                        
+                        Circle()
+                            .fill(Color.white)
+                            .frame(width: 8, height: 8)
+                            .scaleEffect(isLoading ? 1 : 0.5)
+                            .animation(.easeInOut(duration: 0.6).repeatForever().delay(0.2), value: isLoading)
+                        
+                        Circle()
+                            .fill(Color.white)
+                            .frame(width: 8, height: 8)
+                            .scaleEffect(isLoading ? 1 : 0.5)
+                            .animation(.easeInOut(duration: 0.6).repeatForever().delay(0.4), value: isLoading)
+                    }
+                }
             }
+            .frame(maxWidth: .infinity, minHeight: 52)
         }
         .background(Color.black)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .cornerRadius(12)
         .disabled(isLoading)
         .frame(maxWidth: LayoutConstants.inputFieldMaxWidth)
     }
 }
 
-// MARK: - Preview
 #Preview {
     VStack(spacing: 20) {
-        PrimaryButton(title: "Sign In") {
-            print("Button tapped")
-        }
-        
-        PrimaryButton(title: "Loading", isLoading: true) {
-            print("Button tapped")
-        }
+        PrimaryButton(title: "Sign In") {}
+        PrimaryButton(title: "Continue", isLoading: true) {}
     }
     .padding()
 }
-

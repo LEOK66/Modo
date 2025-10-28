@@ -6,6 +6,9 @@ struct EmailVerificationView: View {
     @State private var isVerified = false
     @State private var isChecking = false
     @State private var showResendSuccess = false
+    @State private var resendTimer: Int = 60
+    @State private var timer: Timer?
+    @State private var canResend: Bool = false
     
     var body: some View {
         VStack(spacing: 24) {
@@ -58,12 +61,46 @@ struct EmailVerificationView: View {
                 Button {
                     resendVerificationEmail()
                 } label: {
-                    Text("Resend Verification Email")
+                    HStack(spacing: 8) {
+                        if !canResend {
+                            Image(systemName: "clock")
+                                .font(.system(size: 12))
+                        }
+                        Text(canResend ? "Resend Verification Email" : "Resend in \(resendTimer)s")
+                            .font(.system(size: 14, weight: .medium))
+                    }
+                    .foregroundColor(canResend ? .blue : Color(hexString: "9CA3AF"))
+                    .padding(.vertical, 12)
+                    .padding(.horizontal, 24)
+                }
+                .disabled(!canResend)
+                
+                // Tip text
+                if !canResend {
+                    Text("Please wait before requesting another email")
+                        .font(.system(size: 12))
+                        .foregroundColor(Color(hexString: "9CA3AF"))
+                        .padding(.top, 4)
+                }
+                
+                // Check spam folder reminder
+                Text("Don't see the email? Check your spam folder")
+                    .font(.system(size: 12))
+                    .foregroundColor(Color(hexString: "6A7282"))
+                    .multilineTextAlignment(.center)
+                    .padding(.top, 8)
+                
+                Button {
+                    signOutAndReturnToLogin()
+                } label: {
+                    Text("Back to Login")
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.blue)
+                        .foregroundColor(Color(hexString: "4A5565"))
                         .padding(.vertical, 12)
                         .padding(.horizontal, 24)
                 }
+                .padding(.top, 16)
+                
             }
             .padding(.top, 24)
             
@@ -79,8 +116,14 @@ struct EmailVerificationView: View {
             )
         )
         .onAppear {
+            startResendTimer()
             // Check verification status when view appears
             checkVerification()
+        }
+        .onDisappear {
+            // Clean up timer
+            timer?.invalidate()
+            timer = nil
         }
     }
     
@@ -91,17 +134,12 @@ struct EmailVerificationView: View {
             DispatchQueue.main.async {
                 isChecking = false
                 isVerified = verified
-                
-                if verified {
-                    // Verification status updated automatically via listener
-                    // No need to do anything, ModoApp will detect the change
-                }
             }
         }
     }
     
     private func resendVerificationEmail() {
-        guard let user = authService.currentUser else { return }
+        guard let user = authService.currentUser, canResend else { return }
         
         user.sendEmailVerification { error in
             DispatchQueue.main.async {
@@ -109,6 +147,9 @@ struct EmailVerificationView: View {
                     print("Error resending verification email: \(error.localizedDescription)")
                 } else {
                     showResendSuccess = true
+                    
+                    // Restart the timer
+                    startResendTimer()
                     
                     // Hide success message after 3 seconds
                     DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
@@ -118,6 +159,32 @@ struct EmailVerificationView: View {
                     }
                 }
             }
+        }
+    }
+    
+    private func startResendTimer() {
+        // Start with 60 seconds cooldown
+        resendTimer = 60
+        canResend = false
+        
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+            if resendTimer > 0 {
+                resendTimer -= 1
+            } else {
+                canResend = true
+                timer?.invalidate()
+                timer = nil
+            }
+        }
+    }
+    
+    
+    private func signOutAndReturnToLogin() {
+        do {
+            try authService.signOut()
+            // The auth state listener will automatically update and navigate back to login
+        } catch {
+            print("Error signing out: \(error.localizedDescription)")
         }
     }
 }

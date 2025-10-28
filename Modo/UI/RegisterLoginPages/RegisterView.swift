@@ -8,7 +8,6 @@ struct RegisterView: View {
     @State private var showPrivacy = false
     @State private var showEmailError = false
     @State private var showPasswordError = false
-    @State private var showSuccessMessage = false
     @State private var isLoading = false
     
     var body: some View {
@@ -108,12 +107,6 @@ struct RegisterView: View {
         .fullScreenCover(isPresented: $showPrivacy) {
             PrivacyPolicyView()
         }
-        .overlay(
-            SuccessToast(
-                message: "Account created! Check your email to verify.",
-                isPresented: showSuccessMessage
-            )
-        )
     }
     
     private func signUp() {
@@ -129,14 +122,10 @@ struct RegisterView: View {
             
             authService.signUp(email: emailAddress, password: password) { result in
                 DispatchQueue.main.async {
-                    isLoading = false
                     
                     switch result {
                     case .success:
-                        showSuccessMessage = true
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                            showSuccessMessage = false
-                        }
+                        break
                         // Auth state will automatically update via the listener
                         // User will be taken to EmailVerificationView
                     case .failure(let error):
@@ -149,7 +138,6 @@ struct RegisterView: View {
     }
 }
 
-// Keep the TermsOfServiceView and PrivacyPolicyView here
 private struct TermsOfServiceView: View {
     @Environment(\.dismiss) private var dismiss
     var body: some View {
