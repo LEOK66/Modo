@@ -33,7 +33,8 @@ jobs:
 
       - name: Create GoogleService-Info.plist
         run: |
-          cat > GoogleService-Info.plist << 'EOF'
+          mkdir -p Modo
+          cat > Modo/GoogleService-Info.plist << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
@@ -55,8 +56,8 @@ jobs:
           </dict>
           </plist>
           EOF
-          echo "Created GoogleService-Info.plist"
-          ls -la GoogleService-Info.plist
+          echo "Created Modo/GoogleService-Info.plist"
+          ls -la Modo/GoogleService-Info.plist
 
       - name: Run tests
         continue-on-error: true
