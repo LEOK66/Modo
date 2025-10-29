@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct LoginView: View {
     var body: some View {
@@ -101,7 +102,7 @@ private struct LoginCard: View {
                         // Apple login action
                     }
                     SocialButton(title: "Google", systemImage: "g.circle.fill") {
-                        // Google login action
+                        signInWithGoogle()
                     }
                 }
                 .frame(maxWidth: LayoutConstants.inputFieldMaxWidth)
@@ -149,6 +150,55 @@ private struct LoginCard: View {
                             withAnimation {
                                 showErrorMessage = false
                             }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    private func signInWithGoogle() {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first else {
+            print("Could not find window")
+            showErrorMessage = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                withAnimation { showErrorMessage = false }
+            }
+            return
+        }
+        
+        // Find the top-most view controller
+        var topController = window.rootViewController
+        while let presentedController = topController?.presentedViewController {
+            topController = presentedController
+        }
+        
+        guard let presentingController = topController else {
+            print("Could not find presenting controller")
+            showErrorMessage = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                withAnimation { showErrorMessage = false }
+            }
+            return
+        }
+        
+        print("Starting Google Sign In with controller: \(type(of: presentingController))")
+        
+        authService.signInWithGoogle(presentingViewController: presentingController) { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success:
+                    // Auth state will automatically update via the listener
+                    print("Google sign in successful")
+                case .failure(let error):
+                    print("Google sign in error: \(error.localizedDescription)")
+                    showErrorMessage = true
+                    
+                    // Hide error message after 3 seconds
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                        withAnimation {
+                            showErrorMessage = false
                         }
                     }
                 }
