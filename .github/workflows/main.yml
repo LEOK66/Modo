@@ -1,0 +1,30 @@
+name: iOS Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Select Xcode version
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: latest-stable
+        
+    - name: Install dependencies
+      run: |
+        cd Modo
+        pod install
+        
+    - name: Run unit tests
+      run: |
+        xcodebuild test \
+          -workspace Modo.xcworkspace \
+          -scheme Modo \
+          -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest'
