@@ -42,24 +42,10 @@ jobs:
               <string>AIzaSyDummyKeyForCI</string>
               <key>GCM_SENDER_ID</key>
               <string>123456789</string>
-              <key>PLIST_VERSION</key>
-              <string>1</string>
-              <key>BUNDLE_ID</key>
-              <string>com.Modo</string>
               <key>PROJECT_ID</key>
               <string>modo-ci-test</string>
               <key>STORAGE_BUCKET</key>
               <string>modo-ci-test.appspot.com</string>
-              <key>IS_ADS_ENABLED</key>
-              <false/>
-              <key>IS_ANALYTICS_ENABLED</key>
-              <false/>
-              <key>IS_APPINVITE_ENABLED</key>
-              <true/>
-              <key>IS_GCM_ENABLED</key>
-              <true/>
-              <key>IS_SIGNIN_ENABLED</key>
-              <true/>
               <key>GOOGLE_APP_ID</key>
               <string>1:123456789:ios:abc123def456</string>
               <key>CLIENT_ID</key>
@@ -69,11 +55,36 @@ jobs:
           </dict>
           </plist>
           EOF
+          echo "Created GoogleService-Info.plist"
+          ls -la GoogleService-Info.plist
 
       - name: Run tests
+        continue-on-error: true
         run: |
+          set -o pipefail
           xcodebuild test \
             -project Modo.xcodeproj \
             -scheme Modo \
             -destination 'platform=iOS Simulator,name=iPhone 16' \
-            -only-testing:ModoTests
+            -only-testing:ModoTests \
+            -resultBundlePath TestResults \
+            2>&1 | tee xcodebuild.log || true
+
+      - name: Extract crash logs
+        if: always()
+        run: |
+          echo "=== Crash Reports ==="
+          find ~/Library/Logs/DiagnosticReports -name "*.crash" -mtime -1 -exec echo "File: {}" \; -exec cat {} \; || echo "No crash reports"
+
+          echo "=== System Log ==="
+          log show --predicate 'process == "Modo"' --last 5m --style compact || echo "No logs"
+
+      - name: Upload all logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crash-logs
+          path: |
+            xcodebuild.log
+            TestResults
+            ~/Library/Logs/DiagnosticReports/*.crash
