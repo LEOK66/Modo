@@ -62,7 +62,7 @@ final class AuthServiceTests: XCTestCase {
             }
         }
         
-        wait(for: [expectation], timeout: 10.0)
+        wait(for: [expectation], timeout: 2.0)
     }
     
     func testSignUpWithInvalidEmail() throws {
@@ -78,7 +78,7 @@ final class AuthServiceTests: XCTestCase {
             }
         }
         
-        wait(for: [expectation], timeout: 10.0)
+        wait(for: [expectation], timeout: 2.0)
     }
     
     func testSignUpWithWeakPassword() throws {
@@ -94,7 +94,7 @@ final class AuthServiceTests: XCTestCase {
             }
         }
         
-        wait(for: [expectation], timeout: 10.0)
+        wait(for: [expectation], timeout: 2.0)
     }
     
     // MARK: - Sign In Tests
@@ -113,7 +113,7 @@ final class AuthServiceTests: XCTestCase {
             }
         }
         
-        wait(for: [expectation], timeout: 10.0)
+        wait(for: [expectation], timeout: 2.0)
     }
     
     func testSignInWithInvalidCredentials() throws {
@@ -129,7 +129,7 @@ final class AuthServiceTests: XCTestCase {
             }
         }
         
-        wait(for: [expectation], timeout: 10.0)
+        wait(for: [expectation], timeout: 2.0)
     }
     
     // MARK: - Password Reset Tests
@@ -147,7 +147,7 @@ final class AuthServiceTests: XCTestCase {
             }
         }
         
-        wait(for: [expectation], timeout: 10.0)
+        wait(for: [expectation], timeout: 2.0)
     }
     
     func testPasswordResetWithInvalidEmail() throws {
@@ -163,7 +163,7 @@ final class AuthServiceTests: XCTestCase {
             }
         }
         
-        wait(for: [expectation], timeout: 10.0)
+        wait(for: [expectation], timeout: 2.0)
     }
     
     // MARK: - Email Verification Tests
@@ -176,7 +176,7 @@ final class AuthServiceTests: XCTestCase {
             expectation.fulfill()
         }
         
-        wait(for: [expectation], timeout: 5.0)
+        wait(for: [expectation], timeout: 1.0)
     }
     
     // MARK: - Onboarding Tests
@@ -240,7 +240,7 @@ final class AuthServiceTests: XCTestCase {
             }
         }
         
-        wait(for: [expectation], timeout: 10.0)
+        wait(for: [expectation], timeout: 2.0)
     }
     
     func testGoogleSignInWithMissingTokens() throws {
@@ -268,7 +268,7 @@ final class AuthServiceTests: XCTestCase {
             }
         }
         
-        wait(for: [expectation], timeout: 10.0)
+        wait(for: [expectation], timeout: 2.0)
     }
     
     func testGoogleSignInFlow() throws {
@@ -289,7 +289,7 @@ final class AuthServiceTests: XCTestCase {
             }
         }
         
-        wait(for: [expectation], timeout: 10.0)
+        wait(for: [expectation], timeout: 2.0)
     }
     
     func testGoogleSignInErrorHandling() throws {
@@ -310,7 +310,7 @@ final class AuthServiceTests: XCTestCase {
             }
         }
         
-        wait(for: [expectation], timeout: 10.0)
+        wait(for: [expectation], timeout: 2.0)
     }
     
     func testGoogleSignInWithNilViewController() throws {
@@ -329,7 +329,7 @@ final class AuthServiceTests: XCTestCase {
             }
         }
         
-        wait(for: [expectation], timeout: 10.0)
+        wait(for: [expectation], timeout: 2.0)
     }
     
     // MARK: - Performance Tests
@@ -342,7 +342,7 @@ final class AuthServiceTests: XCTestCase {
                 expectation.fulfill()
             }
             
-            wait(for: [expectation], timeout: 5.0)
+            wait(for: [expectation], timeout: 1.0)
         }
     }
     
@@ -355,7 +355,7 @@ final class AuthServiceTests: XCTestCase {
                 expectation.fulfill()
             }
             
-            wait(for: [expectation], timeout: 5.0)
+            wait(for: [expectation], timeout: 1.0)
         }
     }
     
@@ -369,7 +369,7 @@ final class AuthServiceTests: XCTestCase {
                 expectation.fulfill()
             }
             
-            wait(for: [expectation], timeout: 5.0)
+            wait(for: [expectation], timeout: 1.0)
         }
     }
 }
