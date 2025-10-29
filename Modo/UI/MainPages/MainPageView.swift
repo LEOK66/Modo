@@ -17,12 +17,8 @@ struct MainPageView: View {
         let emphasisHex: String
     }
     
-    // Test values for now
-    @State private var tasks: [TaskItem] = [
-        TaskItem(emoji: "🥗", title: "Healthy Breakfast", subtitle: "Oatmeal with berries and nuts", time: "08:00", meta: "350 cal", isDone: true, emphasisHex: "16A34A"),
-        TaskItem(emoji: "🏃", title: "Morning Run", subtitle: "5km jog in the park", time: "07:00", meta: "30 min", isDone: false, emphasisHex: "16A34A"),
-        TaskItem(emoji: "🥗", title: "Lunch Prep", subtitle: "Grilled chicken salad with quinoa", time: "12:30", meta: "420 cal", isDone: false, emphasisHex: "16A34A")
-    ]
+    // Empty tasks for first-time users
+    @State private var tasks: [TaskItem] = []
     
     var body: some View {
         NavigationStack(path: $navigationPath) {
@@ -138,11 +134,11 @@ private struct CombinedStatsCard: View {
             )
             .shadow(color: Color.black.opacity(0.04), radius: 2, x: 0, y: 1)
             .overlay(
-                // Currently hard coded values to display here
+                // Initial state with no tasks - all zeros
                 HStack(spacing: 0) {
-                    StatItem(value: "1/3", label: "Completed", tint: Color(hexString: "101828"))
-                    StatItem(value: "1", label: "Diet", tint: Color(hexString: "16A34A"))
-                    StatItem(value: "0", label: "Fitness", tint: Color(hexString: "3B82F6"))
+                    StatItem(value: "0/0", label: "Completed", tint: Color(hexString: "101828"))
+                    StatItem(value: "0", label: "Diet", tint: Color(hexString: "00A63E"))
+                    StatItem(value: "0", label: "Fitness", tint: Color(hexString: "155DFC"))
                 }
                 .frame(maxWidth: .infinity)
                 .padding(12)
@@ -302,21 +298,25 @@ private struct TaskListView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 12) {
-                ForEach($tasks) { $task in
-                    TaskRowCard(
-                        emoji: task.emoji,
-                        title: task.title,
-                        subtitle: task.subtitle,
-                        time: task.time,
-                        meta: task.meta,
-                        isDone: $task.isDone,
-                        emphasis: Color(hexString: task.emphasisHex)
-                    )
+            if tasks.isEmpty {
+                EmptyTasksView()
+            } else {
+                VStack(spacing: 12) {
+                    ForEach($tasks) { $task in
+                        TaskRowCard(
+                            emoji: task.emoji,
+                            title: task.title,
+                            subtitle: task.subtitle,
+                            time: task.time,
+                            meta: task.meta,
+                            isDone: $task.isDone,
+                            emphasis: Color(hexString: task.emphasisHex)
+                        )
+                    }
                 }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 12)
             }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 12)
         }
     }
 }
