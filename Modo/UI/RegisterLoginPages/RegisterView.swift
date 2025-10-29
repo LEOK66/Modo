@@ -1,5 +1,6 @@
 import SwiftUI
 import FirebaseAuth
+import UIKit
 
 struct RegisterView: View {
     @EnvironmentObject var authService: AuthService
@@ -95,6 +96,15 @@ struct RegisterView: View {
                     PrimaryButton(title: "Sign Up", isLoading: isLoading) {
                         signUp()
                     }
+                    
+                    // Divider
+                    DividerWithText(text: "or")
+                    
+                    // Google login
+                    SocialButton(title: "Google", systemImage: "g.circle.fill") {
+                        signInWithGoogle()
+                    }
+                    .frame(maxWidth: LayoutConstants.inputFieldMaxWidth)
                 }
                 
                 Spacer()
@@ -154,6 +164,56 @@ struct RegisterView: View {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                             showErrorMessage = false
                         }
+                    }
+                }
+            }
+        }
+    }
+    
+    private func signInWithGoogle() {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first else {
+            print("Could not find window")
+            errorMessage = "Unable to start Google Sign In"
+            showErrorMessage = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                showErrorMessage = false
+            }
+            return
+        }
+        
+        // Find the top-most view controller
+        var topController = window.rootViewController
+        while let presentedController = topController?.presentedViewController {
+            topController = presentedController
+        }
+        
+        guard let presentingController = topController else {
+            print("Could not find presenting controller")
+            errorMessage = "Unable to start Google Sign In"
+            showErrorMessage = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                showErrorMessage = false
+            }
+            return
+        }
+        
+        print("Starting Google Sign In with controller: \(type(of: presentingController))")
+        
+        authService.signInWithGoogle(presentingViewController: presentingController) { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success:
+                    // Auth state will automatically update via the listener
+                    print("Google sign in successful")
+                case .failure(let error):
+                    print("Google sign in error: \(error.localizedDescription)")
+                    errorMessage = error.localizedDescription
+                    showErrorMessage = true
+                    
+                    // Hide error message after 3 seconds
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                        showErrorMessage = false
                     }
                 }
             }

@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import FirebaseCore
+import GoogleSignIn
 
 @main
 struct ModoApp: App {
@@ -91,6 +92,9 @@ struct ModoApp: App {
                     showAuthenticatedUI = false
                     checkVerificationStatus()
                 }
+            }
+            .onOpenURL { url in
+                GIDSignIn.sharedInstance.handle(url)
             }
         }
         .modelContainer(sharedModelContainer)
