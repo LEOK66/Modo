@@ -108,23 +108,39 @@ final class ModoTests: XCTestCase {
     }
     
     func testHeightValidation() throws {
-        // Test isValidHeight validation
-        XCTAssertTrue("70".isValidHeight, "Valid height should pass")
-        XCTAssertTrue("20".isValidHeight, "Minimum height should pass")
-        XCTAssertTrue("96".isValidHeight, "Maximum height should pass")
-        XCTAssertFalse("19".isValidHeight, "Below minimum height should fail")
-        XCTAssertFalse("97".isValidHeight, "Above maximum height should fail")
-        XCTAssertFalse("abc".isValidHeight, "Non-numeric height should fail")
+        // Test isValidHeight validation with inches
+        XCTAssertTrue("70".isValidHeight(unit: "in"), "Valid height in inches should pass")
+        XCTAssertTrue("20".isValidHeight(unit: "in"), "Minimum height in inches should pass")
+        XCTAssertTrue("96".isValidHeight(unit: "in"), "Maximum height in inches should pass")
+        XCTAssertFalse("19".isValidHeight(unit: "in"), "Below minimum height in inches should fail")
+        XCTAssertFalse("97".isValidHeight(unit: "in"), "Above maximum height in inches should fail")
+        XCTAssertFalse("abc".isValidHeight(unit: "in"), "Non-numeric height should fail")
+        
+        // Test with cm
+        XCTAssertTrue("175".isValidHeight(unit: "cm"), "Valid height in cm should pass")
+        XCTAssertTrue("50".isValidHeight(unit: "cm"), "Minimum height in cm should pass")
+        XCTAssertTrue("250".isValidHeight(unit: "cm"), "Maximum height in cm should pass")
+        XCTAssertFalse("49".isValidHeight(unit: "cm"), "Below minimum height in cm should fail")
+        XCTAssertFalse("251".isValidHeight(unit: "cm"), "Above maximum height in cm should fail")
+        XCTAssertFalse("abc".isValidHeight(unit: "cm"), "Non-numeric height should fail")
     }
     
     func testWeightValidation() throws {
-        // Test isValidWeight validation
-        XCTAssertTrue("150".isValidWeight, "Valid weight should pass")
-        XCTAssertTrue("44".isValidWeight, "Minimum weight should pass")
-        XCTAssertTrue("1100".isValidWeight, "Maximum weight should pass")
-        XCTAssertFalse("43".isValidWeight, "Below minimum weight should fail")
-        XCTAssertFalse("1101".isValidWeight, "Above maximum weight should fail")
-        XCTAssertFalse("abc".isValidWeight, "Non-numeric weight should fail")
+        // Test isValidWeight validation with lbs
+        XCTAssertTrue("150".isValidWeight(unit: "lb"), "Valid weight in lbs should pass")
+        XCTAssertTrue("44".isValidWeight(unit: "lb"), "Minimum weight in lbs should pass")
+        XCTAssertTrue("1100".isValidWeight(unit: "lb"), "Maximum weight in lbs should pass")
+        XCTAssertFalse("43".isValidWeight(unit: "lb"), "Below minimum weight in lbs should fail")
+        XCTAssertFalse("1101".isValidWeight(unit: "lb"), "Above maximum weight in lbs should fail")
+        XCTAssertFalse("abc".isValidWeight(unit: "lb"), "Non-numeric weight should fail")
+        
+        // Test with kg
+        XCTAssertTrue("70".isValidWeight(unit: "kg"), "Valid weight in kg should pass")
+        XCTAssertTrue("20".isValidWeight(unit: "kg"), "Minimum weight in kg should pass")
+        XCTAssertTrue("500".isValidWeight(unit: "kg"), "Maximum weight in kg should pass")
+        XCTAssertFalse("19".isValidWeight(unit: "kg"), "Below minimum weight in kg should fail")
+        XCTAssertFalse("501".isValidWeight(unit: "kg"), "Above maximum weight in kg should fail")
+        XCTAssertFalse("abc".isValidWeight(unit: "kg"), "Non-numeric weight should fail")
     }
     
     func testAgeValidation() throws {
@@ -138,13 +154,21 @@ final class ModoTests: XCTestCase {
     }
     
     func testTargetWeightValidation() throws {
-        // Test isValidTargetWeight validation
-        XCTAssertTrue("10".isValidTargetWeight, "Valid target weight should pass")
-        XCTAssertTrue("0.5".isValidTargetWeight, "Minimum target weight should pass")
-        XCTAssertTrue("100".isValidTargetWeight, "Maximum target weight should pass")
-        XCTAssertFalse("0.4".isValidTargetWeight, "Below minimum target weight should fail")
-        XCTAssertFalse("101".isValidTargetWeight, "Above maximum target weight should fail")
-        XCTAssertFalse("abc".isValidTargetWeight, "Non-numeric target weight should fail")
+        // Test isValidTargetWeight validation with lbs
+        XCTAssertTrue("10".isValidTargetWeight(unit: "lb"), "Valid target weight in lbs should pass")
+        XCTAssertTrue("0.5".isValidTargetWeight(unit: "lb"), "Minimum target weight in lbs should pass")
+        XCTAssertTrue("220".isValidTargetWeight(unit: "lb"), "Maximum target weight in lbs should pass")
+        XCTAssertFalse("0.4".isValidTargetWeight(unit: "lb"), "Below minimum target weight in lbs should fail")
+        XCTAssertFalse("221".isValidTargetWeight(unit: "lb"), "Above maximum target weight in lbs should fail")
+        XCTAssertFalse("abc".isValidTargetWeight(unit: "lb"), "Non-numeric target weight should fail")
+        
+        // Test with kg
+        XCTAssertTrue("50".isValidTargetWeight(unit: "kg"), "Valid target weight in kg should pass")
+        XCTAssertTrue("0.2".isValidTargetWeight(unit: "kg"), "Minimum target weight in kg should pass")
+        XCTAssertTrue("100".isValidTargetWeight(unit: "kg"), "Maximum target weight in kg should pass")
+        XCTAssertFalse("0.1".isValidTargetWeight(unit: "kg"), "Below minimum target weight in kg should fail")
+        XCTAssertFalse("101".isValidTargetWeight(unit: "kg"), "Above maximum target weight in kg should fail")
+        XCTAssertFalse("abc".isValidTargetWeight(unit: "kg"), "Non-numeric target weight should fail")
     }
     
     func testTargetDaysValidation() throws {
