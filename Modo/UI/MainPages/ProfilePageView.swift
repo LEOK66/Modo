@@ -1,7 +1,8 @@
-import SwiftUI
+ import SwiftUI
 
 struct ProfilePageView: View {
     @EnvironmentObject var authService: AuthService
+    @EnvironmentObject var userProgress: UserProgress
     @State private var showLogoutConfirmation = false
     
     var body: some View {
@@ -49,26 +50,96 @@ struct ProfilePageView: View {
                         .padding(.top, 8)
 
                         // MARK: - Stats row
-                        HStack(spacing: 16) {
-                            StatCard(title: "Day Streak", value: "7", emoji: "🔥")
-                            StatCard(title: "Calories", value: "350", emoji: "🍎")
+                        NavigationLink(destination: ProgressView()) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Progress")
+                                        .font(.system(size: 15, weight: .medium))
+                                        .foregroundColor(Color(hexString: "101828"))
+                                    Text("15/30 days")
+                                        .font(.system(size: 10))
+                                        .foregroundColor(Color(hexString: "6A7282"))
+                                }
+                                .frame(width: 66, alignment: .leading)
+                                .padding(.leading, 8)
+
+                                ZStack {
+                                    Circle()
+                                        .stroke(Color(hexString: "E5E7EB"), lineWidth: 8)
+                                        .frame(width: 56, height: 56)
+                                    Circle()
+                                        .trim(from: 0, to: userProgress.progressPercent)
+                                        .stroke(Color(hexString: "22C55E"), style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                                        .rotationEffect(.degrees(-90))
+                                        .frame(width: 56, height: 56)
+                                    Text("\(Int(userProgress.progressPercent * 100))%")
+                                        .font(.system(size: 16, weight: .bold))
+                                        .foregroundColor(Color(hexString: "101828"))
+                                }
+                                .frame(width: 56, height: 88)
+                                .padding(.horizontal, 0)
+
+                                Rectangle()
+                                    .fill(Color(hexString: "E5E7EB"))
+                                    .frame(width: 1, height: 64)
+                                    .padding(.horizontal, 12)
+
+                                VStack(alignment: .center, spacing: 10) {
+                                    Text("Calories")
+                                        .font(.system(size: 15, weight: .medium))
+                                        .foregroundColor(Color(hexString: "101828"))
+                                    HStack(spacing: 0) {
+                                        VStack(alignment: .center, spacing: 2) {
+                                            Text("Intake")
+                                                .font(.system(size: 11))
+                                                .foregroundColor(Color(hexString: "6A7282"))
+                                                .multilineTextAlignment(.center)
+                                            Text("1850")
+                                                .font(.system(size: 22, weight: .semibold))
+                                                .foregroundColor(Color(hexString: "101828"))
+                                                .multilineTextAlignment(.center)
+                                        }
+                                        .frame(width: 65)
+                                        Divider().frame(width: 1, height: 22).padding(.horizontal, 6)
+                                        VStack(alignment: .center, spacing: 2) {
+                                            Text("Output")
+                                                .font(.system(size: 11))
+                                                .foregroundColor(Color(hexString: "6A7282"))
+                                                .multilineTextAlignment(.center)
+                                            Text("450")
+                                                .font(.system(size: 22, weight: .semibold))
+                                                .foregroundColor(Color(hexString: "101828"))
+                                                .multilineTextAlignment(.center)
+                                        }
+                                        .frame(width: 65)
+                                    }
+                                }
+                                .padding(.horizontal, 6)
+                                .padding(.trailing, 4)
+                            }
+                            .background(
+                                RoundedRectangle(cornerRadius: 22)
+                                    .fill(Color.white)
+                                    .shadow(color: Color.black.opacity(0.04), radius: 2, x: 0, y: 1)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 22)
+                                            .stroke(Color(hexString: "E5E7EB"), lineWidth: 1)
+                                    )
+                            )
+                            .frame(width: 327, height: 124)
+                            .frame(maxWidth: .infinity, alignment: .center)
                         }
-                        .padding(.horizontal, 24)
+                        .buttonStyle(PlainButtonStyle())
 
                         
-                        // MARK: - Performance section
-                        ProfileSection(title: "Performance") {
-                            NavigationRow(icon: "chart.bar", title: "Progress", subtitle: "Stats, goal & insights", destination: AnyView(ProgressView()))
+                        // MARK: - Performance & Achievements section
+                        VStack(spacing: 12) {
                             NavigationRow(icon: "rosette", title: "Achievements", subtitle: "Unlock badges", destination: AnyView(AchievementsView()))
-                        }
-
-                        // MARK: - Preferences section
-                        ProfileSection(title: "Preferences") {
-                            NavigationRow(icon: "gearshape", title: "Settings", subtitle: "App preferences", destination: AnyView(SettingsView()))
+                             NavigationRow(icon: "gearshape", title: "Settings", subtitle: "App preferences", destination: AnyView(SettingsView()))
                             NavigationRow(icon: "questionmark.circle", title: "Help & Support", subtitle: "Get assistance", destination: AnyView(HelpSupportView()))
                         }
-
-                        // MARK: - Logout
+                        .frame(maxWidth: .infinity, alignment: .center)
+                      // MARK: - Logout
                         Button {
                             showLogoutConfirmation = true
                         } label: {
@@ -106,7 +177,8 @@ struct ProfilePageView: View {
                             )
                         }
                         .buttonStyle(PlainButtonStyle())
-                        .padding(.horizontal, 24)
+                        .frame(width: 327)
+                        .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.bottom, 24)
                         .alert("Logout", isPresented: $showLogoutConfirmation) {
                             Button("Cancel", role: .cancel) { }
@@ -139,5 +211,7 @@ struct ProfilePageView: View {
 #Preview {
     NavigationStack {
         ProfilePageView()
+            .environmentObject(AuthService.shared)
+            .environmentObject(UserProgress())
     }
 }
