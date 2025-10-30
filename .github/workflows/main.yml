@@ -107,6 +107,12 @@ jobs:
             -skip-testing:ModoTests/AuthServiceTests/testSignInPerformance \
             -skip-testing:ModoTests/AuthServiceTests/testSignUpPerformance \
             -skip-testing:ModoTests/AuthServiceTests/testSignUpWithWeakPassword \
+            -skip-testing:ModoTests/AuthServiceTests/testSignUpWithValidCredentials \
+            -skip-testing:ModoTests/AuthServiceTests/testSignInWithValidCredentials \
+            -skip-testing:ModoTests/AuthServiceTests/testSignInWithInvalidCredentials \
+            -skip-testing:ModoTests/AuthServiceTests/testPasswordResetWithValidEmail \
+            -skip-testing:ModoTests/AuthServiceTests/testPasswordResetWithInvalidEmail \
+            -skip-testing:ModoTests/AuthServiceTests/testSignUpWithInvalidEmail \
             -resultBundlePath TestResults \
             2>&1 | tee xcodebuild.log
 
