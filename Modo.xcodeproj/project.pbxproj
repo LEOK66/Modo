@@ -39,7 +39,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		9E8EDB412EB1D47D00AB90F4 /* Exceptions for "Modo" folder in "Modo" target */ = {
+		9E9D1DEC2EB41FDD005A6C80 /* Exceptions for "Modo" folder in "Modo" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -52,7 +52,7 @@
 		99F7495D2E9EEDFD006319FF /* Modo */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				9E8EDB412EB1D47D00AB90F4 /* Exceptions for "Modo" folder in "Modo" target */,
+				9E9D1DEC2EB41FDD005A6C80 /* Exceptions for "Modo" folder in "Modo" target */,
 			);
 			path = Modo;
 			sourceTree = "<group>";
@@ -443,7 +443,6 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Modo/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -477,7 +476,6 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Modo/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

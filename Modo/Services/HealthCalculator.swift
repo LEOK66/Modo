@@ -35,7 +35,6 @@ public enum HealthCalculator {
         }
     }
 
-    // TDEE
     public static func tdee(bmr: Double, lifestyleCode: String) -> Double {
         return bmr * activityFactor(for: lifestyleCode)
     }
