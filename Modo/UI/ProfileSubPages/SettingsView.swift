@@ -21,22 +21,22 @@ struct SettingsView: View {
                 // Preferences Section
                 settingsSection(title: "Preferences") {
                     VStack(spacing: 0) {
-                        SettingsRowButton(
+                        SettingsRowNavigationLink(
                             icon: "globe",
                             title: "Language",
                             subtitle: "English",
                             showDivider: true
                         ) {
-                            // Language action
+                            ComingSoonView()
                         }
                         
-                        SettingsRowButton(
+                        SettingsRowNavigationLink(
                             icon: "ruler",
                             title: "Units",
                             subtitle: "Metric (kg, km, cal)",
                             showDivider: true
                         ) {
-                            // Units action
+                            ComingSoonView()
                         }
                         
                         SettingsToggleRow(
@@ -51,44 +51,44 @@ struct SettingsView: View {
                 // Privacy & Security Section
                 settingsSection(title: "Privacy & Security") {
                     VStack(spacing: 0) {
-                        SettingsRowButton(
+                        SettingsRowNavigationLink(
                             icon: "shield",
                             title: "Privacy Preferences",
                             subtitle: "Data collection & sharing",
                             showDivider: true
                         ) {
-                            // Privacy action
+                            ComingSoonView()
                         }
                         
-                        SettingsRowButton(
+                        SettingsRowNavigationLink(
                             icon: "envelope",
                             title: "Change Email",
                             subtitle: "sarah.j@email.com",
                             showDivider: true
                         ) {
-                            // Email action
+                            ComingSoonView()
                         }
                         
-                        SettingsRowButton(
+                        SettingsRowNavigationLink(
                             icon: "lock",
                             title: "Change Password",
                             subtitle: "Last updated 30 days ago",
                             showDivider: false
                         ) {
-                            // Password action
+                            ComingSoonView()
                         }
                     }
                 }
                 
                 // Data Management Section
                 settingsSection(title: "Data Management") {
-                    SettingsRowButton(
+                    SettingsRowNavigationLink(
                         icon: "arrow.down.doc",
                         title: "Export Data",
                         subtitle: "Download your information",
                         showDivider: false
                     ) {
-                        // Export action
+                        ComingSoonView()
                     }
                 }
                 
