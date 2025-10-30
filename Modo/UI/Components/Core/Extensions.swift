@@ -49,20 +49,22 @@ extension String {
         return number > 0
     }
     
-    /// Validates if string is a valid height (20-96 inches, ~1.5-8 feet)
-    var isValidHeight: Bool {
-        guard let height = Double(self.trimmingCharacters(in: .whitespacesAndNewlines)) else {
-            return false
+    /// Validates height by unit: inches (20-96) or cm (50-250)
+    func isValidHeight(unit: String) -> Bool {
+        guard let value = Double(self.trimmingCharacters(in: .whitespacesAndNewlines)) else { return false }
+        if unit.lowercased() == "cm" {
+            return value >= 50 && value <= 250
         }
-        return height >= 20 && height <= 96
+        return value >= 20 && value <= 96 // default inches
     }
     
-    /// Validates if string is a valid weight (44-1100 lbs, ~20-500 kg)
-    var isValidWeight: Bool {
-        guard let weight = Double(self.trimmingCharacters(in: .whitespacesAndNewlines)) else {
-            return false
+    /// Validates weight by unit: lb (44-1100) or kg (20-500)
+    func isValidWeight(unit: String) -> Bool {
+        guard let value = Double(self.trimmingCharacters(in: .whitespacesAndNewlines)) else { return false }
+        if unit.lowercased() == "kg" {
+            return value >= 20 && value <= 500
         }
-        return weight >= 44 && weight <= 1100
+        return value >= 44 && value <= 1100 // default lb
     }
     
     /// Validates if string is a valid age (10-120 years)
@@ -73,12 +75,13 @@ extension String {
         return age >= 10 && age <= 120
     }
     
-    /// Validates if string is a valid target weight loss (0.5-100 lbs/kg)
-    var isValidTargetWeight: Bool {
-        guard let target = Double(self.trimmingCharacters(in: .whitespacesAndNewlines)) else {
-            return false
+    /// Validates target weight loss by unit: lb (0.5-220) or kg (0.2-100)
+    func isValidTargetWeight(unit: String) -> Bool {
+        guard let value = Double(self.trimmingCharacters(in: .whitespacesAndNewlines)) else { return false }
+        if unit.lowercased() == "kg" {
+            return value >= 0.2 && value <= 100
         }
-        return target >= 0.5 && target <= 100
+        return value >= 0.5 && value <= 220 // default lb
     }
     
     /// Validates if string is a valid target days (1-365 days)

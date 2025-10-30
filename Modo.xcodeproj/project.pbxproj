@@ -12,6 +12,7 @@
 		77C160302EAF3CFC00F6E552 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 77C1602F2EAF3CFC00F6E552 /* GoogleSignIn */; };
 		77C160322EAF3CFC00F6E552 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 77C160312EAF3CFC00F6E552 /* GoogleSignInSwift */; };
 		77C160342EAF3D4A00F6E552 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 77C160332EAF3D4A00F6E552 /* FirebaseCore */; };
+		9ED5B9D52EB339BB003351A1 /* FirebaseDatabase in Frameworks */ = {isa = PBXBuildFile; productRef = 9ED5B9D42EB339BB003351A1 /* FirebaseDatabase */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -73,6 +74,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9ED5B9D52EB339BB003351A1 /* FirebaseDatabase in Frameworks */,
 				4236422C2EA35C9500D25C09 /* FirebaseStorageCombine-Community in Frameworks */,
 				77C160342EAF3D4A00F6E552 /* FirebaseCore in Frameworks */,
 				4236422A2EA35C9500D25C09 /* FirebaseAuth in Frameworks */,
@@ -104,6 +106,7 @@
 				99F7495D2E9EEDFD006319FF /* Modo */,
 				99F7496D2E9EEDFE006319FF /* ModoTests */,
 				99F749772E9EEDFE006319FF /* ModoUITests */,
+				9ED5B9D32EB339BB003351A1 /* Frameworks */,
 				99F7495C2E9EEDFD006319FF /* Products */,
 			);
 			sourceTree = "<group>";
@@ -116,6 +119,13 @@
 				99F749742E9EEDFE006319FF /* ModoUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		9ED5B9D32EB339BB003351A1 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -143,6 +153,7 @@
 				77C1602F2EAF3CFC00F6E552 /* GoogleSignIn */,
 				77C160312EAF3CFC00F6E552 /* GoogleSignInSwift */,
 				77C160332EAF3D4A00F6E552 /* FirebaseCore */,
+				9ED5B9D42EB339BB003351A1 /* FirebaseDatabase */,
 			);
 			productName = Modo;
 			productReference = 99F7495B2E9EEDFD006319FF /* Modo.app */;
@@ -443,6 +454,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = "-ObjC";
 				"OTHER_LDFLAGS[arch=*]" = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.Modo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -476,6 +488,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = "-ObjC";
 				"OTHER_LDFLAGS[arch=*]" = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.Modo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -654,6 +667,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 423642282EA35C9500D25C09 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseCore;
+		};
+		9ED5B9D42EB339BB003351A1 /* FirebaseDatabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 423642282EA35C9500D25C09 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseDatabase;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -9,6 +9,7 @@ struct CustomInputField: View {
     let textContentType: UITextContentType?
     let showPasswordToggle: Bool
     let suffix: String?
+    let trailingAccessory: AnyView?
     @State private var isPasswordVisible: Bool = false
     
     init(
@@ -18,7 +19,8 @@ struct CustomInputField: View {
         keyboardType: UIKeyboardType = .default,
         textContentType: UITextContentType? = nil,
         showPasswordToggle: Bool = false,
-        suffix: String? = nil
+        suffix: String? = nil,
+        trailingAccessory: AnyView? = nil
     ) {
         self.placeholder = placeholder
         self._text = text
@@ -27,6 +29,7 @@ struct CustomInputField: View {
         self.textContentType = textContentType
         self.showPasswordToggle = showPasswordToggle
         self.suffix = suffix
+        self.trailingAccessory = trailingAccessory
     }
     
     var body: some View {
@@ -51,7 +54,9 @@ struct CustomInputField: View {
                     .disableAutocorrection(true)
             }
             
-            if let suffix = suffix {
+            if let trailingAccessory = trailingAccessory {
+                trailingAccessory
+            } else if let suffix = suffix {
                 Text(suffix)
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(Color(hexString: "6A7282"))

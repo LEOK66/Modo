@@ -4,12 +4,18 @@ import SwiftData
 @Model
 final class UserProfile {
     var userId: String
-    var height: Double?
-    var weight: Double?
+    var heightValue: Double?
+    var heightUnit: String?
+    var weightValue: Double?
+    var weightUnit: String?
     var age: Int?
+    var gender: String?
     var lifestyle: String?
     var goal: String?
-    var targetWeightLoss: Double?
+    var dailyCalories: Int?
+    var dailyProtein: Int?
+    var targetWeightLossValue: Double?
+    var targetWeightLossUnit: String?
     var targetDays: Int?
     var createdAt: Date
     var updatedAt: Date
@@ -21,20 +27,32 @@ final class UserProfile {
     }
     
     func updateProfile(
-        height: Double?,
-        weight: Double?,
+        heightValue: Double?,
+        heightUnit: String?,
+        weightValue: Double?,
+        weightUnit: String?,
         age: Int?,
-        lifestyle: String?,
-        goal: String?,
-        targetWeightLoss: Double?,
+        genderCode: String?,
+        lifestyleCode: String?,
+        goalCode: String?,
+        dailyCalories: Int?,
+        dailyProtein: Int?,
+        targetWeightLossValue: Double?,
+        targetWeightLossUnit: String?,
         targetDays: Int?
     ) {
-        self.height = height
-        self.weight = weight
+        self.heightValue = heightValue
+        self.heightUnit = heightUnit
+        self.weightValue = weightValue
+        self.weightUnit = weightUnit
         self.age = age
-        self.lifestyle = lifestyle
-        self.goal = goal
-        self.targetWeightLoss = targetWeightLoss
+        self.gender = genderCode
+        self.lifestyle = lifestyleCode
+        self.goal = goalCode
+        self.dailyCalories = dailyCalories
+        self.dailyProtein = dailyProtein
+        self.targetWeightLossValue = targetWeightLossValue
+        self.targetWeightLossUnit = targetWeightLossUnit
         self.targetDays = targetDays
         self.updatedAt = Date()
     }
