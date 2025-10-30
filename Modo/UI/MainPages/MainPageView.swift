@@ -19,9 +19,9 @@ struct MainPageView: View {
     
     // Test values for now
     @State private var tasks: [TaskItem] = [
-        TaskItem(emoji: "🥗", title: "Healthy Breakfast", subtitle: "Oatmeal with berries and nuts", time: "08:00", meta: "350 cal", isDone: true, emphasisHex: "16A34A"),
-        TaskItem(emoji: "🏃", title: "Morning Run", subtitle: "5km jog in the park", time: "07:00", meta: "30 min", isDone: false, emphasisHex: "16A34A"),
-        TaskItem(emoji: "🥗", title: "Lunch Prep", subtitle: "Grilled chicken salad with quinoa", time: "12:30", meta: "420 cal", isDone: false, emphasisHex: "16A34A")
+//        TaskItem(emoji: "🥗", title: "Healthy Breakfast", subtitle: "Oatmeal with berries and nuts", time: "08:00", meta: "350 cal", isDone: true, emphasisHex: "16A34A"),
+//        TaskItem(emoji: "🏃", title: "Morning Run", subtitle: "5km jog in the park", time: "07:00", meta: "30 min", isDone: false, emphasisHex: "16A34A"),
+//        TaskItem(emoji: "🥗", title: "Lunch Prep", subtitle: "Grilled chicken salad with quinoa", time: "12:30", meta: "420 cal", isDone: false, emphasisHex: "16A34A")
     ]
     
     var body: some View {
@@ -127,7 +127,7 @@ private struct TopHeaderView: View {
     }
 }
 
-// Displays Completed Diet and Fitness Tasks (Should factor out to Components.swift)
+// Displays Completed Diet and Fitness Tasks
 private struct CombinedStatsCard: View {
     var body: some View {
         RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -140,8 +140,8 @@ private struct CombinedStatsCard: View {
             .overlay(
                 // Currently hard coded values to display here
                 HStack(spacing: 0) {
-                    StatItem(value: "1/3", label: "Completed", tint: Color(hexString: "101828"))
-                    StatItem(value: "1", label: "Diet", tint: Color(hexString: "16A34A"))
+                    StatItem(value: "0", label: "Completed", tint: Color(hexString: "101828"))
+                    StatItem(value: "0", label: "Diet", tint: Color(hexString: "16A34A"))
                     StatItem(value: "0", label: "Fitness", tint: Color(hexString: "3B82F6"))
                 }
                 .frame(maxWidth: .infinity)
@@ -223,101 +223,102 @@ private struct TasksHeader: View {
     }
 }
 
-private struct TaskRowCard: View {
-    let emoji: String
-    let title: String
-    let subtitle: String
-    let time: String
-    let meta: String
-    @Binding var isDone: Bool
-    let emphasis: Color
-
-    init(emoji: String, title: String, subtitle: String, time: String, meta: String, isDone: Binding<Bool>, emphasis: Color) {
-        self.emoji = emoji
-        self.title = title
-        self.subtitle = subtitle
-        self.time = time
-        self.meta = meta
-        self._isDone = isDone
-        self.emphasis = emphasis
-    }
+private struct TaskListView: View {
+    @Binding var tasks: [MainPageView.TaskItem]
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(isDone ? emphasis : Color.white)
-                    .frame(width: 22, height: 22)
-                    .overlay(
-                        Circle().stroke(Color(hexString: "E5E7EB"), lineWidth: isDone ? 0 : 1)
-                    )
-                if isDone {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.white)
-                }
+        if tasks.isEmpty {
+            // Empty state when no tasks exist
+            VStack {
+                Spacer(minLength: 24)
+                EmptyStateView()
+                    .frame(maxWidth: .infinity)
+                Spacer()
             }
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(emoji)
-                    Text(title)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(isDone ? emphasis : Color(hexString: "101828"))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.horizontal, 24)
+            .padding(.bottom, 12)
+        } else {
+            ScrollView {
+                VStack(spacing: 12) {
+                    ForEach($tasks) { $task in
+                        TaskCard(
+                            emoji: task.emoji,
+                            title: task.title,
+                            subtitle: task.subtitle,
+                            time: task.time,
+                            meta: task.meta,
+                            isDone: $task.isDone,
+                            emphasis: Color(hexString: task.emphasisHex)
+                        )
+                    }
                 }
-                Text(subtitle)
-                    .font(.system(size: 14))
-                    .foregroundColor(Color(hexString: "6A7282"))
-                HStack(spacing: 12) {
-                    Label(time, systemImage: "clock")
-                        .font(.system(size: 12))
-                        .foregroundColor(Color(hexString: "364153"))
-                    Text(meta)
-                        .font(.system(size: 12))
-                        .foregroundColor(Color(hexString: "364153"))
-                }
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.white)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(isDone ? emphasis.opacity(0.25) : Color(hexString: "E5E7EB"), lineWidth: 1)
-        )
-        .shadow(color: Color.black.opacity(0.04), radius: 2, x: 0, y: 1)
-        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .onTapGesture {
-            withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
-                isDone.toggle()
+                .padding(.horizontal, 24)
+                .padding(.bottom, 12)
             }
         }
     }
 }
 
-private struct TaskListView: View {
-    @Binding var tasks: [MainPageView.TaskItem]
-
+private struct EmptyStateView: View {
     var body: some View {
-        ScrollView {
-            VStack(spacing: 12) {
-                ForEach($tasks) { $task in
-                    TaskRowCard(
-                        emoji: task.emoji,
-                        title: task.title,
-                        subtitle: task.subtitle,
-                        time: task.time,
-                        meta: task.meta,
-                        isDone: $task.isDone,
-                        emphasis: Color(hexString: task.emphasisHex)
+        VStack(spacing: 24) {
+            // Decorative circles group
+            ZStack {
+                // Outer ring 80x80 with 4pt border (#E5E7EB)
+                Circle()
+                    .stroke(Color(hexString: "E5E7EB"), lineWidth: 4)
+                    .frame(width: 80, height: 80)
+                    .overlay(
+                        // Inner ring 40x40 with 2pt border (#D1D5DC) and 0.8 opacity
+                        Circle()
+                            .stroke(Color(hexString: "D1D5DC").opacity(0.8), lineWidth: 2)
+                            .frame(width: 40, height: 40)
                     )
-                }
+                    .overlay(
+                        // Small light gray dot (10x10) at approx right-middle
+                        Circle()
+                            .fill(Color(hexString: "F3F4F6"))
+                            .frame(width: 10, height: 10)
+                            .offset(x: 28, y: 0)
+                    )
+                    .overlay(
+                        // Small white outlined dot (14x14) at approx bottom-left
+                        Circle()
+                            .stroke(Color(hexString: "E5E7EB"), lineWidth: 2)
+                            .background(Circle().fill(Color.white))
+                            .frame(width: 14, height: 14)
+                            .offset(x: -32, y: 32)
+                    )
+                    .overlay(
+                        // Small white outlined dot (20x20) at approx top-right
+                        Circle()
+                            .stroke(Color(hexString: "D1D5DC"), lineWidth: 2)
+                            .background(Circle().fill(Color.white))
+                            .frame(width: 20, height: 20)
+                            .offset(x: 20, y: -40)
+                    )
             }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 12)
+            .frame(width: 80, height: 80)
+
+            // Text container (Heading + Paragraph) centered
+            VStack(spacing: 8) {
+                Text("Nothing here yet")
+                    .font(.system(size: 18, weight: .regular))
+                    .kerning(-0.439453)
+                    .foregroundColor(Color(hexString: "0A0A0A"))
+                    .frame(maxWidth: 240)
+                    .multilineTextAlignment(.center)
+
+                Text("Your task list is feeling a bit lonely. Let's add some goals to keep it company! ")
+                    .font(.system(size: 14, weight: .regular))
+                    .kerning(-0.150391)
+                    .foregroundColor(Color(hexString: "6A7282"))
+                    .frame(maxWidth: 240)
+                    .multilineTextAlignment(.center)
+            }
         }
+        .frame(maxWidth: .infinity)
     }
 }
 
