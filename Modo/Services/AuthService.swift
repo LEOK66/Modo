@@ -11,9 +11,11 @@ final class AuthService: ObservableObject {
     private var authStateListener: AuthStateDidChangeListenerHandle?
     private init() {
         setupAuthStateListener()
+        loadOnboardingStatus()
     }   
     @Published var isAuthenticated = false
     @Published var currentUser: User?
+    @Published var hasCompletedOnboarding = false
 
     // MARK: - Create Account
     func signUp(email: String, password: String, completion: @escaping (Result<User, Error>) -> Void) {
@@ -58,6 +60,11 @@ final class AuthService: ObservableObject {
             DispatchQueue.main.async {
                 self?.currentUser = user
                 self?.isAuthenticated = user != nil
+                if user != nil {
+                    self?.loadOnboardingStatus()
+                } else {
+                    self?.hasCompletedOnboarding = false
+                }
             }
         }
     }
@@ -80,11 +87,14 @@ final class AuthService: ObservableObject {
         }
         
         user.reload { error in
-            if let error = error {
-                print("Error reloading user: \(error)")
-                completion(false)
-            } else {
-                completion(user.isEmailVerified)
+            DispatchQueue.main.async {
+                
+                if let error = error {
+                    print("Error reloading user: \(error)")
+                    completion(false)
+                } else {
+                    completion(user.isEmailVerified)
+                }
             }
         }
     }
@@ -92,42 +102,77 @@ final class AuthService: ObservableObject {
     // MARK: - Google Sign-In
     func signInWithGoogle(presentingViewController: UIViewController,
                           completion: @escaping (Result<User, Error>) -> Void) {
+        print("🔵 AuthService: Starting Google Sign In")
+        
         guard let clientID = FirebaseApp.app()?.options.clientID else {
+            print("❌ AuthService: Missing client ID")
             completion(.failure(NSError(domain: "AuthService", code: -1,
                                         userInfo: [NSLocalizedDescriptionKey: "Missing client ID"])))
             return
         }
         
+        print("✅ AuthService: Client ID found: \(clientID)")
+        
         // Configure Google Sign-In
         let config = GIDConfiguration(clientID: clientID)
         GIDSignIn.sharedInstance.configuration = config
         
+        print("🔵 AuthService: Starting Google Sign In flow")
+        
         // Start the sign-in flow
         GIDSignIn.sharedInstance.signIn(withPresenting: presentingViewController) { result, error in
             if let error = error {
+                print("❌ AuthService: Google Sign In error: \(error.localizedDescription)")
                 completion(.failure(error))
                 return
             }
+            
+            print("✅ AuthService: Google Sign In successful, processing tokens")
             
             guard
                 let idToken = result?.user.idToken?.tokenString,
                 let accessToken = result?.user.accessToken.tokenString
             else {
+                print("❌ AuthService: Missing tokens")
                 completion(.failure(NSError(domain: "AuthService", code: -2,
                                             userInfo: [NSLocalizedDescriptionKey: "Missing tokens"])))
                 return
             }
+            
+            print("✅ AuthService: Tokens received, signing in to Firebase")
             
             let credential = GoogleAuthProvider.credential(withIDToken: idToken, accessToken: accessToken)
             
             // Sign in to Firebase
             Auth.auth().signIn(with: credential) { authResult, error in
                 if let error = error {
+                    print("❌ AuthService: Firebase sign in error: \(error.localizedDescription)")
                     completion(.failure(error))
                 } else if let user = authResult?.user {
+                    print("✅ AuthService: Firebase sign in successful for user: \(user.uid)")
                     completion(.success(user))
                 }
             }
+        }
+    }
+    
+    // MARK: - Onboarding Status
+    func completeOnboarding() {
+        hasCompletedOnboarding = true
+        saveOnboardingStatus()
+    }
+    
+    private func loadOnboardingStatus() {
+        // Load from UserDefaults or Firebase
+        // For now, using UserDefaults
+        if let userId = Auth.auth().currentUser?.uid {
+            hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding_\(userId)")
+        }
+    }
+    
+    private func saveOnboardingStatus() {
+        if let userId = Auth.auth().currentUser?.uid {
+            UserDefaults.standard.set(hasCompletedOnboarding, forKey: "hasCompletedOnboarding_\(userId)")
         }
     }
 }

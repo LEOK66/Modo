@@ -1,4 +1,6 @@
 import SwiftUI
+import FirebaseAuth
+import UIKit
 
 struct RegisterView: View {
     @EnvironmentObject var authService: AuthService
@@ -8,7 +10,8 @@ struct RegisterView: View {
     @State private var showPrivacy = false
     @State private var showEmailError = false
     @State private var showPasswordError = false
-    @State private var showSuccessMessage = false
+    @State private var showErrorMessage = false
+    @State private var errorMessage = ""
     @State private var isLoading = false
     
     var body: some View {
@@ -93,6 +96,15 @@ struct RegisterView: View {
                     PrimaryButton(title: "Sign Up", isLoading: isLoading) {
                         signUp()
                     }
+                    
+                    // Divider
+                    DividerWithText(text: "or")
+                    
+                    // Google login
+                    SocialButton(title: "Google", systemImage: "g.circle.fill") {
+                        signInWithGoogle()
+                    }
+                    .frame(maxWidth: LayoutConstants.inputFieldMaxWidth)
                 }
                 
                 Spacer()
@@ -109,9 +121,10 @@ struct RegisterView: View {
             PrivacyPolicyView()
         }
         .overlay(
-            SuccessToast(
-                message: "Account created! Check your email to verify.",
-                isPresented: showSuccessMessage
+            ErrorToast(
+                message: errorMessage,
+                isPresented: showErrorMessage,
+                topInset: 20 // push lower to avoid overlapping logo
             )
         )
     }
@@ -129,19 +142,78 @@ struct RegisterView: View {
             
             authService.signUp(email: emailAddress, password: password) { result in
                 DispatchQueue.main.async {
-                    isLoading = false
-                    
                     switch result {
                     case .success:
-                        showSuccessMessage = true
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                            showSuccessMessage = false
-                        }
+                        isLoading = false
                         // Auth state will automatically update via the listener
                         // User will be taken to EmailVerificationView
                     case .failure(let error):
+                        isLoading = false
                         print("Sign up error: \(error.localizedDescription)")
-                        // Handle error here if needed
+                        
+                        // Check for error code 17007 (email already in use)
+                        let nsError = error as NSError
+                        if nsError.code == 17007 {
+                            errorMessage = "This email is already registered. Please use a different email or try logging in."
+                        } else {
+                            // Handle other errors
+                            errorMessage = error.localizedDescription
+                        }
+                        
+                        showErrorMessage = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                            showErrorMessage = false
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    private func signInWithGoogle() {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first else {
+            print("Could not find window")
+            errorMessage = "Unable to start Google Sign In"
+            showErrorMessage = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                showErrorMessage = false
+            }
+            return
+        }
+        
+        // Find the top-most view controller
+        var topController = window.rootViewController
+        while let presentedController = topController?.presentedViewController {
+            topController = presentedController
+        }
+        
+        guard let presentingController = topController else {
+            print("Could not find presenting controller")
+            errorMessage = "Unable to start Google Sign In"
+            showErrorMessage = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                showErrorMessage = false
+            }
+            return
+        }
+        
+        print("Starting Google Sign In with controller: \(type(of: presentingController))")
+        
+        authService.signInWithGoogle(presentingViewController: presentingController) { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success:
+                    // Auth state will automatically update via the listener
+                    print("Google sign in successful")
+                case .failure(let error):
+                    print("Google sign in error: \(error.localizedDescription)")
+                    errorMessage = error.localizedDescription
+                    showErrorMessage = true
+                    
+                    // Hide error message after 3 seconds
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                        showErrorMessage = false
                     }
                 }
             }
@@ -149,7 +221,6 @@ struct RegisterView: View {
     }
 }
 
-// Keep the TermsOfServiceView and PrivacyPolicyView here
 private struct TermsOfServiceView: View {
     @Environment(\.dismiss) private var dismiss
     var body: some View {

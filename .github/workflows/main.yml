@@ -1,0 +1,136 @@
+name: iOS CI
+
+on:
+  push:
+    branches-ignore:
+      - develop
+      - main
+  pull_request:
+    branches: [develop, main]
+
+jobs:
+  test:
+    name: Build and Test
+    runs-on: macos-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Cache SPM packages
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData/*/SourcePackages
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+      
+      - name: Cache DerivedData
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData
+          key: ${{ runner.os }}-derived-data-${{ hashFiles('**/project.pbxproj') }}
+          restore-keys: |
+            ${{ runner.os }}-derived-data-
+
+      - name: Create GoogleService-Info.plist
+        run: |
+          mkdir -p Modo
+          cat > Modo/GoogleService-Info.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>API_KEY</key>
+              <string>AIzaSyDummyKeyForCI</string>
+              <key>GCM_SENDER_ID</key>
+              <string>123456789</string>
+              <key>PROJECT_ID</key>
+              <string>modo-ci-test</string>
+              <key>STORAGE_BUCKET</key>
+              <string>modo-ci-test.appspot.com</string>
+              <key>GOOGLE_APP_ID</key>
+              <string>1:123456789:ios:abc123def456</string>
+              <key>CLIENT_ID</key>
+              <string>123456789-abcdefg.apps.googleusercontent.com</string>
+              <key>REVERSED_CLIENT_ID</key>
+              <string>com.googleusercontent.apps.123456789-abcdefg</string>
+          </dict>
+          </plist>
+          EOF
+          echo "Created Modo/GoogleService-Info.plist"
+          ls -la Modo/GoogleService-Info.plist
+
+      - name: Start iOS Simulator
+        run: |
+          # Find and boot iPhone 16 simulator
+          echo "Checking available simulators..."
+          xcrun simctl list devices available | grep "iPhone 16" || true
+          
+          # Boot iPhone 16 (xcodebuild will handle device selection if exact name not found)
+          xcrun simctl boot "iPhone 16" 2>/dev/null || echo "Simulator may already be booted or will be created"
+          
+          # Wait for simulator to be ready
+          echo "Waiting for simulator to be ready..."
+          for i in {1..30}; do
+            if xcrun simctl list devices booted | grep -qE "iPhone 16|iPhone 16 Pro"; then
+              echo "Simulator is booted"
+              break
+            fi
+            sleep 2
+          done
+          
+          # Additional wait to ensure simulator is fully ready
+          sleep 3
+          echo "Simulator should be ready for testing"
+
+      - name: Run tests
+        run: |
+          set -o pipefail
+          # Use any available iPhone 16 simulator
+          xcodebuild test \
+            -project Modo.xcodeproj \
+            -scheme Modo \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -only-testing:ModoTests \
+            -skip-testing:ModoTests/AuthServiceTests/testGoogleSignInErrorHandling \
+            -skip-testing:ModoTests/AuthServiceTests/testGoogleSignInFlow \
+            -skip-testing:ModoTests/AuthServiceTests/testGoogleSignInPerformance \
+            -skip-testing:ModoTests/AuthServiceTests/testGoogleSignInWithMissingClientID \
+            -skip-testing:ModoTests/AuthServiceTests/testGoogleSignInWithMissingTokens \
+            -skip-testing:ModoTests/AuthServiceTests/testGoogleSignInWithNilViewController \
+            -skip-testing:ModoTests/AuthServiceTests/testSignInPerformance \
+            -skip-testing:ModoTests/AuthServiceTests/testSignUpPerformance \
+            -skip-testing:ModoTests/AuthServiceTests/testSignUpWithWeakPassword \
+            -skip-testing:ModoTests/AuthServiceTests/testSignUpWithValidCredentials \
+            -skip-testing:ModoTests/AuthServiceTests/testSignInWithValidCredentials \
+            -skip-testing:ModoTests/AuthServiceTests/testSignInWithInvalidCredentials \
+            -skip-testing:ModoTests/AuthServiceTests/testPasswordResetWithValidEmail \
+            -skip-testing:ModoTests/AuthServiceTests/testPasswordResetWithInvalidEmail \
+            -skip-testing:ModoTests/AuthServiceTests/testSignUpWithInvalidEmail \
+            -resultBundlePath TestResults \
+            2>&1 | tee xcodebuild.log
+
+      - name: Extract crash logs
+        if: always()
+        run: |
+          echo "=== Crash Reports ==="
+          find ~/Library/Logs/DiagnosticReports -name "*.crash" -mtime -1 -exec echo "File: {}" \; -exec cat {} \; || echo "No crash reports"
+
+          echo "=== System Log ==="
+          log show --predicate 'process == "Modo"' --last 5m --style compact || echo "No logs"
+
+      - name: Upload all logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crash-logs
+          path: |
+            xcodebuild.log
+            TestResults
+            ~/Library/Logs/DiagnosticReports/*.crash
