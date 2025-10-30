@@ -25,6 +25,7 @@ struct StatCard: View {
                 .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 1)
                 .shadow(color: Color.black.opacity(0.1), radius: 6, x: 0, y: 4)
         )
+        .frame(width: 327)
     }
 }
 

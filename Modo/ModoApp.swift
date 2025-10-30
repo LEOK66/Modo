@@ -6,6 +6,7 @@ import GoogleSignIn
 @main
 struct ModoApp: App {
     @StateObject private var authService = AuthService.shared
+    @StateObject private var userProgress = UserProgress()
     @State private var isEmailVerified = false
     @State private var verificationTimer: Timer?
     @State private var showAuthenticatedUI = false
@@ -37,6 +38,7 @@ struct ModoApp: App {
                         if authService.hasCompletedOnboarding {
                             MainContainerView()
                                 .environmentObject(authService)
+                                .environmentObject(userProgress)
                                 .transition(.asymmetric(
                                     insertion: .opacity.combined(with: .scale(scale: 0.95)),
                                     removal: .opacity.combined(with: .scale(scale: 1.05))
@@ -44,6 +46,7 @@ struct ModoApp: App {
                         } else {
                             InfoGatheringView()
                                 .environmentObject(authService)
+                                .environmentObject(userProgress)
                                 .transition(.asymmetric(
                                     insertion: .opacity.combined(with: .scale(scale: 0.95)),
                                     removal: .opacity.combined(with: .scale(scale: 1.05))
