@@ -38,9 +38,22 @@
 		99F749742E9EEDFE006319FF /* ModoUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ModoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		9E9D1DEC2EB41FDD005A6C80 /* Exceptions for "Modo" folder in "Modo" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 99F7495A2E9EEDFD006319FF /* Modo */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		99F7495D2E9EEDFD006319FF /* Modo */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				9E9D1DEC2EB41FDD005A6C80 /* Exceptions for "Modo" folder in "Modo" target */,
+			);
 			path = Modo;
 			sourceTree = "<group>";
 		};
