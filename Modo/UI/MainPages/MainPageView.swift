@@ -7,14 +7,44 @@ struct MainPageView: View {
     
     // Can refactor this to different file to reuse struct
     struct TaskItem: Identifiable {
-        let id = UUID()
-        let emoji: String
+        let id: UUID
         let title: String
         let subtitle: String
         let time: String
+        let endTime: String? // For fitness tasks with duration
         let meta: String
         var isDone: Bool
         let emphasisHex: String
+        let category: AddTaskView.Category // diet, fitness, others
+        var dietEntries: [AddTaskView.DietEntry]
+        var fitnessEntries: [AddTaskView.FitnessEntry]
+        
+        init(id: UUID = UUID(), title: String, subtitle: String, time: String, endTime: String? = nil, meta: String, isDone: Bool = false, emphasisHex: String, category: AddTaskView.Category, dietEntries: [AddTaskView.DietEntry], fitnessEntries: [AddTaskView.FitnessEntry]) {
+            self.id = id
+            self.title = title
+            self.subtitle = subtitle
+            self.time = time
+            self.endTime = endTime
+            self.meta = meta
+            self.isDone = isDone
+            self.emphasisHex = emphasisHex
+            self.category = category
+            self.dietEntries = dietEntries
+            self.fitnessEntries = fitnessEntries
+        }
+        
+        // Calculate total calories for this task
+        // Diet tasks add calories, fitness tasks subtract calories, others don't affect calories
+        var totalCalories: Int {
+            switch category {
+            case .diet:
+                return dietEntries.map { Int($0.caloriesText) ?? 0 }.reduce(0, +)
+            case .fitness:
+                return -fitnessEntries.map { Int($0.caloriesText) ?? 0 }.reduce(0, +)
+            case .others:
+                return 0
+            }
+        }
     }
     
     // Empty tasks for first-time users
@@ -31,13 +61,13 @@ struct MainPageView: View {
                         .padding(.top, 12)
                     
                     VStack(spacing: 16) {
-                        CombinedStatsCard()
+                        CombinedStatsCard(tasks: tasks)
                             .padding(.horizontal, 24)
                         
                         TasksHeader(navigationPath: $navigationPath)
                             .padding(.horizontal, 24)
                         
-                        TaskListView(tasks: $tasks)
+                        TaskListView(tasks: $tasks, navigationPath: $navigationPath)
                     }
                     .padding(.top, 12)
                     
@@ -61,6 +91,9 @@ struct MainPageView: View {
             .navigationDestination(for: AddTaskDestination.self) { _ in
                 AddTaskView(tasks: $tasks)
             }
+            .navigationDestination(for: TaskDetailDestination.self) { destination in
+                TaskDetailDestinationView(destination: destination, tasks: $tasks)
+            }
         }
     }
 }
@@ -68,6 +101,15 @@ struct MainPageView: View {
 // MARK: - Navigation Destination Type
 private enum AddTaskDestination: Hashable {
     case addTask
+}
+
+private enum TaskDetailDestination: Hashable {
+    case detail(taskId: UUID)
+    
+    var taskId: UUID? {
+        if case .detail(let id) = self { return id }
+        return nil
+    }
 }
 
 private struct TopHeaderView: View {
@@ -125,6 +167,30 @@ private struct TopHeaderView: View {
 
 // Displays Completed Diet and Fitness Tasks (Should factor out to Components.swift)
 private struct CombinedStatsCard: View {
+    let tasks: [MainPageView.TaskItem]
+    
+    private var completedCount: Int {
+        tasks.filter { $0.isDone }.count
+    }
+    
+    private var totalCount: Int {
+        tasks.count
+    }
+    
+    private var dietCount: Int {
+        tasks.filter { $0.category == .diet && !$0.isDone }.count
+    }
+    
+    private var fitnessCount: Int {
+        tasks.filter { $0.category == .fitness && !$0.isDone }.count
+    }
+    
+    private var totalCalories: Int {
+        tasks.filter { $0.isDone }.reduce(0) { total, task in
+            total + task.totalCalories
+        }
+    }
+    
     var body: some View {
         RoundedRectangle(cornerRadius: 16, style: .continuous)
             .fill(Color.white)
@@ -134,11 +200,11 @@ private struct CombinedStatsCard: View {
             )
             .shadow(color: Color.black.opacity(0.04), radius: 2, x: 0, y: 1)
             .overlay(
-                // Initial state with no tasks - all zeros
                 HStack(spacing: 0) {
-                    StatItem(value: "0/0", label: "Completed", tint: Color(hexString: "101828"))
-                    StatItem(value: "0", label: "Diet", tint: Color(hexString: "00A63E"))
-                    StatItem(value: "0", label: "Fitness", tint: Color(hexString: "155DFC"))
+                    StatItem(value: "\(completedCount)/\(totalCount)", label: "Completed", tint: Color(hexString: "101828"))
+                    StatItem(value: "\(dietCount)", label: "Diet", tint: Color(hexString: "00A63E"))
+                    StatItem(value: "\(fitnessCount)", label: "Fitness", tint: Color(hexString: "155DFC"))
+                    StatItem(value: "\(totalCalories)", label: "Calories", tint: Color(hexString: "4ECDC4"))
                 }
                 .frame(maxWidth: .infinity)
                 .padding(12)
@@ -220,59 +286,136 @@ private struct TasksHeader: View {
 }
 
 private struct TaskRowCard: View {
-    let emoji: String
     let title: String
     let subtitle: String
     let time: String
+    let endTime: String?
     let meta: String
     @Binding var isDone: Bool
     let emphasis: Color
+    let category: AddTaskView.Category
+    @State private var checkboxScale: CGFloat = 1.0
+    @State private var strikethroughProgress: CGFloat = 0.0
 
-    init(emoji: String, title: String, subtitle: String, time: String, meta: String, isDone: Binding<Bool>, emphasis: Color) {
-        self.emoji = emoji
+    init(title: String, subtitle: String, time: String, endTime: String?, meta: String, isDone: Binding<Bool>, emphasis: Color, category: AddTaskView.Category) {
         self.title = title
         self.subtitle = subtitle
         self.time = time
+        self.endTime = endTime
         self.meta = meta
         self._isDone = isDone
         self.emphasis = emphasis
+        self.category = category
     }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(isDone ? emphasis : Color.white)
-                    .frame(width: 22, height: 22)
-                    .overlay(
-                        Circle().stroke(Color(hexString: "E5E7EB"), lineWidth: isDone ? 0 : 1)
-                    )
-                if isDone {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.white)
+            // Checkbox button
+            Button {
+                let willBeDone = !isDone
+                
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
+                    isDone.toggle()
+                    triggerCompletionHaptic()
+                }
+                // Checkbox bounce animation
+                withAnimation(.easeOut(duration: 0.15)) {
+                    checkboxScale = 1.3
+                }
+                withAnimation(.easeIn(duration: 0.15).delay(0.15)) {
+                    checkboxScale = 1.0
+                }
+                // Strikethrough animation
+                if willBeDone {
+                    withAnimation(.easeInOut(duration: 0.4).delay(0.1)) {
+                        strikethroughProgress = 1.0
+                    }
+                } else {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        strikethroughProgress = 0.0
+                    }
+                }
+            } label: {
+                ZStack {
+                    Circle()
+                        .fill(isDone ? emphasis : Color.white)
+                        .frame(width: 22, height: 22)
+                        .overlay(
+                            Circle().stroke(Color(hexString: "E5E7EB"), lineWidth: isDone ? 0 : 1)
+                        )
+                        .scaleEffect(checkboxScale)
+                    if isDone {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.white)
+                            .scaleEffect(checkboxScale)
+                    }
                 }
             }
+            .buttonStyle(.plain)
+            
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(emoji)
-                    Text(title)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(isDone ? emphasis : Color(hexString: "101828"))
+                    GeometryReader { geometry in
+                        ZStack(alignment: .leading) {
+                            Text(title)
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(isDone ? emphasis : Color(hexString: "101828"))
+                            
+                            // Animated strikethrough line
+                            if strikethroughProgress > 0 {
+                                Path { path in
+                                    let y = geometry.size.height / 2
+                                    let startX: CGFloat = 0
+                                    let endX = geometry.size.width * strikethroughProgress
+                                    path.move(to: CGPoint(x: startX, y: y))
+                                    path.addLine(to: CGPoint(x: endX, y: y))
+                                }
+                                .stroke(
+                                    emphasis,
+                                    style: StrokeStyle(
+                                        lineWidth: 2,
+                                        lineCap: .round
+                                    )
+                                )
+                                .animation(.none, value: strikethroughProgress)
+                            }
+                        }
+                    }
+                    .frame(height: 20) // Fixed height for GeometryReader
                 }
-                Text(subtitle)
-                    .font(.system(size: 14))
-                    .foregroundColor(Color(hexString: "6A7282"))
-                HStack(spacing: 12) {
-                    Label(time, systemImage: "clock")
-                        .font(.system(size: 12))
-                        .foregroundColor(Color(hexString: "364153"))
-                    Text(meta)
-                        .font(.system(size: 12))
-                        .foregroundColor(Color(hexString: "364153"))
+                if !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.system(size: 14))
+                        .foregroundColor(Color(hexString: "6A7282"))
+                        .lineLimit(1)
+                }
+                if let endTime = endTime {
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock")
+                            .font(.system(size: 12))
+                        Text("\(time) - \(endTime)")
+                            .font(.system(size: 12))
+                    }
+                    .foregroundColor(Color(hexString: "364153"))
+                } else {
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock")
+                            .font(.system(size: 12))
+                        Text(time)
+                            .font(.system(size: 12))
+                    }
+                    .foregroundColor(Color(hexString: "364153"))
                 }
             }
             Spacer(minLength: 0)
+            
+            // Meta information (calories)
+            if !meta.isEmpty {
+                Text(meta)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(emphasis)
+            }
         }
         .padding(16)
         .background(
@@ -285,9 +428,43 @@ private struct TaskRowCard: View {
         )
         .shadow(color: Color.black.opacity(0.04), radius: 2, x: 0, y: 1)
         .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .onTapGesture {
-            withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
-                isDone.toggle()
+    }
+    
+    private func triggerCompletionHaptic() {
+        #if canImport(UIKit)
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        #endif
+    }
+}
+
+
+// Helper view for task detail navigation
+private struct TaskDetailDestinationView: View {
+    let destination: TaskDetailDestination
+    @Binding var tasks: [MainPageView.TaskItem]
+    
+    var body: some View {
+        Group {
+            if let taskId = destination.taskId,
+               let taskIndex = tasks.firstIndex(where: { $0.id == taskId }) {
+                DetailPageView(tasks: $tasks, taskIndex: taskIndex)
+            } else {
+                // Fallback view if task not found
+                VStack(spacing: 16) {
+                    Spacer()
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.system(size: 48))
+                        .foregroundColor(Color(hexString: "9CA3AF"))
+                    Text("Task not found")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(Color(hexString: "6A7282"))
+                    Text("The task may have been deleted")
+                        .font(.system(size: 14))
+                        .foregroundColor(Color(hexString: "9CA3AF"))
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(hexString: "F9FAFB"))
             }
         }
     }
@@ -295,29 +472,81 @@ private struct TaskRowCard: View {
 
 private struct TaskListView: View {
     @Binding var tasks: [MainPageView.TaskItem]
+    @Binding var navigationPath: NavigationPath
+    @State private var deletingTaskIds: Set<UUID> = []
 
     var body: some View {
-        ScrollView {
+        Group {
             if tasks.isEmpty {
-                EmptyTasksView()
-            } else {
-                VStack(spacing: 12) {
-                    ForEach($tasks) { $task in
-                        TaskRowCard(
-                            emoji: task.emoji,
-                            title: task.title,
-                            subtitle: task.subtitle,
-                            time: task.time,
-                            meta: task.meta,
-                            isDone: $task.isDone,
-                            emphasis: Color(hexString: task.emphasisHex)
-                        )
-                    }
+                ScrollView {
+                    EmptyTasksView()
                 }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 12)
+            } else {
+                GeometryReader { geometry in
+                    List {
+                        ForEach(Array(tasks.enumerated()), id: \.element.id) { index, task in
+                            TaskRowCard(
+                                title: task.title,
+                                subtitle: task.subtitle,
+                                time: task.time,
+                                endTime: task.endTime,
+                                meta: task.meta,
+                                isDone: Binding(
+                                    get: { task.isDone },
+                                    set: { newValue in
+                                        tasks[index].isDone = newValue
+                                    }
+                                ),
+                                emphasis: Color(hexString: task.emphasisHex),
+                                category: task.category
+                            )
+                            .offset(x: deletingTaskIds.contains(task.id) ? geometry.size.width : 0)
+                            .opacity(deletingTaskIds.contains(task.id) ? 0 : 1)
+                            .listRowInsets(EdgeInsets(top: 0, leading: 24, bottom: 12, trailing: 24))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button(role: .destructive) {
+                                    deleteTask(task.id)
+                                } label: {
+                                    Label("Delete", systemImage: "trash.fill")
+                                }
+                                
+                                Button {
+                                    navigationPath.append(TaskDetailDestination.detail(taskId: task.id))
+                                } label: {
+                                    Label("Detail", systemImage: "info.circle.fill")
+                                }
+                                .tint(Color.gray)
+                            }
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                navigationPath.append(TaskDetailDestination.detail(taskId: task.id))
+                            }
+                        }
+                    }
+                    .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                }
             }
         }
+    }
+    
+    private func deleteTask(_ taskId: UUID) {
+        triggerDeleteHaptic()
+        
+        
+        // Remove after animation completes
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            tasks.removeAll { $0.id == taskId }
+            deletingTaskIds.remove(taskId)
+        }
+    }
+    
+    private func triggerDeleteHaptic() {
+        #if canImport(UIKit)
+        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+        #endif
     }
 }
 
