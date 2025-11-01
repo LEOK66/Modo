@@ -3,7 +3,7 @@ import SwiftUI
 struct AddTaskView: View {
     @Environment(\.dismiss) private var dismiss
     @Binding var tasks: [MainPageView.TaskItem]
-    
+    @Binding var newlyAddedTaskId: UUID?
     // Form state
     @State private var titleText: String = ""
     @State private var descriptionText: String = ""
@@ -1504,6 +1504,7 @@ struct AddTaskView: View {
                     )
                     
                     tasks.append(task)
+                    newlyAddedTaskId = task.id // Trigger animation for newly added task
                     triggerHapticMedium()
                     dismiss()
                 }) {
@@ -1527,7 +1528,7 @@ struct AddTaskView: View {
 #Preview {
     StatefulPreviewWrapper([MainPageView.TaskItem]()) { tasks in
         NavigationStack {
-            AddTaskView(tasks: tasks)
+            AddTaskView(tasks: tasks, newlyAddedTaskId: .constant(nil))
         }
     }
 }

@@ -52,6 +52,12 @@ struct MainPageView: View {
     // Empty tasks for first-time users
     @State private var tasks: [TaskItem] = []
     
+    // Track newly added task for animation
+    @State private var newlyAddedTaskId: UUID? = nil
+    
+    // FIX #3: Add a counter to force view updates when tasks are modified
+    @State private var tasksVersion: Int = 0
+    
     // Computed property to return tasks sorted by time
     private var sortedTasks: [TaskItem] {
         tasks.sorted { $0.timeDate < $1.timeDate }
@@ -74,7 +80,12 @@ struct MainPageView: View {
                         TasksHeader(navigationPath: $navigationPath)
                             .padding(.horizontal, 24)
                         
-                        TaskListView(tasks: $tasks, navigationPath: $navigationPath)
+                        TaskListView(
+                            tasks: $tasks,
+                            navigationPath: $navigationPath,
+                            newlyAddedTaskId: $newlyAddedTaskId,
+                            tasksVersion: $tasksVersion
+                        )
                     }
                     .padding(.top, 12)
                     
@@ -96,10 +107,14 @@ struct MainPageView: View {
                 }
             }
             .navigationDestination(for: AddTaskDestination.self) { _ in
-                AddTaskView(tasks: $tasks)
+                AddTaskView(tasks: $tasks, newlyAddedTaskId: $newlyAddedTaskId)
             }
             .navigationDestination(for: TaskDetailDestination.self) { destination in
-                TaskDetailDestinationView(destination: destination, tasks: $tasks)
+                TaskDetailDestinationView(
+                    destination: destination,
+                    tasks: $tasks,
+                    tasksVersion: $tasksVersion
+                )
             }
         }
     }
@@ -449,12 +464,17 @@ private struct TaskRowCard: View {
 private struct TaskDetailDestinationView: View {
     let destination: TaskDetailDestination
     @Binding var tasks: [MainPageView.TaskItem]
+    @Binding var tasksVersion: Int
     
     var body: some View {
         Group {
             if let taskId = destination.taskId,
                let taskIndex = tasks.firstIndex(where: { $0.id == taskId }) {
-                DetailPageView(tasks: $tasks, taskIndex: taskIndex)
+                DetailPageView(
+                    tasks: $tasks,
+                    taskIndex: taskIndex,
+                    tasksVersion: $tasksVersion
+                )
             } else {
                 // Fallback view if task not found
                 VStack(spacing: 16) {
@@ -480,11 +500,15 @@ private struct TaskDetailDestinationView: View {
 private struct TaskListView: View {
     @Binding var tasks: [MainPageView.TaskItem]
     @Binding var navigationPath: NavigationPath
+    @Binding var newlyAddedTaskId: UUID?
+    @Binding var tasksVersion: Int
     @State private var deletingTaskIds: Set<UUID> = []
     
     // Use original tasks array for sorting display
+    // FIX #3: Include tasksVersion to force re-computation
     private var sortedTasks: [MainPageView.TaskItem] {
-        tasks.sorted { $0.timeDate < $1.timeDate }
+        _ = tasksVersion // Force dependency
+        return tasks.sorted { $0.timeDate < $1.timeDate }
     }
 
     var body: some View {
@@ -495,53 +519,97 @@ private struct TaskListView: View {
                 }
             } else {
                 GeometryReader { geometry in
-                    List {
-                        ForEach(Array(sortedTasks.enumerated()), id: \.element.id) { _, task in
-                            // Find the actual index in the original tasks array
-                            let actualIndex = tasks.firstIndex(where: { $0.id == task.id }) ?? 0
-                            
-                            TaskRowCard(
-                                title: task.title,
-                                subtitle: task.subtitle,
-                                time: task.time,
-                                endTime: task.endTime,
-                                meta: task.meta,
-                                isDone: Binding(
-                                    get: { task.isDone },
-                                    set: { newValue in
-                                        tasks[actualIndex].isDone = newValue
-                                    }
-                                ),
-                                emphasis: Color(hexString: task.emphasisHex),
-                                category: task.category
-                            )
-                            .offset(x: deletingTaskIds.contains(task.id) ? geometry.size.width : 0)
-                            .opacity(deletingTaskIds.contains(task.id) ? 0 : 1)
-                            .listRowInsets(EdgeInsets(top: 0, leading: 24, bottom: 12, trailing: 24))
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.clear)
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                Button(role: .destructive) {
-                                    deleteTask(task.id)
-                                } label: {
-                                    Label("Delete", systemImage: "trash.fill")
-                                }
+                    ScrollViewReader { proxy in
+                        List {
+                            ForEach(Array(sortedTasks.enumerated()), id: \.element.id) { _, task in
+                                // Find the actual index in the original tasks array
+                                let actualIndex = tasks.firstIndex(where: { $0.id == task.id }) ?? 0
+                                let isNewlyAdded = newlyAddedTaskId == task.id
                                 
-                                Button {
-                                    navigationPath.append(TaskDetailDestination.detail(taskId: task.id))
-                                } label: {
-                                    Label("Detail", systemImage: "info.circle.fill")
+                                TaskRowCard(
+                                    title: task.title,
+                                    subtitle: task.subtitle,
+                                    time: task.time,
+                                    endTime: task.endTime,
+                                    meta: task.meta,
+                                    isDone: Binding(
+                                        get: { task.isDone },
+                                        set: { newValue in
+                                            tasks[actualIndex].isDone = newValue
+                                        }
+                                    ),
+                                    emphasis: Color(hexString: task.emphasisHex),
+                                    category: task.category
+                                )
+                                .scaleEffect(isNewlyAdded ? 1.05 : 1.0)
+                                .shadow(
+                                    color: isNewlyAdded ? Color(hexString: task.emphasisHex).opacity(0.3) : Color.clear,
+                                    radius: isNewlyAdded ? 12 : 0,
+                                    x: 0,
+                                    y: 0
+                                )
+                                .animation(.spring(response: 0.4, dampingFraction: 0.7), value: isNewlyAdded)
+                                .id(task.id)
+                                .offset(x: deletingTaskIds.contains(task.id) ? geometry.size.width : 0)
+                                .opacity(deletingTaskIds.contains(task.id) ? 0 : 1)
+                                .onAppear {
+                                    if isNewlyAdded {
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                                            if newlyAddedTaskId == task.id {
+                                                withAnimation(.easeOut(duration: 0.3)) {
+                                                    newlyAddedTaskId = nil
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
-                                .tint(Color.gray)
+                                .listRowInsets(EdgeInsets(top: 0, leading: 24, bottom: 12, trailing: 24))
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(Color.clear)
+                                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                    Button(role: .destructive) {
+                                        deleteTask(task.id)
+                                    } label: {
+                                        Label("Delete", systemImage: "trash.fill")
+                                    }
+                                    
+                                    Button {
+                                        navigationPath.append(TaskDetailDestination.detail(taskId: task.id))
+                                    } label: {
+                                        Label("Detail", systemImage: "info.circle.fill")
+                                    }
+                                    .tint(Color.gray)
+                                }
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    navigationPath.append(TaskDetailDestination.detail(taskId: task.id))
+                                }
                             }
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                navigationPath.append(TaskDetailDestination.detail(taskId: task.id))
+                        }
+                        .listStyle(.plain)
+                        .scrollContentBackground(.hidden)
+                        // FIX #1 & #2: Better handling of new task animation
+                        .onChange(of: newlyAddedTaskId) { oldId, newId in
+                            // Only proceed if we have a new task (not clearing)
+                            guard let taskId = newId, newId != oldId else { return }
+                            
+                            // FIX #2: Longer delay to ensure view hierarchy is ready
+                            // This gives the navigation transition time to complete
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                withAnimation(.easeInOut(duration: 0.6)) {
+                                    proxy.scrollTo(taskId, anchor: .center)
+                                }
+                            }
+                            
+                            // FIX #1: Always clear the highlight after 1.5 seconds
+                            // Independent of other state changes
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                                withAnimation(.easeOut(duration: 0.3)) {
+                                    newlyAddedTaskId = nil
+                                }
                             }
                         }
                     }
-                    .listStyle(.plain)
-                    .scrollContentBackground(.hidden)
                 }
             }
         }
@@ -549,7 +617,6 @@ private struct TaskListView: View {
     
     private func deleteTask(_ taskId: UUID) {
         triggerDeleteHaptic()
-        
         
         // Remove after animation completes
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {

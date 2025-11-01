@@ -4,6 +4,7 @@ struct DetailPageView: View {
     @Environment(\.dismiss) private var dismiss
     @Binding var tasks: [MainPageView.TaskItem]
     let taskIndex: Int
+    @Binding var tasksVersion: Int
     
     private var task: MainPageView.TaskItem? {
         guard taskIndex >= 0 && taskIndex < tasks.count else {
@@ -1131,7 +1132,7 @@ struct DetailPageView: View {
                 return "\(per) cal"
             }
         }
-        return "â€“"
+        return "—"
     }
     
     private func recalcCaloriesFromDurationIfNeeded() {
@@ -1244,6 +1245,9 @@ struct DetailPageView: View {
         
         // Replace the task in the array
         tasks[taskIndex] = updatedTask
+        
+        // FIX #3: Increment version to trigger re-sorting in MainPageView
+        tasksVersion += 1
     }
     
     private func truncateSubtitle(_ text: String) -> String {
