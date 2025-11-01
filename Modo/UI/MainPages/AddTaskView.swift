@@ -416,7 +416,7 @@ struct AddTaskView: View {
                 // AI suggestions row (placeholder)
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        aiSuggestionChip("Low-fat lunch • 600 cal")
+                        aiSuggestionChip("Low-fat lunch â€¢ 600 cal")
                         aiSuggestionChip("30m run after 7pm")
                         aiSuggestionChip("High-protein dinner")
                     }
@@ -572,9 +572,9 @@ struct AddTaskView: View {
                     TextField(placeholderForUnit(entry.unit), text: Binding(
                         get: { dietEntries[index].quantityText },
                         set: { newValue in
-                            // 允许小数点
+                            // å…è®¸å°æ•°ç‚¹
                             let filtered = newValue.filter { $0.isNumber || $0 == "." }
-                            // 确保只有一个小数点
+                            // ç¡®ä¿åªæœ‰ä¸€ä¸ªå°æ•°ç‚¹
                             let components = filtered.components(separatedBy: ".")
                             if components.count <= 2 {
                                 dietEntries[index].quantityText = filtered
@@ -590,7 +590,7 @@ struct AddTaskView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
                 
-                // 需求2: 根据食物数据动态显示单位选项
+                // éœ€æ±‚2: æ ¹æ®é£Ÿç‰©æ•°æ®åŠ¨æ€æ˜¾ç¤ºå•ä½é€‰é¡¹
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Unit")
                         .font(.system(size: 12))
@@ -605,7 +605,7 @@ struct AddTaskView: View {
                             let oldUnit = dietEntries[index].unit
                             dietEntries[index].unit = newValue
                             
-                            // 智能调整数量
+                            // æ™ºèƒ½è°ƒæ•´æ•°é‡
                             if oldUnit != newValue {
                                 if newValue == "g" && (dietEntries[index].quantityText == "1" || dietEntries[index].quantityText.isEmpty) {
                                     dietEntries[index].quantityText = "100"
@@ -1115,7 +1115,7 @@ struct AddTaskView: View {
                         }
                         
                         if isOnlineLoading {
-                            Text("Searching online…")
+                            Text("Searching onlineâ€¦")
                                 .font(.system(size: 12))
                                 .foregroundColor(Color(hexString: "6A7282"))
                         }
@@ -1419,7 +1419,7 @@ struct AddTaskView: View {
                 return "\(per) cal"
             }
         }
-        return "–"
+        return "â€“"
     }
     
     private var totalFitnessCalories: Int {
@@ -1493,6 +1493,7 @@ struct AddTaskView: View {
                         title: titleText.isEmpty ? "New Task" : titleText,
                         subtitle: truncatedSubtitle(descriptionText),
                         time: formattedTime,
+                        timeDate: timeDate,
                         endTime: endTimeValue,
                         meta: metaText,
                         isDone: false,
@@ -1530,4 +1531,3 @@ struct AddTaskView: View {
         }
     }
 }
-

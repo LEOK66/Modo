@@ -1131,7 +1131,7 @@ struct DetailPageView: View {
                 return "\(per) cal"
             }
         }
-        return "–"
+        return "â€“"
     }
     
     private func recalcCaloriesFromDurationIfNeeded() {
@@ -1232,6 +1232,7 @@ struct DetailPageView: View {
             title: titleText.isEmpty ? task.title : titleText,
             subtitle: truncatedSubtitle,
             time: formattedTime,
+            timeDate: timeDate,
             endTime: endTimeValue,
             meta: metaText,
             isDone: task.isDone,

@@ -11,6 +11,7 @@ struct MainPageView: View {
         let title: String
         let subtitle: String
         let time: String
+        let timeDate: Date // For sorting tasks by time
         let endTime: String? // For fitness tasks with duration
         let meta: String
         var isDone: Bool
@@ -19,11 +20,12 @@ struct MainPageView: View {
         var dietEntries: [AddTaskView.DietEntry]
         var fitnessEntries: [AddTaskView.FitnessEntry]
         
-        init(id: UUID = UUID(), title: String, subtitle: String, time: String, endTime: String? = nil, meta: String, isDone: Bool = false, emphasisHex: String, category: AddTaskView.Category, dietEntries: [AddTaskView.DietEntry], fitnessEntries: [AddTaskView.FitnessEntry]) {
+        init(id: UUID = UUID(), title: String, subtitle: String, time: String, timeDate: Date, endTime: String? = nil, meta: String, isDone: Bool = false, emphasisHex: String, category: AddTaskView.Category, dietEntries: [AddTaskView.DietEntry], fitnessEntries: [AddTaskView.FitnessEntry]) {
             self.id = id
             self.title = title
             self.subtitle = subtitle
             self.time = time
+            self.timeDate = timeDate
             self.endTime = endTime
             self.meta = meta
             self.isDone = isDone
@@ -50,6 +52,11 @@ struct MainPageView: View {
     // Empty tasks for first-time users
     @State private var tasks: [TaskItem] = []
     
+    // Computed property to return tasks sorted by time
+    private var sortedTasks: [TaskItem] {
+        tasks.sorted { $0.timeDate < $1.timeDate }
+    }
+    
     var body: some View {
         NavigationStack(path: $navigationPath) {
             ZStack {
@@ -61,7 +68,7 @@ struct MainPageView: View {
                         .padding(.top, 12)
                     
                     VStack(spacing: 16) {
-                        CombinedStatsCard(tasks: tasks)
+                        CombinedStatsCard(tasks: sortedTasks)
                             .padding(.horizontal, 24)
                         
                         TasksHeader(navigationPath: $navigationPath)
@@ -474,6 +481,11 @@ private struct TaskListView: View {
     @Binding var tasks: [MainPageView.TaskItem]
     @Binding var navigationPath: NavigationPath
     @State private var deletingTaskIds: Set<UUID> = []
+    
+    // Use original tasks array for sorting display
+    private var sortedTasks: [MainPageView.TaskItem] {
+        tasks.sorted { $0.timeDate < $1.timeDate }
+    }
 
     var body: some View {
         Group {
@@ -484,7 +496,10 @@ private struct TaskListView: View {
             } else {
                 GeometryReader { geometry in
                     List {
-                        ForEach(Array(tasks.enumerated()), id: \.element.id) { index, task in
+                        ForEach(Array(sortedTasks.enumerated()), id: \.element.id) { _, task in
+                            // Find the actual index in the original tasks array
+                            let actualIndex = tasks.firstIndex(where: { $0.id == task.id }) ?? 0
+                            
                             TaskRowCard(
                                 title: task.title,
                                 subtitle: task.subtitle,
@@ -494,7 +509,7 @@ private struct TaskListView: View {
                                 isDone: Binding(
                                     get: { task.isDone },
                                     set: { newValue in
-                                        tasks[index].isDone = newValue
+                                        tasks[actualIndex].isDone = newValue
                                     }
                                 ),
                                 emphasis: Color(hexString: task.emphasisHex),
