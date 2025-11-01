@@ -1,0 +1,72 @@
+[
+  {"name": "Apple", "caloriesPer100g": 52, "defaultUnit": "g"},
+  {"name": "Banana", "caloriesPer100g": 89, "defaultUnit": "g"},
+  {"name": "Orange", "caloriesPer100g": 47, "defaultUnit": "g"},
+  {"name": "Pear", "caloriesPer100g": 57, "defaultUnit": "g"},
+  {"name": "Mango", "caloriesPer100g": 60, "defaultUnit": "g"},
+  {"name": "Grapes (1 cup)", "caloriesPerServing": 104},
+  {"name": "Strawberries (1 cup)", "caloriesPerServing": 49},
+  {"name": "Blueberries (1 cup)", "caloriesPerServing": 84},
+  {"name": "Watermelon (2 cups)", "caloriesPerServing": 92},
+  {"name": "Pineapple (1 cup)", "caloriesPerServing": 82},
+  
+  {"name": "Tomato", "caloriesPer100g": 18, "defaultUnit": "g"},
+  {"name": "Cucumber", "caloriesPer100g": 16, "defaultUnit": "g"},
+  {"name": "Carrots (1 cup)", "caloriesPerServing": 52},
+  {"name": "Broccoli (1 cup)", "caloriesPerServing": 55},
+  {"name": "Spinach (1 cup)", "caloriesPerServing": 7},
+  {"name": "Sweet Potato", "caloriesPer100g": 86, "defaultUnit": "g"},
+  {"name": "Baked Potato", "caloriesPer100g": 93, "defaultUnit": "g"},
+  
+  {"name": "White Rice (1 cup)", "caloriesPerServing": 206},
+  {"name": "Brown Rice (1 cup)", "caloriesPerServing": 216},
+  {"name": "Quinoa (1 cup)", "caloriesPerServing": 222},
+  {"name": "Pasta (1 cup)", "caloriesPerServing": 221},
+  {"name": "Whole Wheat Bread (1 slice)", "caloriesPerServing": 110},
+  {"name": "Bagel", "caloriesPerServing": 250},
+  {"name": "Croissant", "caloriesPerServing": 231},
+  
+  {"name": "Chicken Salad", "caloriesPerServing": 350},
+  {"name": "Caesar Salad", "caloriesPerServing": 330},
+  {"name": "Egg Sandwich", "caloriesPerServing": 320},
+  {"name": "Avocado Toast", "caloriesPerServing": 280},
+  {"name": "Cheeseburger", "caloriesPerServing": 303},
+  {"name": "Hamburger", "caloriesPerServing": 250},
+  {"name": "Hot Dog", "caloriesPerServing": 150},
+  
+  {"name": "Chicken Burrito", "caloriesPerServing": 480},
+  {"name": "Beef Burrito", "caloriesPerServing": 530},
+  {"name": "Chicken Tacos (2)", "caloriesPerServing": 320},
+  
+  {"name": "Pepperoni Pizza (1 slice)", "caloriesPerServing": 298},
+  {"name": "Margherita Pizza (1 slice)", "caloriesPerServing": 250},
+  
+  {"name": "French Fries (medium)", "caloriesPerServing": 365},
+  {"name": "Fried Chicken (1 piece)", "caloriesPerServing": 320},
+  
+  {"name": "Chicken Breast (grilled)", "caloriesPer100g": 165, "defaultUnit": "g"},
+  {"name": "Grilled Salmon", "caloriesPer100g": 206, "defaultUnit": "g"},
+  {"name": "Tofu", "caloriesPer100g": 76, "defaultUnit": "g"},
+  
+  {"name": "Scrambled Eggs (2)", "caloriesPerServing": 180},
+  {"name": "Omelette (2 eggs)", "caloriesPerServing": 190},
+  {"name": "Oatmeal", "caloriesPerServing": 160},
+  
+  {"name": "Cheddar Cheese", "caloriesPer100g": 403, "defaultUnit": "g"},
+  {"name": "Greek Yogurt (1 cup)", "caloriesPerServing": 130},
+  {"name": "Yogurt", "caloriesPerServing": 150},
+  {"name": "Milk (1 cup)", "caloriesPerServing": 103},
+  
+  {"name": "Almonds", "caloriesPer100g": 579, "defaultUnit": "g"},
+  {"name": "Peanut Butter (2 tbsp)", "caloriesPerServing": 188},
+  {"name": "Trail Mix (1 oz)", "caloriesPerServing": 137},
+  
+  {"name": "Chocolate Bar (1.5 oz)", "caloriesPerServing": 210},
+  {"name": "Potato Chips (1 oz)", "caloriesPerServing": 152},
+  {"name": "Tortilla Chips (1 oz)", "caloriesPerServing": 142},
+  
+  {"name": "Protein Shake", "caloriesPerServing": 220},
+  {"name": "Soda (12 oz)", "caloriesPerServing": 150},
+  {"name": "Orange Juice (8 oz)", "caloriesPerServing": 112},
+  {"name": "Latte (12 oz)", "caloriesPerServing": 190}
+]
