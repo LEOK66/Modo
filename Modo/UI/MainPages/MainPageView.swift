@@ -49,18 +49,90 @@ struct MainPageView: View {
         }
     }
     
-    // Empty tasks for first-time users
-    @State private var tasks: [TaskItem] = []
+    // Tasks stored by date (normalized to start of day)
+    @State private var tasksByDate: [Date: [TaskItem]] = [:]
+    
+    // Currently selected date (normalized to start of day)
+    @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
     
     // Track newly added task for animation
     @State private var newlyAddedTaskId: UUID? = nil
     
-    // FIX #3: Add a counter to force view updates when tasks are modified
-    @State private var tasksVersion: Int = 0
+    // Date range: past 12 months to future 3 months
+    private var dateRange: (min: Date, max: Date) {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let minDate = calendar.date(byAdding: .month, value: -12, to: today) ?? today
+        let maxDate = calendar.date(byAdding: .month, value: 3, to: today) ?? today
+        return (min: calendar.startOfDay(for: minDate), max: calendar.startOfDay(for: maxDate))
+    }
     
-    // Computed property to return tasks sorted by time
-    private var sortedTasks: [TaskItem] {
-        tasks.sorted { $0.timeDate < $1.timeDate }
+    // Computed property to return tasks for selected date, sorted by time
+    private var filteredTasks: [TaskItem] {
+        tasks(for: selectedDate)
+    }
+    
+    // MARK: - Task Management Methods
+    
+    /// Get tasks for a specific date (sorted by time)
+    private func tasks(for date: Date) -> [TaskItem] {
+        let calendar = Calendar.current
+        let dateKey = calendar.startOfDay(for: date)
+        return tasksByDate[dateKey]?.sorted { $0.timeDate < $1.timeDate } ?? []
+    }
+    
+    /// Add a task to the Map structure
+    private func addTask(_ task: TaskItem) {
+        let calendar = Calendar.current
+        let dateKey = calendar.startOfDay(for: task.timeDate)
+        if tasksByDate[dateKey] == nil {
+            tasksByDate[dateKey] = []
+        }
+        tasksByDate[dateKey]?.append(task)
+    }
+    
+    /// Remove a task from the Map structure
+    private func removeTask(_ task: TaskItem) {
+        let calendar = Calendar.current
+        for (dateKey, tasks) in tasksByDate {
+            if let index = tasks.firstIndex(where: { $0.id == task.id }) {
+                tasksByDate[dateKey]?.remove(at: index)
+                // Optional: Remove empty arrays (or keep them)
+                if tasksByDate[dateKey]?.isEmpty == true {
+                    tasksByDate.removeValue(forKey: dateKey)
+                }
+                return
+            }
+        }
+    }
+    
+    /// Update a task (handles date changes)
+    private func updateTask(_ newTask: TaskItem, oldTask: TaskItem) {
+        let calendar = Calendar.current
+        let oldDateKey = calendar.startOfDay(for: oldTask.timeDate)
+        let newDateKey = calendar.startOfDay(for: newTask.timeDate)
+        
+        if oldDateKey == newDateKey {
+            // Same date: replace in place
+            if let tasks = tasksByDate[oldDateKey],
+               let index = tasks.firstIndex(where: { $0.id == oldTask.id }) {
+                tasksByDate[oldDateKey]?[index] = newTask
+            }
+        } else {
+            // Different date: remove from old, add to new
+            removeTask(oldTask)
+            addTask(newTask)
+        }
+    }
+    
+    /// Get a task by its ID
+    private func getTask(by id: UUID) -> TaskItem? {
+        for tasks in tasksByDate.values {
+            if let task = tasks.first(where: { $0.id == id }) {
+                return task
+            }
+        }
+        return nil
     }
     
     var body: some View {
@@ -69,22 +141,35 @@ struct MainPageView: View {
                 Color.white.ignoresSafeArea()
                 
                 VStack(spacing: 0) {
-                    TopHeaderView(isShowingCalendar: $isShowingCalendar)
+                    TopHeaderView(
+                        isShowingCalendar: $isShowingCalendar,
+                        selectedDate: selectedDate
+                    )
                         .padding(.horizontal, 24)
                         .padding(.top, 12)
                     
                     VStack(spacing: 16) {
-                        CombinedStatsCard(tasks: sortedTasks)
+                        CombinedStatsCard(tasks: filteredTasks)
                             .padding(.horizontal, 24)
                         
-                        TasksHeader(navigationPath: $navigationPath)
+                        TasksHeader(
+                            navigationPath: $navigationPath,
+                            selectedDate: selectedDate
+                        )
                             .padding(.horizontal, 24)
                         
                         TaskListView(
-                            tasks: $tasks,
+                            tasks: filteredTasks,
                             navigationPath: $navigationPath,
                             newlyAddedTaskId: $newlyAddedTaskId,
-                            tasksVersion: $tasksVersion
+                            onDeleteTask: { task in
+                                removeTask(task)
+                            },
+                            onUpdateTask: { task in
+                                if let oldTask = getTask(by: task.id) {
+                                    updateTask(task, oldTask: oldTask)
+                                }
+                            }
                         )
                     }
                     .padding(.top, 12)
@@ -102,18 +187,33 @@ struct MainPageView: View {
                             withAnimation(.easeInOut) { isShowingCalendar = false }
                         }
                     // Popup content centered
-                    CalendarPopupView(showCalendar: $isShowingCalendar)
+                    CalendarPopupView(
+                        showCalendar: $isShowingCalendar,
+                        selectedDate: $selectedDate,
+                        dateRange: dateRange
+                    )
                         .transition(.scale.combined(with: .opacity))
                 }
             }
             .navigationDestination(for: AddTaskDestination.self) { _ in
-                AddTaskView(tasks: $tasks, newlyAddedTaskId: $newlyAddedTaskId)
+                AddTaskView(
+                    selectedDate: selectedDate,
+                    newlyAddedTaskId: $newlyAddedTaskId,
+                    onTaskCreated: { task in
+                        addTask(task)
+                        newlyAddedTaskId = task.id
+                    }
+                )
             }
             .navigationDestination(for: TaskDetailDestination.self) { destination in
                 TaskDetailDestinationView(
                     destination: destination,
-                    tasks: $tasks,
-                    tasksVersion: $tasksVersion
+                    getTask: { id in
+                        getTask(by: id)
+                    },
+                    onUpdateTask: { newTask, oldTask in
+                        updateTask(newTask, oldTask: oldTask)
+                    }
                 )
             }
         }
@@ -136,6 +236,7 @@ private enum TaskDetailDestination: Hashable {
 
 private struct TopHeaderView: View {
     @Binding var isShowingCalendar: Bool
+    let selectedDate: Date
     
     var body: some View {
         HStack(spacing: 12) {
@@ -158,7 +259,7 @@ private struct TopHeaderView: View {
             Spacer()
 
             // Centered date look
-            Text(Self.formattedDate)
+            Text(Self.formattedDate(selectedDate: selectedDate))
                 .font(.system(size: 22, weight: .bold))
                 .foregroundColor(Color(hexString: "101828"))
 
@@ -180,10 +281,19 @@ private struct TopHeaderView: View {
         }
     }
 
-    private static var formattedDate: String {
+    private static func formattedDate(selectedDate: Date) -> String {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let selected = calendar.startOfDay(for: selectedDate)
+        
+        if calendar.isDate(selected, inSameDayAs: today) {
+            return "Today"
+        }
+        
         let df = DateFormatter()
         df.setLocalizedDateFormatFromTemplate("MMMM d")
-        return df.string(from: Date())
+        df.locale = .current
+        return df.string(from: selectedDate)
     }
 }
 
@@ -257,10 +367,16 @@ private struct CombinedStatsCard: View {
 
 private struct TasksHeader: View {
     @Binding var navigationPath: NavigationPath
+    let selectedDate: Date
+    
+    private var headerText: String {
+
+        return "Modo's Tasks"
+    }
 
     var body: some View {
         HStack {
-            Text("Today's Tasks")
+            Text(headerText)
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(Color(hexString: "101828"))
             Spacer()
@@ -463,17 +579,17 @@ private struct TaskRowCard: View {
 // Helper view for task detail navigation
 private struct TaskDetailDestinationView: View {
     let destination: TaskDetailDestination
-    @Binding var tasks: [MainPageView.TaskItem]
-    @Binding var tasksVersion: Int
+    let getTask: (UUID) -> MainPageView.TaskItem?
+    let onUpdateTask: (MainPageView.TaskItem, MainPageView.TaskItem) -> Void
     
     var body: some View {
         Group {
             if let taskId = destination.taskId,
-               let taskIndex = tasks.firstIndex(where: { $0.id == taskId }) {
+               let task = getTask(taskId) {
                 DetailPageView(
-                    tasks: $tasks,
-                    taskIndex: taskIndex,
-                    tasksVersion: $tasksVersion
+                    taskId: taskId,
+                    getTask: getTask,
+                    onUpdateTask: onUpdateTask
                 )
             } else {
                 // Fallback view if task not found
@@ -498,18 +614,12 @@ private struct TaskDetailDestinationView: View {
 }
 
 private struct TaskListView: View {
-    @Binding var tasks: [MainPageView.TaskItem]
+    let tasks: [MainPageView.TaskItem]
     @Binding var navigationPath: NavigationPath
     @Binding var newlyAddedTaskId: UUID?
-    @Binding var tasksVersion: Int
+    let onDeleteTask: (MainPageView.TaskItem) -> Void
+    let onUpdateTask: (MainPageView.TaskItem) -> Void
     @State private var deletingTaskIds: Set<UUID> = []
-    
-    // Use original tasks array for sorting display
-    // FIX #3: Include tasksVersion to force re-computation
-    private var sortedTasks: [MainPageView.TaskItem] {
-        _ = tasksVersion // Force dependency
-        return tasks.sorted { $0.timeDate < $1.timeDate }
-    }
 
     var body: some View {
         Group {
@@ -521,9 +631,7 @@ private struct TaskListView: View {
                 GeometryReader { geometry in
                     ScrollViewReader { proxy in
                         List {
-                            ForEach(Array(sortedTasks.enumerated()), id: \.element.id) { _, task in
-                                // Find the actual index in the original tasks array
-                                let actualIndex = tasks.firstIndex(where: { $0.id == task.id }) ?? 0
+                            ForEach(tasks, id: \.id) { task in
                                 let isNewlyAdded = newlyAddedTaskId == task.id
                                 
                                 TaskRowCard(
@@ -535,7 +643,22 @@ private struct TaskListView: View {
                                     isDone: Binding(
                                         get: { task.isDone },
                                         set: { newValue in
-                                            tasks[actualIndex].isDone = newValue
+                                            // Create a new TaskItem with updated isDone
+                                            let updatedTask = MainPageView.TaskItem(
+                                                id: task.id,
+                                                title: task.title,
+                                                subtitle: task.subtitle,
+                                                time: task.time,
+                                                timeDate: task.timeDate,
+                                                endTime: task.endTime,
+                                                meta: task.meta,
+                                                isDone: newValue,
+                                                emphasisHex: task.emphasisHex,
+                                                category: task.category,
+                                                dietEntries: task.dietEntries,
+                                                fitnessEntries: task.fitnessEntries
+                                            )
+                                            onUpdateTask(updatedTask)
                                         }
                                     ),
                                     emphasis: Color(hexString: task.emphasisHex),
@@ -568,7 +691,7 @@ private struct TaskListView: View {
                                 .listRowBackground(Color.clear)
                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                     Button(role: .destructive) {
-                                        deleteTask(task.id)
+                                        deleteTask(task)
                                     } label: {
                                         Label("Delete", systemImage: "trash.fill")
                                     }
@@ -615,13 +738,16 @@ private struct TaskListView: View {
         }
     }
     
-    private func deleteTask(_ taskId: UUID) {
+    private func deleteTask(_ task: MainPageView.TaskItem) {
         triggerDeleteHaptic()
+        
+        // Add to deleting set for animation
+        deletingTaskIds.insert(task.id)
         
         // Remove after animation completes
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            tasks.removeAll { $0.id == taskId }
-            deletingTaskIds.remove(taskId)
+            onDeleteTask(task)
+            deletingTaskIds.remove(task.id)
         }
     }
     

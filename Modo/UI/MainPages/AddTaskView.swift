@@ -2,8 +2,9 @@ import SwiftUI
 
 struct AddTaskView: View {
     @Environment(\.dismiss) private var dismiss
-    @Binding var tasks: [MainPageView.TaskItem]
+    let selectedDate: Date
     @Binding var newlyAddedTaskId: UUID?
+    let onTaskCreated: (MainPageView.TaskItem) -> Void
     // Form state
     @State private var titleText: String = ""
     @State private var descriptionText: String = ""
@@ -1468,10 +1469,18 @@ struct AddTaskView: View {
                 }
                 
                 Button(action: {
+                    // Merge time from timeDate (hour:minute) with selectedDate's date
+                    let calendar = Calendar.current
+                    let timeComponents = calendar.dateComponents([.hour, .minute], from: timeDate)
+                    let finalDate = calendar.date(bySettingHour: timeComponents.hour ?? 0,
+                                                 minute: timeComponents.minute ?? 0,
+                                                 second: 0,
+                                                 of: selectedDate) ?? selectedDate
+                    
                     // Calculate end time for fitness tasks
                     let endTimeValue: String?
                     if selectedCategory == .fitness && totalFitnessDurationMinutes > 0 {
-                        endTimeValue = calculateEndTime(startTime: timeDate, durationMinutes: totalFitnessDurationMinutes)
+                        endTimeValue = calculateEndTime(startTime: finalDate, durationMinutes: totalFitnessDurationMinutes)
                     } else {
                         endTimeValue = nil
                     }
@@ -1493,7 +1502,7 @@ struct AddTaskView: View {
                         title: titleText.isEmpty ? "New Task" : titleText,
                         subtitle: truncatedSubtitle(descriptionText),
                         time: formattedTime,
-                        timeDate: timeDate,
+                        timeDate: finalDate,  // Use merged date+time
                         endTime: endTimeValue,
                         meta: metaText,
                         isDone: false,
@@ -1503,7 +1512,7 @@ struct AddTaskView: View {
                         fitnessEntries: fitnessEntries
                     )
                     
-                    tasks.append(task)
+                    onTaskCreated(task)
                     newlyAddedTaskId = task.id // Trigger animation for newly added task
                     triggerHapticMedium()
                     dismiss()
@@ -1526,9 +1535,11 @@ struct AddTaskView: View {
 
 // MARK: - Preview
 #Preview {
-    StatefulPreviewWrapper([MainPageView.TaskItem]()) { tasks in
-        NavigationStack {
-            AddTaskView(tasks: tasks, newlyAddedTaskId: .constant(nil))
-        }
+    NavigationStack {
+        AddTaskView(
+            selectedDate: Calendar.current.startOfDay(for: Date()),
+            newlyAddedTaskId: .constant(nil),
+            onTaskCreated: { _ in }
+        )
     }
 }

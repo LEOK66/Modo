@@ -2,15 +2,12 @@ import SwiftUI
 
 struct DetailPageView: View {
     @Environment(\.dismiss) private var dismiss
-    @Binding var tasks: [MainPageView.TaskItem]
-    let taskIndex: Int
-    @Binding var tasksVersion: Int
+    let taskId: UUID
+    let getTask: (UUID) -> MainPageView.TaskItem?
+    let onUpdateTask: (MainPageView.TaskItem, MainPageView.TaskItem) -> Void
     
     private var task: MainPageView.TaskItem? {
-        guard taskIndex >= 0 && taskIndex < tasks.count else {
-            return nil
-        }
-        return tasks[taskIndex]
+        getTask(taskId)
     }
     
     // Edit state - we need to work with mutable copies
@@ -109,8 +106,8 @@ struct DetailPageView: View {
                 loadTaskData()
             }
         }
-        .onChange(of: taskIndex) { _, _ in
-            // Reload data if task index changes
+        .onChange(of: taskId) { _, _ in
+            // Reload data if task id changes
             if self.task != nil {
                 loadTaskData()
             }
@@ -1153,12 +1150,16 @@ struct DetailPageView: View {
         titleText = task.title
         descriptionText = task.subtitle
         selectedCategory = task.category
-        // Parse time string back to Date
-        let df = DateFormatter()
-        df.locale = .current
-        df.timeStyle = .short
-        df.dateStyle = .none
-        timeDate = df.date(from: task.time) ?? Date()
+        // Extract time from task.timeDate for time picker
+        let calendar = Calendar.current
+        let timeComponents = calendar.dateComponents([.hour, .minute], from: task.timeDate)
+        if let hour = timeComponents.hour, let minute = timeComponents.minute {
+            // Create a Date with today's date and the task's time
+            let today = Date()
+            timeDate = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: today) ?? today
+        } else {
+            timeDate = Date()
+        }
         
         // Create deep copies to avoid mutating the original task
         dietEntries = task.dietEntries.map { entry in
@@ -1181,15 +1182,28 @@ struct DetailPageView: View {
     }
     
     private func saveChanges() {
-        guard let task = task else { return }
-        guard taskIndex < tasks.count else { return }
+        guard let oldTask = task else { return }
+        
+        // Merge time from timeDate (hour:minute) with old task's date
+        // Extract date part from old task's timeDate (normalized)
+        let calendar = Calendar.current
+        let oldDateKey = calendar.startOfDay(for: oldTask.timeDate)
+        
+        // Extract time components from the new timeDate (selected by user)
+        let timeComponents = calendar.dateComponents([.hour, .minute], from: timeDate)
+        
+        // Merge time with old task's date
+        let newTimeDate = calendar.date(bySettingHour: timeComponents.hour ?? 0,
+                                        minute: timeComponents.minute ?? 0,
+                                        second: 0,
+                                        of: oldDateKey) ?? oldDateKey
         
         // Calculate end time for fitness tasks
         let endTimeValue: String?
         if selectedCategory == .fitness {
             let totalMinutes = fitnessEntries.map { $0.minutesInt }.reduce(0, +)
             if totalMinutes > 0 {
-                let endDate = Calendar.current.date(byAdding: .minute, value: totalMinutes, to: timeDate) ?? timeDate
+                let endDate = calendar.date(byAdding: .minute, value: totalMinutes, to: newTimeDate) ?? newTimeDate
                 let df = DateFormatter()
                 df.locale = .current
                 df.timeStyle = .short
@@ -1220,34 +1234,38 @@ struct DetailPageView: View {
             case .diet: return "16A34A"
             case .fitness: return "364153"
             case .others: return "364153"
-            case .none: return task.emphasisHex
+            case .none: return oldTask.emphasisHex
             }
         }()
         
         // Truncate subtitle
         let truncatedSubtitle = truncateSubtitle(descriptionText)
         
+        // Format time string for display
+        let df = DateFormatter()
+        df.locale = .current
+        df.timeStyle = .short
+        df.dateStyle = .none
+        let timeString = df.string(from: newTimeDate)
+        
         // Create new TaskItem with updated values, preserving the original id
-        let updatedTask = MainPageView.TaskItem(
-            id: task.id,
-            title: titleText.isEmpty ? task.title : titleText,
+        let newTask = MainPageView.TaskItem(
+            id: oldTask.id,
+            title: titleText.isEmpty ? oldTask.title : titleText,
             subtitle: truncatedSubtitle,
-            time: formattedTime,
-            timeDate: timeDate,
+            time: timeString,
+            timeDate: newTimeDate,
             endTime: endTimeValue,
             meta: metaText,
-            isDone: task.isDone,
+            isDone: oldTask.isDone,
             emphasisHex: emphasisHexValue,
-            category: selectedCategory ?? task.category,
+            category: selectedCategory ?? oldTask.category,
             dietEntries: dietEntries,
             fitnessEntries: fitnessEntries
         )
         
-        // Replace the task in the array
-        tasks[taskIndex] = updatedTask
-        
-        // FIX #3: Increment version to trigger re-sorting in MainPageView
-        tasksVersion += 1
+        // Call update callback
+        onUpdateTask(newTask, oldTask)
     }
     
     private func truncateSubtitle(_ text: String) -> String {
