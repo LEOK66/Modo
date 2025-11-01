@@ -1,0 +1,20 @@
+[
+  {"name": "Run", "calPer30Min": 300},
+  {"name": "Walk", "calPer30Min": 120},
+  {"name": "Strength", "calPer30Min": 200},
+  {"name": "Yoga", "calPer30Min": 120},
+  {"name": "Cycling", "calPer30Min": 250},
+  {"name": "Swimming", "calPer30Min": 260},
+  {"name": "Rowing", "calPer30Min": 240},
+  {"name": "Elliptical", "calPer30Min": 240},
+  {"name": "Stair Climber", "calPer30Min": 300},
+  {"name": "Jump Rope", "calPer30Min": 350},
+  {"name": "HIIT", "calPer30Min": 360},
+  {"name": "Pilates", "calPer30Min": 150},
+  {"name": "Basketball", "calPer30Min": 240},
+  {"name": "Soccer", "calPer30Min": 260},
+  {"name": "Tennis", "calPer30Min": 270},
+  {"name": "Hiking", "calPer30Min": 220},
+  {"name": "Boxing", "calPer30Min": 330}
+]
+
