@@ -19,6 +19,14 @@ public enum MenuData {
             self.defaultUnit = (try? container.decode(String.self, forKey: .defaultUnit)) ?? (self.caloriesPer100g != nil ? "g" : "serving")
             self.id = UUID()
         }
+        public func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(name, forKey: .name)
+            try container.encodeIfPresent(calories, forKey: .calories)
+            try container.encodeIfPresent(caloriesPer100g, forKey: .caloriesPer100g)
+            try container.encodeIfPresent(caloriesPerServing, forKey: .caloriesPerServing)
+            try container.encodeIfPresent(defaultUnit, forKey: .defaultUnit)
+        }
         // Helpers
         public var hasPer100g: Bool { caloriesPer100g != nil }
         public var servingCalories: Int? { caloriesPerServing ?? calories }
@@ -35,6 +43,11 @@ public enum MenuData {
             self.name = try container.decode(String.self, forKey: .name)
             self.calPer30Min = try container.decode(Int.self, forKey: .calPer30Min)
             self.id = UUID()
+        }
+        public func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(name, forKey: .name)
+            try container.encode(calPer30Min, forKey: .calPer30Min)
         }
     }
 

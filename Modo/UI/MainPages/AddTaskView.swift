@@ -46,15 +46,16 @@ struct AddTaskView: View {
     @State private var isAskAISheetPresented: Bool = false
     @State private var aiPromptText: String = ""
 
-    struct DietEntry: Identifiable, Equatable {
-        let id = UUID()
+    struct DietEntry: Identifiable, Equatable, Codable {
+        let id: UUID
         var food: MenuData.FoodItem?
-        var customName: String = ""
-        var quantityText: String = ""
-        var unit: String = "serving"
-        var caloriesText: String = ""
+        var customName: String
+        var quantityText: String
+        var unit: String
+        var caloriesText: String
         
-        init(food: MenuData.FoodItem? = nil, customName: String = "", quantityText: String = "", unit: String = "serving", caloriesText: String = "") {
+        init(id: UUID = UUID(), food: MenuData.FoodItem? = nil, customName: String = "", quantityText: String = "", unit: String = "serving", caloriesText: String = "") {
+            self.id = id
             self.food = food
             self.customName = customName
             self.quantityText = quantityText
@@ -75,12 +76,20 @@ struct AddTaskView: View {
     @State private var dietEntries: [DietEntry] = []
     @State private var editingDietEntryIndex: Int? = nil
     
-    struct FitnessEntry: Identifiable, Equatable {
-        let id = UUID()
+    struct FitnessEntry: Identifiable, Equatable, Codable {
+        let id: UUID
         var exercise: MenuData.ExerciseItem?
-        var customName: String = ""
-        var minutesInt: Int = 0
-        var caloriesText: String = ""
+        var customName: String
+        var minutesInt: Int
+        var caloriesText: String
+        
+        init(id: UUID = UUID(), exercise: MenuData.ExerciseItem? = nil, customName: String = "", minutesInt: Int = 0, caloriesText: String = "") {
+            self.id = id
+            self.exercise = exercise
+            self.customName = customName
+            self.minutesInt = minutesInt
+            self.caloriesText = caloriesText
+        }
         
         static func == (lhs: FitnessEntry, rhs: FitnessEntry) -> Bool {
             lhs.id == rhs.id && lhs.exercise?.id == rhs.exercise?.id && lhs.customName == rhs.customName && lhs.minutesInt == rhs.minutesInt && lhs.caloriesText == rhs.caloriesText
@@ -96,7 +105,7 @@ struct AddTaskView: View {
 
     enum QuickPickMode { case food, exercise }
     
-    enum Category: String, CaseIterable, Identifiable {
+    enum Category: String, CaseIterable, Identifiable, Codable {
         case diet = "🥗 Diet"
         case fitness = "🏃 Fitness"
         case others = "📌 Others"
@@ -1116,7 +1125,7 @@ struct AddTaskView: View {
                         }
                         
                         if isOnlineLoading {
-                            Text("Searching onlineâ€¦")
+                            Text("Searching online¦")
                                 .font(.system(size: 12))
                                 .foregroundColor(Color(hexString: "6A7282"))
                         }
