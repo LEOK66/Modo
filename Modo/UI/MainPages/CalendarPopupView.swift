@@ -2,25 +2,45 @@ import SwiftUI
 
 struct CalendarPopupView: View {
     @Binding var showCalendar: Bool
+    @Binding var selectedDate: Date
+    let dateRange: (min: Date, max: Date)
 
     @State private var currentMonth: Date = Date()
     @State private var selectedDay: Int? = nil
 
     private let weekSymbols = ["Su","Mo","Tu","We","Th","Fr","Sa"]
+    
+    init(showCalendar: Binding<Bool>, selectedDate: Binding<Date>, dateRange: (min: Date, max: Date)) {
+        self._showCalendar = showCalendar
+        self._selectedDate = selectedDate
+        self.dateRange = dateRange
+        // Initialize currentMonth to selectedDate's month
+        self._currentMonth = State(initialValue: selectedDate.wrappedValue)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             HeaderView()
 
-            MonthNavigationView(currentMonth: $currentMonth)
+            MonthNavigationView(currentMonth: $currentMonth, dateRange: dateRange)
 
             WeekdaySymbolsView(weekSymbols: weekSymbols)
 
-            DaysGridView(selectedDay: $selectedDay, currentMonth: $currentMonth)
+            DaysGridView(
+                selectedDay: $selectedDay,
+                currentMonth: $currentMonth,
+                dateRange: dateRange
+            )
 
             Spacer(minLength: 0)
 
-            ActionButtonsView(showCalendar: $showCalendar)
+            ActionButtonsView(
+                showCalendar: $showCalendar,
+                selectedDate: $selectedDate,
+                selectedDay: $selectedDay,
+                currentMonth: currentMonth,
+                dateRange: dateRange
+            )
         }
         .frame(width: 343, height: 536)
         .background(Color.white)
@@ -28,6 +48,16 @@ struct CalendarPopupView: View {
         .shadow(color: Color.black.opacity(0.25), radius: 50, x: 0, y: 25)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         .zIndex(1)
+        .onAppear {
+            // Initialize selectedDay to match selectedDate's day if in current month
+            let calendar = Calendar.current
+            let monthComponents = calendar.dateComponents([.year, .month], from: currentMonth)
+            let selectedComponents = calendar.dateComponents([.year, .month, .day], from: selectedDate)
+            if monthComponents.year == selectedComponents.year &&
+               monthComponents.month == selectedComponents.month {
+                selectedDay = selectedComponents.day
+            }
+        }
     }
 }
 
@@ -75,6 +105,7 @@ private struct StreakView: View {
 // MARK: - Month Navigation
 private struct MonthNavigationView: View {
     @Binding var currentMonth: Date
+    let dateRange: (min: Date, max: Date)
 
     var body: some View {
         HStack {
@@ -86,19 +117,22 @@ private struct MonthNavigationView: View {
                 Button(action: { shiftMonth(by: -1) }) {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(Color(hex: 0x0A0A0A))
+                        .foregroundColor(canGoPrevious ? Color(hex: 0x0A0A0A) : Color(hex: 0xD1D5DB))
                         .frame(width: 32, height: 32)
                         .background(Color.clear)
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
+                .disabled(!canGoPrevious)
+                
                 Button(action: { shiftMonth(by: 1) }) {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(Color(hex: 0x0A0A0A))
+                        .foregroundColor(canGoNext ? Color(hex: 0x0A0A0A) : Color(hex: 0xD1D5DB))
                         .frame(width: 32, height: 32)
                         .background(Color.clear)
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
+                .disabled(!canGoNext)
             }
         }
         .frame(height: 32)
@@ -112,9 +146,44 @@ private struct MonthNavigationView: View {
         return f.string(from: date)
     }
 
+    private var canGoPrevious: Bool {
+        let calendar = Calendar.current
+        if let prevMonth = calendar.date(byAdding: .month, value: -1, to: currentMonth) {
+            let minMonth = calendar.dateComponents([.year, .month], from: dateRange.min)
+            let prevMonthComponents = calendar.dateComponents([.year, .month], from: prevMonth)
+            return prevMonthComponents.year! > minMonth.year! ||
+                   (prevMonthComponents.year == minMonth.year && prevMonthComponents.month! >= minMonth.month!)
+        }
+        return false
+    }
+
+    private var canGoNext: Bool {
+        let calendar = Calendar.current
+        if let nextMonth = calendar.date(byAdding: .month, value: 1, to: currentMonth) {
+            let maxMonth = calendar.dateComponents([.year, .month], from: dateRange.max)
+            let nextMonthComponents = calendar.dateComponents([.year, .month], from: nextMonth)
+            return nextMonthComponents.year! < maxMonth.year! ||
+                   (nextMonthComponents.year == maxMonth.year && nextMonthComponents.month! <= maxMonth.month!)
+        }
+        return false
+    }
+
     private func shiftMonth(by offset: Int) {
-        if let newDate = Calendar.current.date(byAdding: .month, value: offset, to: currentMonth) {
-            currentMonth = newDate
+        let calendar = Calendar.current
+        if let newDate = calendar.date(byAdding: .month, value: offset, to: currentMonth) {
+            // Check if new date is within range
+            let minMonth = calendar.dateComponents([.year, .month], from: dateRange.min)
+            let maxMonth = calendar.dateComponents([.year, .month], from: dateRange.max)
+            let newMonthComponents = calendar.dateComponents([.year, .month], from: newDate)
+            
+            let isInRange = (newMonthComponents.year! > minMonth.year! ||
+                            (newMonthComponents.year == minMonth.year && newMonthComponents.month! >= minMonth.month!)) &&
+                           (newMonthComponents.year! < maxMonth.year! ||
+                            (newMonthComponents.year == maxMonth.year && newMonthComponents.month! <= maxMonth.month!))
+            
+            if isInRange {
+                currentMonth = newDate
+            }
         }
     }
 }
@@ -142,6 +211,7 @@ private struct WeekdaySymbolsView: View {
 private struct DaysGridView: View {
     @Binding var selectedDay: Int?
     @Binding var currentMonth: Date
+    let dateRange: (min: Date, max: Date)
 
     private let columns = Array(repeating: GridItem(.fixed(36.57), spacing: 6), count: 7)
     private let calendar = Calendar.current
@@ -155,16 +225,22 @@ private struct DaysGridView: View {
         LazyVGrid(columns: columns, alignment: .leading, spacing: 6) {
             ForEach(days.indices, id: \.self) { index in
                 if let day = days[index] {
+                    let dayDate = buildDate(day: day, month: currentMonth)
+                    let isSelectable = isDateSelectable(day: day, in: currentMonth)
+                    
                     DayCell(
                         number: day,
                         isSelected: day == selectedDay,
                         isFilledGray: currentMonthComponents.year == todayComponents.year &&
                                       currentMonthComponents.month == todayComponents.month &&
                                       day == todayComponents.day,
-                        isFilledBlack: day == selectedDay
+                        isFilledBlack: day == selectedDay,
+                        isDisabled: !isSelectable
                     )
                     .onTapGesture {
-                        selectedDay = day
+                        if isSelectable {
+                            selectedDay = day
+                        }
                     }
                 } else {
                     Color.clear
@@ -190,6 +266,20 @@ private struct DaysGridView: View {
         days.append(contentsOf: range.map { $0 })
         return days
     }
+    
+    // Build a Date from day number and month
+    private func buildDate(day: Int, month: Date) -> Date {
+        var components = calendar.dateComponents([.year, .month], from: month)
+        components.day = day
+        return calendar.date(from: components) ?? month
+    }
+    
+    // Check if a date is within the selectable range
+    private func isDateSelectable(day: Int, in month: Date) -> Bool {
+        let dayDate = buildDate(day: day, month: month)
+        let normalizedDate = calendar.startOfDay(for: dayDate)
+        return normalizedDate >= dateRange.min && normalizedDate <= dateRange.max
+    }
 }
 
 // MARK: - Day Cell
@@ -198,6 +288,7 @@ private struct DayCell: View {
     let isSelected: Bool
     let isFilledGray: Bool
     let isFilledBlack: Bool
+    let isDisabled: Bool
 
     private var bgColor: Color {
         if isFilledBlack { return .black }
@@ -206,7 +297,10 @@ private struct DayCell: View {
     }
 
     private var fgColor: Color {
-        isFilledBlack ? .white : Color(hex: 0x364153)
+        if isDisabled {
+            return Color(hex: 0xD1D5DB)
+        }
+        return isFilledBlack ? .white : Color(hex: 0x364153)
     }
 
     var body: some View {
@@ -225,10 +319,18 @@ private struct DayCell: View {
 // MARK: - Action Buttons
 private struct ActionButtonsView: View {
     @Binding var showCalendar: Bool
+    @Binding var selectedDate: Date
+    @Binding var selectedDay: Int?
+    let currentMonth: Date
+    let dateRange: (min: Date, max: Date)
+
+    private let calendar = Calendar.current
 
     var body: some View {
         HStack(spacing: 12) {
-            Button(action: { withAnimation { showCalendar = false } }) {
+            Button(action: {
+                withAnimation { showCalendar = false }
+            }) {
                 Text("Cancel")
                     .font(.system(size: 16, weight: .regular))
                     .foregroundColor(Color(hex: 0x101828))
@@ -238,19 +340,56 @@ private struct ActionButtonsView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
 
-            Button(action: { withAnimation { showCalendar = false } }) {
+            Button(action: {
+                confirmSelection()
+            }) {
                 Text("Confirm")
                     .font(.system(size: 16, weight: .regular))
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .frame(height: 48)
-                    .background(Color.black)
+                    .background(hasValidSelection ? Color.black : Color(hex: 0xD1D5DB))
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
+            .disabled(!hasValidSelection)
         }
         .padding(.horizontal, 24)
         .padding(.top, 8)
         .padding(.bottom, 8)
+    }
+    
+    private var hasValidSelection: Bool {
+        guard let day = selectedDay else { return false }
+        let dayDate = buildDate(day: day, month: currentMonth)
+        let normalizedDate = calendar.startOfDay(for: dayDate)
+        return normalizedDate >= dateRange.min && normalizedDate <= dateRange.max
+    }
+    
+    private func buildDate(day: Int, month: Date) -> Date {
+        var components = calendar.dateComponents([.year, .month], from: month)
+        components.day = day
+        return calendar.date(from: components) ?? month
+    }
+    
+    private func confirmSelection() {
+        guard let day = selectedDay else {
+            withAnimation { showCalendar = false }
+            return
+        }
+        
+        let dayDate = buildDate(day: day, month: currentMonth)
+        let normalizedDate = calendar.startOfDay(for: dayDate)
+        
+        // Double-check date is in range
+        guard normalizedDate >= dateRange.min && normalizedDate <= dateRange.max else {
+            withAnimation { showCalendar = false }
+            return
+        }
+        
+        // Update selectedDate
+        selectedDate = normalizedDate
+        selectedDay = nil
+        withAnimation { showCalendar = false }
     }
 }
 
@@ -267,13 +406,26 @@ private extension Color {
 // MARK: - Preview
 struct CalendarPopupView_Previews: PreviewProvider {
     @State static var showCalendar = true
+    @State static var selectedDate = Calendar.current.startOfDay(for: Date())
+    
+    static var dateRange: (min: Date, max: Date) {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let minDate = calendar.date(byAdding: .month, value: -12, to: today) ?? today
+        let maxDate = calendar.date(byAdding: .month, value: 3, to: today) ?? today
+        return (min: minDate, max: maxDate)
+    }
 
     static var previews: some View {
         ZStack {
             Color.gray.opacity(0.4)
                 .edgesIgnoringSafeArea(.all)
 
-            CalendarPopupView(showCalendar: $showCalendar)
+            CalendarPopupView(
+                showCalendar: $showCalendar,
+                selectedDate: $selectedDate,
+                dateRange: dateRange
+            )
         }
     }
 }

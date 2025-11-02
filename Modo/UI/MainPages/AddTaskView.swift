@@ -2,8 +2,9 @@ import SwiftUI
 
 struct AddTaskView: View {
     @Environment(\.dismiss) private var dismiss
-    @Binding var tasks: [MainPageView.TaskItem]
-    
+    let selectedDate: Date
+    @Binding var newlyAddedTaskId: UUID?
+    let onTaskCreated: (MainPageView.TaskItem) -> Void
     // Form state
     @State private var titleText: String = ""
     @State private var descriptionText: String = ""
@@ -45,15 +46,16 @@ struct AddTaskView: View {
     @State private var isAskAISheetPresented: Bool = false
     @State private var aiPromptText: String = ""
 
-    struct DietEntry: Identifiable, Equatable {
-        let id = UUID()
+    struct DietEntry: Identifiable, Equatable, Codable {
+        let id: UUID
         var food: MenuData.FoodItem?
-        var customName: String = ""
-        var quantityText: String = ""
-        var unit: String = "serving"
-        var caloriesText: String = ""
+        var customName: String
+        var quantityText: String
+        var unit: String
+        var caloriesText: String
         
-        init(food: MenuData.FoodItem? = nil, customName: String = "", quantityText: String = "", unit: String = "serving", caloriesText: String = "") {
+        init(id: UUID = UUID(), food: MenuData.FoodItem? = nil, customName: String = "", quantityText: String = "", unit: String = "serving", caloriesText: String = "") {
+            self.id = id
             self.food = food
             self.customName = customName
             self.quantityText = quantityText
@@ -74,12 +76,20 @@ struct AddTaskView: View {
     @State private var dietEntries: [DietEntry] = []
     @State private var editingDietEntryIndex: Int? = nil
     
-    struct FitnessEntry: Identifiable, Equatable {
-        let id = UUID()
+    struct FitnessEntry: Identifiable, Equatable, Codable {
+        let id: UUID
         var exercise: MenuData.ExerciseItem?
-        var customName: String = ""
-        var minutesInt: Int = 0
-        var caloriesText: String = ""
+        var customName: String
+        var minutesInt: Int
+        var caloriesText: String
+        
+        init(id: UUID = UUID(), exercise: MenuData.ExerciseItem? = nil, customName: String = "", minutesInt: Int = 0, caloriesText: String = "") {
+            self.id = id
+            self.exercise = exercise
+            self.customName = customName
+            self.minutesInt = minutesInt
+            self.caloriesText = caloriesText
+        }
         
         static func == (lhs: FitnessEntry, rhs: FitnessEntry) -> Bool {
             lhs.id == rhs.id && lhs.exercise?.id == rhs.exercise?.id && lhs.customName == rhs.customName && lhs.minutesInt == rhs.minutesInt && lhs.caloriesText == rhs.caloriesText
@@ -95,7 +105,7 @@ struct AddTaskView: View {
 
     enum QuickPickMode { case food, exercise }
     
-    enum Category: String, CaseIterable, Identifiable {
+    enum Category: String, CaseIterable, Identifiable, Codable {
         case diet = "🥗 Diet"
         case fitness = "🏃 Fitness"
         case others = "📌 Others"
@@ -416,7 +426,7 @@ struct AddTaskView: View {
                 // AI suggestions row (placeholder)
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        aiSuggestionChip("Low-fat lunch • 600 cal")
+                        aiSuggestionChip("Low-fat lunch â€¢ 600 cal")
                         aiSuggestionChip("30m run after 7pm")
                         aiSuggestionChip("High-protein dinner")
                     }
@@ -572,9 +582,9 @@ struct AddTaskView: View {
                     TextField(placeholderForUnit(entry.unit), text: Binding(
                         get: { dietEntries[index].quantityText },
                         set: { newValue in
-                            // 允许小数点
+                            // å…è®¸å°æ•°ç‚¹
                             let filtered = newValue.filter { $0.isNumber || $0 == "." }
-                            // 确保只有一个小数点
+                            // ç¡®ä¿åªæœ‰ä¸€ä¸ªå°æ•°ç‚¹
                             let components = filtered.components(separatedBy: ".")
                             if components.count <= 2 {
                                 dietEntries[index].quantityText = filtered
@@ -590,7 +600,7 @@ struct AddTaskView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
                 
-                // 需求2: 根据食物数据动态显示单位选项
+                // éœ€æ±‚2: æ ¹æ®é£Ÿç‰©æ•°æ®åŠ¨æ€æ˜¾ç¤ºå•ä½é€‰é¡¹
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Unit")
                         .font(.system(size: 12))
@@ -605,7 +615,7 @@ struct AddTaskView: View {
                             let oldUnit = dietEntries[index].unit
                             dietEntries[index].unit = newValue
                             
-                            // 智能调整数量
+                            // æ™ºèƒ½è°ƒæ•´æ•°é‡
                             if oldUnit != newValue {
                                 if newValue == "g" && (dietEntries[index].quantityText == "1" || dietEntries[index].quantityText.isEmpty) {
                                     dietEntries[index].quantityText = "100"
@@ -1115,7 +1125,7 @@ struct AddTaskView: View {
                         }
                         
                         if isOnlineLoading {
-                            Text("Searching online…")
+                            Text("Searching online¦")
                                 .font(.system(size: 12))
                                 .foregroundColor(Color(hexString: "6A7282"))
                         }
@@ -1419,7 +1429,7 @@ struct AddTaskView: View {
                 return "\(per) cal"
             }
         }
-        return "–"
+        return "â€“"
     }
     
     private var totalFitnessCalories: Int {
@@ -1468,10 +1478,18 @@ struct AddTaskView: View {
                 }
                 
                 Button(action: {
+                    // Merge time from timeDate (hour:minute) with selectedDate's date
+                    let calendar = Calendar.current
+                    let timeComponents = calendar.dateComponents([.hour, .minute], from: timeDate)
+                    let finalDate = calendar.date(bySettingHour: timeComponents.hour ?? 0,
+                                                 minute: timeComponents.minute ?? 0,
+                                                 second: 0,
+                                                 of: selectedDate) ?? selectedDate
+                    
                     // Calculate end time for fitness tasks
                     let endTimeValue: String?
                     if selectedCategory == .fitness && totalFitnessDurationMinutes > 0 {
-                        endTimeValue = calculateEndTime(startTime: timeDate, durationMinutes: totalFitnessDurationMinutes)
+                        endTimeValue = calculateEndTime(startTime: finalDate, durationMinutes: totalFitnessDurationMinutes)
                     } else {
                         endTimeValue = nil
                     }
@@ -1493,6 +1511,7 @@ struct AddTaskView: View {
                         title: titleText.isEmpty ? "New Task" : titleText,
                         subtitle: truncatedSubtitle(descriptionText),
                         time: formattedTime,
+                        timeDate: finalDate,  // Use merged date+time
                         endTime: endTimeValue,
                         meta: metaText,
                         isDone: false,
@@ -1502,7 +1521,8 @@ struct AddTaskView: View {
                         fitnessEntries: fitnessEntries
                     )
                     
-                    tasks.append(task)
+                    onTaskCreated(task)
+                    newlyAddedTaskId = task.id // Trigger animation for newly added task
                     triggerHapticMedium()
                     dismiss()
                 }) {
@@ -1524,10 +1544,11 @@ struct AddTaskView: View {
 
 // MARK: - Preview
 #Preview {
-    StatefulPreviewWrapper([MainPageView.TaskItem]()) { tasks in
-        NavigationStack {
-            AddTaskView(tasks: tasks)
-        }
+    NavigationStack {
+        AddTaskView(
+            selectedDate: Calendar.current.startOfDay(for: Date()),
+            newlyAddedTaskId: .constant(nil),
+            onTaskCreated: { _ in }
+        )
     }
 }
-
