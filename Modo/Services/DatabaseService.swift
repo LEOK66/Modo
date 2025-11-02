@@ -23,6 +23,7 @@ final class DatabaseService {
             "createdAt": profile.createdAt.timeIntervalSince1970,
             "updatedAt": profile.updatedAt.timeIntervalSince1970
         ]
+        if let username = profile.username { payload["username"] = username }
         if let heightValue = profile.heightValue { payload["heightValue"] = heightValue }
         if let heightUnit = profile.heightUnit { payload["heightUnit"] = heightUnit }
         if let weightValue = profile.weightValue { payload["weightValue"] = weightValue }
@@ -42,6 +43,73 @@ final class DatabaseService {
                 completion?(.failure(error))
             } else {
                 completion?(.success(()))
+            }
+        }
+    }
+    
+    /// Update user profile username only (preserves other fields)
+    /// - Parameters:
+    ///   - userId: User ID
+    ///   - username: New username to save
+    ///   - completion: Completion handler with result
+    func updateUsername(userId: String, username: String, completion: ((Result<Void, Error>) -> Void)? = nil) {
+        let path = db.child("users").child(userId).child("profile")
+        let payload: [String: Any] = [
+            "username": username,
+            "updatedAt": Date().timeIntervalSince1970
+        ]
+        
+        path.updateChildValues(payload) { error, _ in
+            if let error = error {
+                completion?(.failure(error))
+            } else {
+                completion?(.success(()))
+            }
+        }
+    }
+    
+    /// Fetch username only from Firebase
+    /// - Parameters:
+    ///   - userId: User ID to fetch username for
+    ///   - completion: Completion handler with username string or error
+    func fetchUsername(userId: String, completion: @escaping (Result<String?, Error>) -> Void) {
+        let path = db.child("users").child(userId).child("profile").child("username")
+        
+        path.observeSingleEvent(of: .value) { snapshot in
+            guard snapshot.exists(), let username = snapshot.value as? String else {
+                completion(.success(nil))
+                return
+            }
+            completion(.success(username))
+        }
+    }
+    
+    /// Fetch user profile from Firebase
+    /// - Parameters:
+    ///   - userId: User ID to fetch profile for
+    ///   - completion: Completion handler with UserProfile or error
+    func fetchUserProfile(userId: String, completion: @escaping (Result<UserProfile, Error>) -> Void) {
+        let path = db.child("users").child(userId).child("profile")
+        
+        path.observeSingleEvent(of: .value) { snapshot in
+            guard snapshot.exists() else {
+                let profile = UserProfile(userId: userId)
+                completion(.success(profile))
+                return
+            }
+            
+            guard let profileDict = snapshot.value as? [String: Any] else {
+                let profile = UserProfile(userId: userId)
+                completion(.success(profile))
+                return
+            }
+            
+            do {
+                let profile = try self.parseProfileDictionary(profileDict)
+                completion(.success(profile))
+            } catch {
+                print("❌ DatabaseService: Failed to parse user profile - \(error.localizedDescription)")
+                completion(.failure(error))
             }
         }
     }
@@ -340,6 +408,88 @@ final class DatabaseService {
         }
         
         return tasks
+    }
+    
+    private func parseProfileDictionary(_ profileDict: [String: Any]) throws -> UserProfile {
+        guard let userId = profileDict["userId"] as? String else {
+            throw NSError(domain: "DatabaseService", code: 2, userInfo: [NSLocalizedDescriptionKey: "Missing userId in profile dictionary"])
+        }
+        
+        let profile = UserProfile(userId: userId)
+        
+        // Parse username
+        if let username = profileDict["username"] as? String {
+            profile.username = username
+        }
+        
+        // Parse height
+        if let heightValue = profileDict["heightValue"] as? Double {
+            profile.heightValue = heightValue
+        }
+        if let heightUnit = profileDict["heightUnit"] as? String {
+            profile.heightUnit = heightUnit
+        }
+        
+        // Parse weight
+        if let weightValue = profileDict["weightValue"] as? Double {
+            profile.weightValue = weightValue
+        }
+        if let weightUnit = profileDict["weightUnit"] as? String {
+            profile.weightUnit = weightUnit
+        }
+        
+        // Parse age
+        if let age = profileDict["age"] as? Int {
+            profile.age = age
+        }
+        
+        // Parse gender
+        if let gender = profileDict["gender"] as? String {
+            profile.gender = gender
+        }
+        
+        // Parse lifestyle
+        if let lifestyle = profileDict["lifestyle"] as? String {
+            profile.lifestyle = lifestyle
+        }
+        
+        // Parse goal
+        if let goal = profileDict["goal"] as? String {
+            profile.goal = goal
+        }
+        
+        // Parse dailyCalories
+        if let dailyCalories = profileDict["dailyCalories"] as? Int {
+            profile.dailyCalories = dailyCalories
+        }
+        
+        // Parse dailyProtein
+        if let dailyProtein = profileDict["dailyProtein"] as? Int {
+            profile.dailyProtein = dailyProtein
+        }
+        
+        // Parse targetWeightLossValue
+        if let targetWeightLossValue = profileDict["targetWeightLossValue"] as? Double {
+            profile.targetWeightLossValue = targetWeightLossValue
+        }
+        if let targetWeightLossUnit = profileDict["targetWeightLossUnit"] as? String {
+            profile.targetWeightLossUnit = targetWeightLossUnit
+        }
+        
+        // Parse targetDays
+        if let targetDays = profileDict["targetDays"] as? Int {
+            profile.targetDays = targetDays
+        }
+        
+        // Parse timestamps
+        if let createdAtTimestamp = profileDict["createdAt"] as? TimeInterval {
+            profile.createdAt = Date(timeIntervalSince1970: createdAtTimestamp)
+        }
+        if let updatedAtTimestamp = profileDict["updatedAt"] as? TimeInterval {
+            profile.updatedAt = Date(timeIntervalSince1970: updatedAtTimestamp)
+        }
+        
+        return profile
     }
 }
 

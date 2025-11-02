@@ -1,9 +1,15 @@
  import SwiftUI
+import FirebaseAuth
 
 struct ProfilePageView: View {
     @EnvironmentObject var authService: AuthService
     @EnvironmentObject var userProgress: UserProgress
     @State private var showLogoutConfirmation = false
+    @State private var username: String = "Modor"
+    @State private var showEditUsernameAlert = false
+    @State private var tempUsername: String = "Modor"
+    
+    private let databaseService = DatabaseService.shared
     
     var body: some View {
         ZStack(alignment: .top) {
@@ -39,10 +45,25 @@ struct ProfilePageView: View {
                                     .frame(width: 96, height: 96)
                                     .foregroundStyle(Color.gray.opacity(0.6))
                             }
-                            Text("Sam Darnold")
-                                .font(.system(size: 24, weight: .regular))
-                                .foregroundColor(Color(hexString: "0A0A0A"))
-                            Text("darnold.sam@email.com")
+                            Button(action: {
+                                tempUsername = username
+                                showEditUsernameAlert = true
+                            }) {
+                                HStack(spacing: 4) {
+                                    Text(username)
+                                        .font(.system(size: 24, weight: .regular))
+                                        .foregroundColor(Color(hexString: "0A0A0A"))
+                                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                                        .id(username)  // Force view refresh when username changes
+                                    Image(systemName: "pencil")
+                                        .font(.system(size: 16, weight: .medium))
+                                        .foregroundColor(Color(hexString: "6A7282"))
+                                }
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                            .animation(.easeInOut(duration: 0.3), value: username)
+                            
+                            Text(authService.currentUser?.email ?? "email@example.com")
                                 .font(.system(size: 14))
                                 .foregroundColor(Color(hexString: "6A7282"))
                         }
@@ -188,6 +209,15 @@ struct ProfilePageView: View {
                         } message: {
                             Text("Are you sure you want to logout?")
                         }
+                        .alert("Edit Username", isPresented: $showEditUsernameAlert) {
+                            TextField("Username", text: $tempUsername)
+                            Button("Cancel", role: .cancel) { }
+                            Button("Save") {
+                                saveUsername()
+                            }
+                        } message: {
+                            Text("Enter your username")
+                        }
                     }
                     .padding(.top, 8)
                 }
@@ -196,6 +226,61 @@ struct ProfilePageView: View {
             }
         }
         .navigationBarBackButtonHidden(true)
+        .onAppear {
+            loadUserProfile()
+        }
+    }
+    
+    private func loadUserProfile() {
+        guard let userId = authService.currentUser?.uid else {
+            print("⚠️ ProfilePageView: No user logged in")
+            return
+        }
+        
+        databaseService.fetchUsername(userId: userId) { result in
+            switch result {
+            case .success(let fetchedUsername):
+                DispatchQueue.main.async {
+                    if let fetchedUsername = fetchedUsername, !fetchedUsername.isEmpty {
+                        self.username = fetchedUsername
+                    }
+                }
+                print("✅ ProfilePageView: Loaded username")
+            case .failure(let error):
+                print("❌ ProfilePageView: Failed to load username - \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    private func saveUsername() {
+        guard let userId = authService.currentUser?.uid else {
+            print("⚠️ ProfilePageView: No user logged in")
+            return
+        }
+        
+        // Store previous value for rollback
+        let previousUsername = username
+        
+        // Update local state with animation
+        withAnimation(.easeInOut(duration: 0.3)) {
+            username = tempUsername
+        }
+        
+        // Save to database
+        databaseService.updateUsername(userId: userId, username: tempUsername) { result in
+            switch result {
+            case .success:
+                print("✅ ProfilePageView: Username saved successfully")
+            case .failure(let error):
+                print("❌ ProfilePageView: Failed to save username - \(error.localizedDescription)")
+                // Revert on failure
+                DispatchQueue.main.async {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        self.username = previousUsername
+                    }
+                }
+            }
+        }
     }
     
     private func performLogout() {

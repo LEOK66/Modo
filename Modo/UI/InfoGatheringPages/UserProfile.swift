@@ -4,6 +4,7 @@ import SwiftData
 @Model
 final class UserProfile {
     var userId: String
+    var username: String?
     var heightValue: Double?
     var heightUnit: String?
     var weightValue: Double?
@@ -22,6 +23,7 @@ final class UserProfile {
     
     init(userId: String) {
         self.userId = userId
+        self.username = "Modor"  // Default username
         self.createdAt = Date()
         self.updatedAt = Date()
     }
