@@ -4,7 +4,15 @@ import FirebaseDatabase
 final class DatabaseService {
     static let shared = DatabaseService()
     private let db: DatabaseReference
+    private var taskListeners: [String: DatabaseHandle] = [:]
+    
+    // CRITICAL FIX: Add operation tracking to prevent cascading saves
+    private var pendingOperations: Set<String> = []
+    private let operationsQueue = DispatchQueue(label: "com.app.database.operations")
+    
     private init() {
+        // Enable offline persistence BEFORE creating any database reference
+        Database.database().isPersistenceEnabled = true
         self.db = Database.database().reference()
     }
     
@@ -36,6 +44,302 @@ final class DatabaseService {
                 completion?(.success(()))
             }
         }
+    }
+    
+    // MARK: - Task CRUD Methods
+    
+    /// Save or update a task in Firebase
+    /// - Parameters:
+    ///   - task: Task to save
+    ///   - date: Date the task belongs to (normalized to start of day)
+    ///   - completion: Completion handler with result
+    func saveTask(userId: String, task: MainPageView.TaskItem, date: Date, completion: ((Result<Void, Error>) -> Void)? = nil) {
+        let dateKey = dateToKey(date)
+        let operationKey = "\(userId)_\(dateKey)_\(task.id.uuidString)"
+        
+        // CRITICAL FIX: Check if operation is already in progress
+        operationsQueue.sync {
+            if pendingOperations.contains(operationKey) {
+                print("⚠️ DatabaseService: Save operation already in progress for task \(task.id)")
+                completion?(.success(())) // Don't fail, just skip duplicate
+                return
+            }
+            pendingOperations.insert(operationKey)
+        }
+        
+        let taskPath = db.child("users").child(userId).child("tasks").child(dateKey).child(task.id.uuidString)
+        
+        do {
+            let taskDict = try taskToDictionary(task)
+            
+            taskPath.setValue(taskDict) { [weak self] error, _ in
+                // Clean up operation tracking
+                self?.operationsQueue.sync {
+                    self?.pendingOperations.remove(operationKey)
+                }
+                
+                if let error = error {
+                    print("❌ DatabaseService: Failed to save task to Firebase - \(error.localizedDescription)")
+                    completion?(.failure(error))
+                } else {
+                    print("✅ DatabaseService: Task saved to Firebase - ID: \(task.id)")
+                    completion?(.success(()))
+                }
+            }
+        } catch {
+            // Clean up on encoding error
+            operationsQueue.sync {
+                pendingOperations.remove(operationKey)
+            }
+            print("❌ DatabaseService: Failed to convert task to dictionary - \(error.localizedDescription)")
+            completion?(.failure(error))
+        }
+    }
+    
+    /// Delete a task from Firebase
+    /// - Parameters:
+    ///   - taskId: UUID of task to delete
+    ///   - date: Date the task belongs to
+    ///   - completion: Completion handler with result
+    /// Delete a task from Firebase
+    func deleteTask(userId: String, taskId: UUID, date: Date, completion: ((Result<Void, Error>) -> Void)? = nil) {
+        let dateKey = dateToKey(date)
+        let taskPath = db.child("users").child(userId).child("tasks").child(dateKey).child(taskId.uuidString)
+        
+        taskPath.removeValue { error, _ in
+            if let error = error {
+                print("❌ DatabaseService: Failed to delete task - \(error.localizedDescription)")
+                completion?(.failure(error))
+            } else {
+                print("✅ DatabaseService: Task deleted from Firebase - ID: \(taskId)")
+                completion?(.success(()))
+            }
+        }
+    }
+    
+    
+    /// Fetch tasks for a specific date
+    /// - Parameters:
+    ///   - date: Date to fetch tasks for
+    ///   - completion: Completion handler with tasks or error
+    func fetchTasksForDate(userId: String, date: Date, completion: @escaping (Result<[MainPageView.TaskItem], Error>) -> Void) {
+        let dateKey = dateToKey(date)
+        let tasksPath = db.child("users").child(userId).child("tasks").child(dateKey)
+        
+        tasksPath.observeSingleEvent(of: .value) { snapshot in
+            guard snapshot.exists() else {
+                completion(.success([]))
+                return
+            }
+            
+            guard let taskDict = snapshot.value as? [String: Any] else {
+                completion(.success([]))
+                return
+            }
+            
+            do {
+                let tasks = try self.parseTaskDictionary(taskDict)
+                completion(.success(tasks))
+            } catch {
+                print("❌ DatabaseService: Failed to parse tasks in fetch - \(error.localizedDescription)")
+                completion(.failure(error))
+            }
+        }
+    }
+    
+    /// Fetch tasks for a date range
+    /// - Parameters:
+    ///   - startDate: Start date (inclusive)
+    ///   - endDate: End date (inclusive)
+    ///   - completion: Completion handler with tasks dictionary [Date: [TaskItem]] or error
+    func fetchTasksForDateRange(userId: String, startDate: Date, endDate: Date, completion: @escaping (Result<[Date: [MainPageView.TaskItem]], Error>) -> Void) {
+        let calendar = Calendar.current
+        let normalizedStart = calendar.startOfDay(for: startDate)
+        let normalizedEnd = calendar.startOfDay(for: endDate)
+        
+        // Get array of all dates in range
+        var dates: [Date] = []
+        var currentDate = normalizedStart
+        while currentDate <= normalizedEnd {
+            dates.append(currentDate)
+            guard let nextDate = calendar.date(byAdding: .day, value: 1, to: currentDate) else {
+                break
+            }
+            currentDate = nextDate
+        }
+        
+        let tasksPath = db.child("users").child(userId).child("tasks")
+        var result: [Date: [MainPageView.TaskItem]] = [:]
+        var completedRequests = 0
+        var hasError = false
+        var firstError: Error?
+        
+        for date in dates {
+            let dateKey = dateToKey(date)
+            let datePath = tasksPath.child(dateKey)
+            
+            datePath.observeSingleEvent(of: .value) { snapshot in
+                completedRequests += 1
+                
+                if hasError {
+                    return
+                }
+                
+                if snapshot.exists(), let taskDict = snapshot.value as? [String: Any] {
+                    do {
+                        let tasks = try self.parseTaskDictionary(taskDict)
+                        result[date] = tasks
+                    } catch {
+                        hasError = true
+                        firstError = error
+                    }
+                }
+                
+                // Check if all requests completed
+                if completedRequests == dates.count {
+                    if let error = firstError {
+                        completion(.failure(error))
+                    } else {
+                        completion(.success(result))
+                    }
+                }
+            }
+        }
+    }
+    
+    /// Listen to real-time changes for tasks on a specific date
+    /// - Parameters:
+    ///   - date: Date to listen to
+    ///   - callback: Callback with updated tasks
+    /// - Returns: Listener handle (store this to stop listening later)
+    func listenToTasks(userId: String, date: Date, callback: @escaping ([MainPageView.TaskItem]) -> Void) -> DatabaseHandle? {
+        let dateKey = dateToKey(date)
+        let tasksPath = db.child("users").child(userId).child("tasks").child(dateKey)
+        
+        // Create unique key for this listener
+        let listenerKey = "\(userId)_\(dateKey)"
+        
+        // CRITICAL FIX: Remove existing listener if any
+        if let existingHandle = taskListeners[listenerKey] {
+            print("⚠️ DatabaseService: Removing existing listener for \(listenerKey)")
+            db.removeObserver(withHandle: existingHandle)
+            taskListeners.removeValue(forKey: listenerKey)
+        }
+        
+        print("🔌 DatabaseService: Setting up listener for \(listenerKey)")
+        
+        let handle = tasksPath.observe(.value) { [weak self] snapshot in
+            guard self != nil else { return }
+            
+            guard snapshot.exists() else {
+                print("📡 DatabaseService: Listener update - no data for \(listenerKey)")
+                callback([])
+                return
+            }
+            
+            guard let taskDict = snapshot.value as? [String: Any] else {
+                print("📡 DatabaseService: Listener update - invalid data for \(listenerKey)")
+                callback([])
+                return
+            }
+            
+            do {
+                let tasks = try self!.parseTaskDictionary(taskDict)
+                print("📡 DatabaseService: Listener update - \(tasks.count) tasks for \(listenerKey)")
+                callback(tasks)
+            } catch {
+                print("❌ DatabaseService: Failed to parse tasks in listener - \(error.localizedDescription)")
+                callback([])
+            }
+        }
+        
+        taskListeners[listenerKey] = handle
+        return handle
+    }
+    
+    /// Stop a real-time listener
+    /// - Parameter handle: Handle returned from listenToTasks
+    func stopListening(handle: DatabaseHandle) {
+        db.removeObserver(withHandle: handle)
+        
+        // Clean up from tracking dictionary
+        taskListeners = taskListeners.filter { $0.value != handle }
+        print("🛑 DatabaseService: Stopped listener")
+    }
+    
+    /// Stop all task listeners for a specific user and date
+    /// - Parameter userId: User ID
+    /// - Parameter date: Date to stop listening to
+    func stopListeningForDate(userId: String, date: Date) {
+        let dateKey = dateToKey(date)
+        let listenerKey = "\(userId)_\(dateKey)"
+        
+        if let handle = taskListeners[listenerKey] {
+            stopListening(handle: handle)
+            taskListeners.removeValue(forKey: listenerKey)
+        }
+    }
+    
+    /// Delete all tasks from Firebase for a user
+    /// - Parameters:
+    ///   - userId: User ID
+    ///   - completion: Completion handler with result
+    func deleteAllTasks(userId: String, completion: ((Result<Void, Error>) -> Void)? = nil) {
+        let tasksPath = db.child("users").child(userId).child("tasks")
+        
+        tasksPath.removeValue { error, _ in
+            if let error = error {
+                print("❌ DatabaseService: Failed to delete all tasks from Firebase - \(error.localizedDescription)")
+                completion?(.failure(error))
+            } else {
+                print("🗑️ DatabaseService: All tasks deleted from Firebase for user \(userId)")
+                completion?(.success(()))
+            }
+        }
+    }
+    
+    // MARK: - Helper Methods
+    
+    /// Convert Date to string key (YYYY-MM-DD)
+    private func dateToKey(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = TimeZone.current
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        return formatter.string(from: date)
+    }
+    
+    private func taskToDictionary(_ task: MainPageView.TaskItem) throws -> [String: Any] {
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(task)
+        
+        guard let dict = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw NSError(domain: "DatabaseService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to convert task to dictionary"])
+        }
+        
+        return dict
+    }
+    
+    private func parseTaskDictionary(_ taskDict: [String: Any]) throws -> [MainPageView.TaskItem] {
+        var tasks: [MainPageView.TaskItem] = []
+        
+        for (_, taskValue) in taskDict {
+            guard let taskData = taskValue as? [String: Any] else {
+                continue
+            }
+            
+            let jsonData = try JSONSerialization.data(withJSONObject: taskData)
+            let decoder = JSONDecoder()
+            do {
+                let task = try decoder.decode(MainPageView.TaskItem.self, from: jsonData)
+                tasks.append(task)
+            } catch {
+                print("❌ DatabaseService: Failed to decode single task - \(error.localizedDescription)")
+                throw error
+            }
+        }
+        
+        return tasks
     }
 }
 
