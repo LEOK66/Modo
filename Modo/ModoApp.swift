@@ -22,12 +22,36 @@ struct ModoApp: App {
             UserProfile.self,
             ChatMessage.self,
         ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        
+        // Enable auto-migration for schema changes
+        let modelConfiguration = ModelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: false,
+            allowsSave: true
+        )
 
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])
         } catch {
-            fatalError("Could not create ModelContainer: \(error)")
+            // If migration fails, try to delete and recreate the container
+            print("⚠️ ModelContainer creation failed: \(error)")
+            print("🔄 Attempting to reset database...")
+            
+            // Get the default store URL
+            let url = URL.applicationSupportDirectory.appending(path: "default.store")
+            
+            // Try to delete the old database files
+            if FileManager.default.fileExists(atPath: url.path) {
+                try? FileManager.default.removeItem(at: url)
+                print("✅ Deleted old database at: \(url.path)")
+            }
+            
+            // Try to create container again
+            do {
+                return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            } catch {
+                fatalError("Could not create ModelContainer even after reset: \(error)")
+            }
         }
     }()
 

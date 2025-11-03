@@ -74,17 +74,63 @@ struct ChatBubble: View {
     // MARK: - AI Message
     private var aiMessageView: some View {
         VStack(alignment: .leading, spacing: 8) {
+            // Check message type and display appropriate view
             if message.messageType == "workout_plan", let plan = message.workoutPlan {
                 workoutPlanView(plan)
+            } else if message.messageType == "nutrition_plan", let nutritionPlan = message.nutritionPlan {
+                nutritionPlanView(nutritionPlan)
+            } else if message.messageType == "multi_day_plan", let multiDayPlan = message.multiDayPlan {
+                multiDayPlanView(multiDayPlan)
             } else {
-                Text(message.content)
-                    .font(.system(size: 16))
-                    .foregroundColor(Color(hexString: "1F2937"))
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .background(Color(hexString: "F3F4F6"))
-                    .cornerRadius(20)
-                    .frame(maxWidth: 260, alignment: .leading)
+                VStack(alignment: .leading, spacing: 12) {
+                    highlightedTextView(message.content)
+                        .font(.system(size: 16))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(Color(hexString: "F3F4F6"))
+                        .cornerRadius(20)
+                        .frame(maxWidth: 260, alignment: .leading)
+                    
+                    // Show action buttons if this looks like a plan suggestion and not already acted upon
+                    if shouldShowActionButtons(for: message.content) && !message.actionTaken {
+                        HStack(spacing: 16) {
+                            Button(action: {
+                                message.actionTaken = true
+                                onReject?(message)
+                            }) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "xmark")
+                                        .font(.system(size: 16, weight: .semibold))
+                                    Text("Reject")
+                                        .font(.system(size: 14, weight: .medium))
+                                }
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .background(Color(hexString: "EF4444"))
+                                .cornerRadius(20)
+                            }
+                            
+                            Button(action: {
+                                message.actionTaken = true
+                                onAccept?(message)
+                            }) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 16, weight: .semibold))
+                                    Text("Add to Tasks")
+                                        .font(.system(size: 14, weight: .medium))
+                                }
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .background(Color(hexString: "10B981"))
+                                .cornerRadius(20)
+                            }
+                        }
+                        .padding(.leading, 4)
+                    }
+                }
             }
             
             // Timestamp
@@ -95,58 +141,386 @@ struct ChatBubble: View {
         }
     }
     
+    // MARK: - Check if should show action buttons
+    private func shouldShowActionButtons(for content: String) -> Bool {
+        let lowercaseContent = content.lowercased()
+        
+        // Check if message contains plan-related keywords
+        let planKeywords = ["workout", "exercise", "training", "sets", "reps", "rest", 
+                           "meal", "breakfast", "lunch", "dinner", "calories", "protein",
+                           "day 1", "day 2", "monday", "tuesday", "week"]
+        let hasPlanKeywords = planKeywords.contains { lowercaseContent.contains($0) }
+        
+        // Check if ends with plan confirmation questions (more flexible)
+        let confirmationPhrases = [
+            "what do you think of this plan?",
+            "what do you think?",
+            "does this work for you?",
+            "how does this look?",
+            "ready to start?",
+            "shall we go with this?",
+            "你觉得这个计划如何",
+            "你觉得怎么样",
+            "可以开始了吗"
+        ]
+        let endsWithQuestion = confirmationPhrases.contains { lowercaseContent.contains($0) }
+        
+        // Also check if message has multiple exercises/meals (strong indicator of a plan)
+        let hasMultipleExercises = (lowercaseContent.components(separatedBy: "x").count > 2) || 
+                                   (lowercaseContent.components(separatedBy: "×").count > 2)
+        let hasMultipleMeals = (lowercaseContent.contains("breakfast") && lowercaseContent.contains("lunch")) ||
+                               (lowercaseContent.contains("lunch") && lowercaseContent.contains("dinner"))
+        
+        // Show buttons if:
+        // 1. Has plan keywords AND ends with confirmation question, OR
+        // 2. Has clear plan structure (multiple exercises or meals)
+        return (hasPlanKeywords && endsWithQuestion) || hasMultipleExercises || hasMultipleMeals
+    }
+    
+    // MARK: - Highlighted Text View (with purple numbers and red times)
+    private func highlightedTextView(_ content: String) -> some View {
+        // Remove markdown formatting (**, __, etc.)
+        var cleanedContent = content
+        cleanedContent = cleanedContent.replacingOccurrences(of: "**", with: "")
+        cleanedContent = cleanedContent.replacingOccurrences(of: "__", with: "")
+        cleanedContent = cleanedContent.replacingOccurrences(of: "##", with: "")
+        
+        // Build AttributedString
+        var attributedString = AttributedString(cleanedContent)
+        
+        // Apply base color to all text first
+        attributedString.foregroundColor = Color(hexString: "1F2937")
+        
+        // Pattern 1: Time patterns (e.g., "6am", "6:00 PM", "at 6pm", "6 o'clock")
+        let timePattern = #"\b(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm|AM|PM|o['\u2019]?clock)\b"#
+        if let timeRegex = try? NSRegularExpression(pattern: timePattern, options: []) {
+            let timeMatches = timeRegex.matches(in: cleanedContent, range: NSRange(location: 0, length: cleanedContent.count))
+            
+            for match in timeMatches {
+                if let range = Range(match.range, in: cleanedContent) {
+                    if let attributedStart = AttributedString.Index(range.lowerBound, within: attributedString),
+                       let attributedEnd = AttributedString.Index(range.upperBound, within: attributedString) {
+                        let attributedRange = attributedStart..<attributedEnd
+                        
+                        attributedString[attributedRange].foregroundColor = Color(hexString: "EF4444") // Red
+                        attributedString[attributedRange].font = .system(size: 16, weight: .semibold)
+                    }
+                }
+            }
+        }
+        
+        // Pattern 2: Numbers with optional units (e.g., "3", "10-12", "5.5", "150lbs", "3x12")
+        let numberPattern = #"\b\d+(?:[-–]\d+)?(?:\.\d+)?(?:\s*(?:lbs?|kg|reps?|sets?|x|×|cal|g|miles?|km|ft|in|min|sec|%))?\b"#
+        if let numberRegex = try? NSRegularExpression(pattern: numberPattern, options: [.caseInsensitive]) {
+            let numberMatches = numberRegex.matches(in: cleanedContent, range: NSRange(location: 0, length: cleanedContent.count))
+            
+            // Highlight numbers (but skip if already highlighted as time)
+            for match in numberMatches {
+                if let range = Range(match.range, in: cleanedContent) {
+                    if let attributedStart = AttributedString.Index(range.lowerBound, within: attributedString),
+                       let attributedEnd = AttributedString.Index(range.upperBound, within: attributedString) {
+                        let attributedRange = attributedStart..<attributedEnd
+                        
+                        // Only apply purple if not already red (time)
+                        if attributedString[attributedRange].foregroundColor != Color(hexString: "EF4444") {
+                            attributedString[attributedRange].foregroundColor = Color(hexString: "8B5CF6")
+                            attributedString[attributedRange].font = .system(size: 16, weight: .semibold)
+                        }
+                    }
+                }
+            }
+        }
+        
+        return Text(attributedString)
+    }
+    
     // MARK: - Workout Plan View
     private func workoutPlanView(_ plan: WorkoutPlanData) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(message.content)
+            highlightedTextView(message.content)
                 .font(.system(size: 16))
-                .foregroundColor(Color(hexString: "1F2937"))
             
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(plan.exercises) { exercise in
                     HStack(spacing: 4) {
                         Text("•")
                             .font(.system(size: 16, weight: .bold))
-                        Text("\(exercise.sets)×\(exercise.reps) \(exercise.name)")
+                            .foregroundColor(Color(hexString: "374151"))
+                        highlightedTextView("\(exercise.sets)×\(exercise.reps) \(exercise.name)")
                             .font(.system(size: 15))
                     }
-                    .foregroundColor(Color(hexString: "374151"))
                 }
             }
             
             if let notes = plan.notes {
-                Text(notes)
+                highlightedTextView(notes)
                     .font(.system(size: 14))
                     .foregroundColor(Color(hexString: "6B7280"))
                     .italic()
             }
             
-            // Action buttons
-            HStack(spacing: 12) {
-                Button(action: {
-                    onReject?(message)
-                }) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(Color(hexString: "EF4444"))
-                        .frame(width: 44, height: 44)
+            // Action buttons (only show if not already acted upon)
+            if !message.actionTaken {
+                HStack(spacing: 16) {
+                    Button(action: {
+                        message.actionTaken = true
+                        onReject?(message)
+                    }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 16, weight: .semibold))
+                            Text("Reject")
+                                .font(.system(size: 14, weight: .medium))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(Color(hexString: "EF4444"))
+                        .cornerRadius(20)
+                    }
+                    
+                    Button(action: {
+                        message.actionTaken = true
+                        onAccept?(message)
+                    }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 16, weight: .semibold))
+                            Text("Add to Tasks")
+                                .font(.system(size: 14, weight: .medium))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(Color(hexString: "10B981"))
+                        .cornerRadius(20)
+                    }
                 }
-                
-                Button(action: {
-                    onAccept?(message)
-                }) {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(Color(hexString: "10B981"))
-                        .frame(width: 44, height: 44)
-                }
+                .padding(.top, 4)
             }
-            .padding(.top, 4)
         }
         .padding(16)
         .background(Color(hexString: "F3F4F6"))
         .cornerRadius(20)
         .frame(maxWidth: 280, alignment: .leading)
+    }
+    
+    // MARK: - Nutrition Plan View
+    private func nutritionPlanView(_ plan: NutritionPlanData) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            highlightedTextView(message.content)
+                .font(.system(size: 16))
+            
+            // Display meals
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(plan.meals) { meal in
+                    VStack(alignment: .leading, spacing: 4) {
+                        // Meal time and name
+                        HStack {
+                            highlightedTextView("\(meal.time) - \(meal.name)")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(Color(hexString: "374151"))
+                        }
+                        
+                        // Food items
+                        ForEach(meal.foods, id: \.self) { food in
+                            HStack(spacing: 4) {
+                                Text("•")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(Color(hexString: "6B7280"))
+                                Text(food)
+                                    .font(.system(size: 14))
+                                    .foregroundColor(Color(hexString: "6B7280"))
+                            }
+                        }
+                        
+                        // Macros
+                        highlightedTextView("\(meal.calories)kcal | P: \(Int(meal.protein))g | C: \(Int(meal.carbs))g | F: \(Int(meal.fat))g")
+                            .font(.system(size: 13))
+                            .foregroundColor(Color(hexString: "8B5CF6"))
+                    }
+                    .padding(.bottom, 4)
+                }
+            }
+            
+            // Daily total
+            if plan.dailyKcalTarget > 0 {
+                highlightedTextView("Daily Total: \(plan.dailyKcalTarget)kcal")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(Color(hexString: "10B981"))
+                    .padding(.top, 4)
+            }
+            
+            if let notes = plan.notes {
+                highlightedTextView(notes)
+                    .font(.system(size: 14))
+                    .foregroundColor(Color(hexString: "6B7280"))
+                    .italic()
+            }
+            
+            // Action buttons (only show if not already acted upon)
+            if !message.actionTaken {
+                HStack(spacing: 16) {
+                    Button(action: {
+                        message.actionTaken = true
+                        onReject?(message)
+                    }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 16, weight: .semibold))
+                            Text("Reject")
+                                .font(.system(size: 14, weight: .medium))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(Color(hexString: "EF4444"))
+                        .cornerRadius(20)
+                    }
+                    
+                    Button(action: {
+                        message.actionTaken = true
+                        onAccept?(message)
+                    }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 16, weight: .semibold))
+                            Text("Add to Tasks")
+                                .font(.system(size: 14, weight: .medium))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(Color(hexString: "10B981"))
+                        .cornerRadius(20)
+                    }
+                }
+                .padding(.top, 4)
+            }
+        }
+        .padding(16)
+        .background(Color(hexString: "F3F4F6"))
+        .cornerRadius(20)
+        .frame(maxWidth: 300, alignment: .leading)
+    }
+    
+    // MARK: - Multi-Day Plan View
+    private func multiDayPlanView(_ plan: MultiDayPlanData) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            highlightedTextView(message.content)
+                .font(.system(size: 16))
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(plan.days) { day in
+                        VStack(alignment: .leading, spacing: 8) {
+                            // Day header
+                            Text(day.dayName)
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(Color(hexString: "8B5CF6"))
+                            
+                            Text(day.date)
+                                .font(.system(size: 12))
+                                .foregroundColor(Color(hexString: "6B7280"))
+                            
+                            Divider()
+                            
+                            // Show workout or nutrition summary
+                            if let workout = day.workout {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("💪 Workout")
+                                        .font(.system(size: 13, weight: .semibold))
+                                    ForEach(workout.exercises.prefix(3)) { exercise in
+                                        Text("• \(exercise.name)")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(Color(hexString: "374151"))
+                                    }
+                                    if workout.exercises.count > 3 {
+                                        Text("+ \(workout.exercises.count - 3) more")
+                                            .font(.system(size: 11))
+                                            .foregroundColor(Color(hexString: "6B7280"))
+                                    }
+                                }
+                            }
+                            
+                            if let nutrition = day.nutrition {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("🥗 Nutrition")
+                                        .font(.system(size: 13, weight: .semibold))
+                                    Text("\(nutrition.dailyKcalTarget)kcal")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(Color(hexString: "10B981"))
+                                    Text("\(nutrition.meals.count) meals")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(Color(hexString: "6B7280"))
+                                }
+                            }
+                        }
+                        .padding(12)
+                        .frame(width: 160)
+                        .background(Color.white)
+                        .cornerRadius(12)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color(hexString: "E5E7EB"), lineWidth: 1)
+                        )
+                    }
+                }
+                .padding(.horizontal, 4)
+            }
+            
+            if let notes = plan.notes {
+                highlightedTextView(notes)
+                    .font(.system(size: 14))
+                    .foregroundColor(Color(hexString: "6B7280"))
+                    .italic()
+                    .padding(.top, 4)
+            }
+            
+            // Action buttons (only show if not already acted upon)
+            if !message.actionTaken {
+                HStack(spacing: 16) {
+                    Button(action: {
+                        message.actionTaken = true
+                        onReject?(message)
+                    }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 16, weight: .semibold))
+                            Text("Reject")
+                                .font(.system(size: 14, weight: .medium))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(Color(hexString: "EF4444"))
+                        .cornerRadius(20)
+                    }
+                    
+                    Button(action: {
+                        message.actionTaken = true
+                        onAccept?(message)
+                    }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 16, weight: .semibold))
+                            Text("Add All to Tasks")
+                                .font(.system(size: 14, weight: .medium))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(Color(hexString: "10B981"))
+                        .cornerRadius(20)
+                    }
+                }
+                .padding(.top, 4)
+            }
+        }
+        .padding(16)
+        .background(Color(hexString: "F3F4F6"))
+        .cornerRadius(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

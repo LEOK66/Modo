@@ -15,7 +15,7 @@ class ModoCoachService: ObservableObject {
     }
     
     // MARK: - Load History from SwiftData
-    func loadHistory(from context: ModelContext) {
+    func loadHistory(from context: ModelContext, userProfile: UserProfile? = nil) {
         guard !hasLoadedHistory else { return }
         
         self.modelContext = context
@@ -27,8 +27,12 @@ class ModoCoachService: ObservableObject {
         do {
             let savedMessages = try context.fetch(descriptor)
             if savedMessages.isEmpty {
-                // First time, add welcome message
-                addWelcomeMessage()
+                // First time, check if we need to send user info
+                if shouldSendUserInfo(userProfile: userProfile) {
+                    sendInitialUserInfo(userProfile: userProfile)
+                } else {
+                    addWelcomeMessage()
+                }
             } else {
                 // Load existing messages
                 messages = savedMessages
@@ -37,6 +41,93 @@ class ModoCoachService: ObservableObject {
         } catch {
             print("Failed to load chat history: \(error)")
             addWelcomeMessage()
+        }
+    }
+    
+    // MARK: - Check if should send user info
+    private func shouldSendUserInfo(userProfile: UserProfile?) -> Bool {
+        // Check if user has completed profile setup
+        guard let profile = userProfile else { return false }
+        
+        // Check if user has basic info
+        let hasBasicInfo = profile.age != nil && 
+                          profile.weightValue != nil && 
+                          profile.heightValue != nil &&
+                          profile.goal != nil
+        
+        return hasBasicInfo
+    }
+    
+    // MARK: - Send Initial User Info to AI
+    private func sendInitialUserInfo(userProfile: UserProfile?) {
+        guard let profile = userProfile else {
+            addWelcomeMessage()
+            return
+        }
+        
+        isProcessing = true
+        
+        // Build user info message
+        var userInfoText = "Hi! I just signed up. Here's my confirmed profile information:\n\n"
+        
+        if let age = profile.age {
+            userInfoText += "Age: \(age) years old\n"
+        }
+        
+        if let gender = profile.gender {
+            // Convert gender code to readable format
+            let genderText: String
+            switch gender.lowercased() {
+            case "male", "m":
+                genderText = "Male"
+            case "female", "f":
+                genderText = "Female"
+            case "other", "non-binary", "nb":
+                genderText = "Non-binary"
+            default:
+                genderText = gender.capitalized
+            }
+            userInfoText += "Gender: \(genderText)\n"
+        }
+        
+        if let weightValue = profile.weightValue, let weightUnit = profile.weightUnit {
+            if weightUnit.lowercased() == "kg" {
+                let lbs = Int(weightValue * 2.20462)
+                userInfoText += "Weight: \(lbs)lbs\n"
+            } else {
+                userInfoText += "Weight: \(Int(weightValue))\(weightUnit)\n"
+            }
+        }
+        
+        if let heightValue = profile.heightValue, let heightUnit = profile.heightUnit {
+            if heightUnit.lowercased() == "cm" {
+                let totalInches = heightValue / 2.54
+                let feet = Int(totalInches / 12)
+                let inches = Int(totalInches.truncatingRemainder(dividingBy: 12))
+                userInfoText += "Height: \(feet)'\(inches)\"\n"
+            } else {
+                userInfoText += "Height: \(heightValue) \(heightUnit)\n"
+            }
+        }
+        
+        if let goal = profile.goal {
+            userInfoText += "Goal: \(goal)\n"
+        }
+        
+        if let lifestyle = profile.lifestyle {
+            userInfoText += "Lifestyle: \(lifestyle)\n"
+        }
+        
+        userInfoText += "\nI have basic gym equipment available (dumbbells, barbells, and machines). Please create personalized workout and nutrition plans based on this information. No need to ask me for these details again!"
+        
+        // Add user message
+        let userMessage = ChatMessage(content: userInfoText, isFromUser: true)
+        messages.append(userMessage)
+        saveMessage(userMessage)
+        
+        // Get AI response
+        Task {
+            await processWithOpenAI(userInfoText, userProfile: profile)
         }
     }
     
@@ -84,16 +175,29 @@ class ModoCoachService: ObservableObject {
     }
     
     // MARK: - Accept Workout Plan
-    func acceptWorkoutPlan(for message: ChatMessage) {
-        guard let plan = message.workoutPlan else { return }
-        
-        // TODO: Save to calendar or workout log
-        let confirmMessage = ChatMessage(
-            content: "Great! I've saved your workout plan for \(plan.date). Don't forget to log your progress after completing it! 💪",
-            isFromUser: false
-        )
-        messages.append(confirmMessage)
-        saveMessage(confirmMessage)
+    func acceptWorkoutPlan(for message: ChatMessage, onTaskCreated: ((WorkoutPlanData) -> Void)? = nil, onTextPlanAccepted: (() -> Void)? = nil) {
+        // Check if it's a structured workout plan
+        if let plan = message.workoutPlan {
+            // Call the callback to create task
+            onTaskCreated?(plan)
+            
+            let confirmMessage = ChatMessage(
+                content: "Great! I've added your workout plan to your tasks. Don't forget to log your progress after completing it! 💪",
+                isFromUser: false
+            )
+            messages.append(confirmMessage)
+            saveMessage(confirmMessage)
+        } else {
+            // Handle text-based workout plan
+            onTextPlanAccepted?()
+            
+            let confirmMessage = ChatMessage(
+                content: "Great! I've added this workout to your tasks. Don't forget to log your progress! 💪",
+                isFromUser: false
+            )
+            messages.append(confirmMessage)
+            saveMessage(confirmMessage)
+        }
     }
     
     // MARK: - Reject Workout Plan
@@ -145,16 +249,21 @@ class ModoCoachService: ObservableObject {
             let systemPrompt = """
             You are a nutrition expert. Analyze the food in the image and provide:
             1. Food identification
-            2. Estimated serving size
+            2. Estimated serving size (use oz, cups, or pieces)
             3. Nutritional information: Protein (g), Fat (g), Carbs (g), Calories (kcal)
             
-            Format your response EXACTLY as:
+            Format your response EXACTLY as (plain text, no markdown):
             Food: [name]
-            Serving: [size]
+            Serving: [size in oz, cups, or pieces]
             Protein: [X]g
             Fat: [X]g
             Carbs: [X]g
             Calories: [X]kcal
+            
+            Use Imperial/US measurements:
+            - Weight: oz (ounces) for food portions
+            - Volume: cups, tablespoons, teaspoons
+            - NO metric units
             
             If it's not food or you can't identify it, say "This doesn't appear to be food."
             """
@@ -568,8 +677,8 @@ class ModoCoachService: ObservableObject {
     
     private func calculateDailyCalories(userProfile: UserProfile?) -> Int {
         guard let profile = userProfile,
-              let weight = profile.weight,
-              let height = profile.height,
+              let weight = profile.weightValue,
+              let height = profile.heightValue,
               let age = profile.age else {
             return 2500 // Default
         }

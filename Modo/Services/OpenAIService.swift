@@ -68,26 +68,108 @@ class OpenAIService {
         - Friendly and encouraging
         - Use emojis sparingly (💪, 🏋️, 🥗)
         - Keep responses concise but informative
-        - Always end with an actionable suggestion or question
+        - NO MARKDOWN formatting (no **, __, ##, etc.)
+        - Use plain text only, no bold or emphasis marks
+        
+        Workout plan format:
+        - When creating a plan, include estimated duration (e.g., "45-minute workout")
+        - Include brief description of focus (e.g., "Upper body strength training")
+        - List exercises with sets x reps, rest periods, AND estimated calories burned
+        - Format: "Exercise Name: X sets x Y reps, Z seconds rest, ~W calories"
+        - Example: "Bench Press: 4 sets x 8-10 reps, 90 seconds rest, ~50 calories"
+        - Calculate calories based on exercise intensity and duration
+        - CRITICAL: After ANY workout plan, ALWAYS end with: "What do you think of this plan?"
+        - This ending is REQUIRED for all workout plans, even if user rejected a previous one
+        - DO NOT ask about warm-up routines
+        - DO NOT ask if they want a nutrition plan
+        
+        Nutrition plan format:
+        - Include meal times (e.g., "8:00 AM - Breakfast")
+        - List specific foods with portions (e.g., "2 eggs, 2 slices whole wheat toast")
+        - Include macros for each meal (calories, protein, carbs, fat)
+        - Provide daily totals
+        - CRITICAL: After ANY nutrition plan, ALWAYS end with: "What do you think of this plan?"
+        - This ending is REQUIRED for all nutrition plans
+        
+        Multi-day plans:
+        - If user asks for "this week", "next week", "7 days", etc., create a 7-day plan
+        - If user asks for "these two days", "this weekend", etc., create a 2-day plan
+        - If user asks for "this month", create a 30-day plan
+        - Clearly label each day (e.g., "Day 1 - Monday", "Day 2 - Tuesday")
+        - Vary exercises/meals across days for variety
+        - Consider rest days for workout plans
+        - CRITICAL: After ANY multi-day plan, ALWAYS end with: "What do you think of this plan?"
+        - This ending is REQUIRED for all multi-day plans
+        
+        IMPORTANT: If user rejects a plan and asks for a new one, the new plan MUST also end with "What do you think of this plan?"
+        
+        Units and measurements:
+        - ALWAYS use Imperial/US units by default:
+          * Weight: lbs (pounds)
+          * Height: feet and inches (e.g., 5'10")
+          * Distance: miles, yards, feet
+          * Temperature: Fahrenheit
+          * Food portions: oz, cups, tablespoons
+        - Convert metric to imperial automatically
+        
+        CRITICAL RULES for workout/diet plans:
+        - When user asks to create a WORKOUT plan, FIRST ask: "What time would you like to do this workout?"
+        - For NUTRITION plans, ask: "What time do you usually have breakfast/your first meal?"
+        - For MULTI-DAY plans, ask about preferred workout times or meal times
+        - Wait for their time response, THEN generate the plan
+        - DO NOT ask for goal (you already have it in user profile)
+        - DO NOT ask about experience level (infer from profile)
+        - DO NOT ask about equipment (assume basic: dumbbells, barbells, or bodyweight)
+        - DO NOT ask other clarifying questions unless absolutely necessary
+        - Be proactive and generate the plan based on available information
         
         IMPORTANT for workout plans:
         - ALWAYS include 3-5 specific exercises with sets and reps
         - Use realistic rep ranges (e.g., "8-10", "12-15", "6-8")
         - Include rest periods (60-120 seconds for most exercises)
-        - Consider the user's experience level and goals
         - Mix compound and isolation exercises
+        - Adapt difficulty based on user's goal and stats automatically
         """
         
         if let profile = userProfile {
             prompt += "\n\nUser Profile:"
-            if let height = profile.height {
-                prompt += "\n- Height: \(height) cm"
+            if let heightValue = profile.heightValue, let heightUnit = profile.heightUnit {
+                // Convert to feet/inches if in cm
+                if heightUnit.lowercased() == "cm" {
+                    let totalInches = heightValue / 2.54
+                    let feet = Int(totalInches / 12)
+                    let inches = Int(totalInches.truncatingRemainder(dividingBy: 12))
+                    prompt += "\n- Height: \(feet)'\(inches)\""
+                } else {
+                    prompt += "\n- Height: \(heightValue) \(heightUnit)"
+                }
             }
-            if let weight = profile.weight {
-                prompt += "\n- Weight: \(weight) kg"
+            if let weightValue = profile.weightValue, let weightUnit = profile.weightUnit {
+                // Convert to lbs if in kg
+                if weightUnit.lowercased() == "kg" {
+                    let lbs = Int(weightValue * 2.20462)
+                    prompt += "\n- Weight: \(lbs)lbs"
+                } else {
+                    prompt += "\n- Weight: \(weightValue) \(weightUnit)"
+                }
             }
             if let age = profile.age {
                 prompt += "\n- Age: \(age) years"
+            }
+            if let gender = profile.gender {
+                // Convert gender code to readable format
+                let genderText: String
+                switch gender.lowercased() {
+                case "male", "m":
+                    genderText = "Male"
+                case "female", "f":
+                    genderText = "Female"
+                case "other", "non-binary", "nb":
+                    genderText = "Non-binary"
+                default:
+                    genderText = gender
+                }
+                prompt += "\n- Gender: \(genderText)"
             }
             if let goal = profile.goal {
                 prompt += "\n- Goal: \(goal)"
