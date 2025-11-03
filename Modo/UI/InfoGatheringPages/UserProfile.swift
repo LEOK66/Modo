@@ -5,6 +5,8 @@ import SwiftData
 final class UserProfile {
     var userId: String
     var username: String?
+    var avatarName: String?        // default animal avatar asset name
+    var profileImageURL: String?   // uploaded photo URL (Firebase Storage)
     var heightValue: Double?
     var heightUnit: String?
     var weightValue: Double?
@@ -18,6 +20,8 @@ final class UserProfile {
     var targetWeightLossValue: Double?
     var targetWeightLossUnit: String?
     var targetDays: Int?
+    var goalStartDate: Date?
+    var bufferDays: Int?
     var createdAt: Date
     var updatedAt: Date
     
@@ -57,6 +61,28 @@ final class UserProfile {
         self.targetWeightLossUnit = targetWeightLossUnit
         self.targetDays = targetDays
         self.updatedAt = Date()
+    }
+    
+    // MARK: - Data Validation Helpers
+
+    func hasMinimumDataForProgress() -> Bool {
+        guard goal != nil, goalStartDate != nil else { return false }
+        
+        switch goal {
+        case "lose_weight":
+            return targetWeightLossValue != nil && targetDays != nil
+        case "keep_healthy":
+            return dailyCalories != nil && targetDays != nil
+        case "gain_muscle":
+            return dailyProtein != nil && targetDays != nil
+        default:
+            return false
+        }
+    }
+    
+    func hasDataForCaloriesCalculation() -> Bool {
+        return heightValue != nil && weightValue != nil &&
+               age != nil && gender != nil && lifestyle != nil
     }
 }
 

@@ -24,6 +24,8 @@ final class DatabaseService {
             "updatedAt": profile.updatedAt.timeIntervalSince1970
         ]
         if let username = profile.username { payload["username"] = username }
+        if let avatarName = profile.avatarName { payload["avatarName"] = avatarName }
+        if let profileImageURL = profile.profileImageURL { payload["profileImageURL"] = profileImageURL }
         if let heightValue = profile.heightValue { payload["heightValue"] = heightValue }
         if let heightUnit = profile.heightUnit { payload["heightUnit"] = heightUnit }
         if let weightValue = profile.weightValue { payload["weightValue"] = weightValue }
@@ -215,65 +217,7 @@ final class DatabaseService {
         }
     }
     
-    /// Fetch tasks for a date range
-    /// - Parameters:
-    ///   - startDate: Start date (inclusive)
-    ///   - endDate: End date (inclusive)
-    ///   - completion: Completion handler with tasks dictionary [Date: [TaskItem]] or error
-    func fetchTasksForDateRange(userId: String, startDate: Date, endDate: Date, completion: @escaping (Result<[Date: [MainPageView.TaskItem]], Error>) -> Void) {
-        let calendar = Calendar.current
-        let normalizedStart = calendar.startOfDay(for: startDate)
-        let normalizedEnd = calendar.startOfDay(for: endDate)
-        
-        // Get array of all dates in range
-        var dates: [Date] = []
-        var currentDate = normalizedStart
-        while currentDate <= normalizedEnd {
-            dates.append(currentDate)
-            guard let nextDate = calendar.date(byAdding: .day, value: 1, to: currentDate) else {
-                break
-            }
-            currentDate = nextDate
-        }
-        
-        let tasksPath = db.child("users").child(userId).child("tasks")
-        var result: [Date: [MainPageView.TaskItem]] = [:]
-        var completedRequests = 0
-        var hasError = false
-        var firstError: Error?
-        
-        for date in dates {
-            let dateKey = dateToKey(date)
-            let datePath = tasksPath.child(dateKey)
-            
-            datePath.observeSingleEvent(of: .value) { snapshot in
-                completedRequests += 1
-                
-                if hasError {
-                    return
-                }
-                
-                if snapshot.exists(), let taskDict = snapshot.value as? [String: Any] {
-                    do {
-                        let tasks = try self.parseTaskDictionary(taskDict)
-                        result[date] = tasks
-                    } catch {
-                        hasError = true
-                        firstError = error
-                    }
-                }
-                
-                // Check if all requests completed
-                if completedRequests == dates.count {
-                    if let error = firstError {
-                        completion(.failure(error))
-                    } else {
-                        completion(.success(result))
-                    }
-                }
-            }
-        }
-    }
+    
     
     /// Listen to real-time changes for tasks on a specific date
     /// - Parameters:
@@ -335,18 +279,7 @@ final class DatabaseService {
         print("🛑 DatabaseService: Stopped listener")
     }
     
-    /// Stop all task listeners for a specific user and date
-    /// - Parameter userId: User ID
-    /// - Parameter date: Date to stop listening to
-    func stopListeningForDate(userId: String, date: Date) {
-        let dateKey = dateToKey(date)
-        let listenerKey = "\(userId)_\(dateKey)"
-        
-        if let handle = taskListeners[listenerKey] {
-            stopListening(handle: handle)
-            taskListeners.removeValue(forKey: listenerKey)
-        }
-    }
+    
     
     /// Delete all tasks from Firebase for a user
     /// - Parameters:
@@ -421,6 +354,13 @@ final class DatabaseService {
         if let username = profileDict["username"] as? String {
             profile.username = username
         }
+        // Parse avatar fields
+        if let avatarName = profileDict["avatarName"] as? String {
+            profile.avatarName = avatarName
+        }
+        if let profileImageURL = profileDict["profileImageURL"] as? String {
+            profile.profileImageURL = profileImageURL
+        }
         
         // Parse height
         if let heightValue = profileDict["heightValue"] as? Double {
@@ -490,6 +430,100 @@ final class DatabaseService {
         }
         
         return profile
+    }
+    
+    // MARK: - DailyCompletion Methods
+    
+    /// Save daily completion status to Firebase
+    /// - Parameters:
+    ///   - userId: User ID
+    ///   - date: Date to save completion for (will be normalized to start of day)
+    ///   - isCompleted: Whether the day is completed
+    ///   - completion: Completion handler with result
+    func saveDailyCompletion(userId: String, date: Date, isCompleted: Bool, completion: ((Result<Void, Error>) -> Void)? = nil) {
+        let calendar = Calendar.current
+        let normalizedDate = calendar.startOfDay(for: date)
+        let dateKey = dateToKey(normalizedDate)
+        
+        let path = db.child("users").child(userId).child("dailyCompletions").child(dateKey)
+        let payload: [String: Any] = [
+            "isCompleted": isCompleted,
+            "completedAt": Date().timeIntervalSince1970
+        ]
+        
+        path.setValue(payload) { error, _ in
+            if let error = error {
+                print("❌ DatabaseService: Failed to save daily completion - \(error.localizedDescription)")
+                completion?(.failure(error))
+            } else {
+                print("✅ DatabaseService: Daily completion saved - Date: \(dateKey), Completed: \(isCompleted)")
+                completion?(.success(()))
+            }
+        }
+    }
+    
+    /// Fetch daily completion status from Firebase
+    /// - Parameters:
+    ///   - userId: User ID
+    ///   - date: Date to fetch completion for
+    ///   - completion: Completion handler with isCompleted Bool or error
+    func fetchDailyCompletion(userId: String, date: Date, completion: @escaping (Result<Bool, Error>) -> Void) {
+        let calendar = Calendar.current
+        let normalizedDate = calendar.startOfDay(for: date)
+        let dateKey = dateToKey(normalizedDate)
+        
+        let path = db.child("users").child(userId).child("dailyCompletions").child(dateKey).child("isCompleted")
+        
+        path.observeSingleEvent(of: .value) { snapshot in
+            guard snapshot.exists(), let isCompleted = snapshot.value as? Bool else {
+                // No data means not completed
+                completion(.success(false))
+                return
+            }
+            completion(.success(isCompleted))
+        }
+    }
+    
+    /// Fetch daily completions for a date range from Firebase
+    /// - Parameters:
+    ///   - userId: User ID
+    ///   - startDate: Start date (inclusive)
+    ///   - endDate: End date (inclusive)
+    ///   - completion: Completion handler with dictionary [Date: Bool] or error
+    func fetchDailyCompletions(userId: String, startDate: Date, endDate: Date, completion: @escaping (Result<[Date: Bool], Error>) -> Void) {
+        let calendar = Calendar.current
+        let normalizedStart = calendar.startOfDay(for: startDate)
+        let normalizedEnd = calendar.startOfDay(for: endDate)
+        
+        let completionsPath = db.child("users").child(userId).child("dailyCompletions")
+        
+        completionsPath.observeSingleEvent(of: .value) { snapshot in
+            guard snapshot.exists(), let completionsDict = snapshot.value as? [String: Any] else {
+                completion(.success([:]))
+                return
+            }
+            
+            var result: [Date: Bool] = [:]
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd"
+            dateFormatter.timeZone = TimeZone.current
+            dateFormatter.locale = Locale(identifier: "en_US_POSIX")
+            
+            for (dateKey, value) in completionsDict {
+                guard let completionDict = value as? [String: Any],
+                      let isCompleted = completionDict["isCompleted"] as? Bool,
+                      let date = dateFormatter.date(from: dateKey) else {
+                    continue
+                }
+                
+                // Only include dates in the requested range
+                if date >= normalizedStart && date <= normalizedEnd {
+                    result[date] = isCompleted
+                }
+            }
+            
+            completion(.success(result))
+        }
     }
 }
 

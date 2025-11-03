@@ -5,15 +5,16 @@ import FirebaseDatabase
 
 struct MainPageView: View {
     @Binding var selectedTab: Tab
+    @EnvironmentObject var dailyCaloriesService: DailyCaloriesService
+    @Environment(\.modelContext) private var modelContext
     @State private var isShowingCalendar = false
     @State private var navigationPath = NavigationPath()
-    
-    // SwiftData context for user profile access
-    @Environment(\.modelContext) private var modelContext
+    @State private var midnightTimer: Timer? = nil
     
     // Cache and database services
     private let cacheService = TaskCacheService.shared
     private let databaseService = DatabaseService.shared
+    private let progressService = ProgressCalculationService.shared
     
     // Track current listener handle
     @State private var currentListenerHandle: DatabaseHandle? = nil
@@ -477,6 +478,27 @@ struct MainPageView: View {
         }
     }
     
+    /// Update DailyCaloriesService with today's calories (called asynchronously)
+    private func updateCaloriesServiceIfNeeded(tasks: [TaskItem], date: Date) {
+        let calendar = Calendar.current
+        let normalizedDate = calendar.startOfDay(for: date)
+        let today = calendar.startOfDay(for: Date())
+        
+        // Only calculate if it's today
+        guard calendar.isDate(normalizedDate, inSameDayAs: today) else {
+            return
+        }
+        
+        // Calculate total calories from completed tasks
+        // Diet tasks add calories, fitness tasks subtract calories
+        let total = tasks
+            .filter { $0.isDone }
+            .reduce(0) { $0 + $1.totalCalories }
+        
+        // Update calories service (already handles async internally)
+        dailyCaloriesService.updateCalories(total, for: normalizedDate)
+    }
+    
     // MARK: - Task Management Methods
     
     /// Get tasks for a specific date (sorted by time)
@@ -554,6 +576,12 @@ struct MainPageView: View {
         }
         tasksByDate[dateKey]?.append(task)
         
+        // Update calories service after task added
+        let todayTasks = tasks(for: selectedDate)
+        updateCaloriesServiceIfNeeded(tasks: todayTasks, date: selectedDate)
+        // Evaluate day completion for the task's date
+        evaluateAndSyncDayCompletion(for: task.timeDate)
+        
         // Update cache immediately
         cacheService.saveTask(task, date: task.timeDate, userId: userId)
         print("✅ MainPageView: Task saved to local cache")
@@ -589,6 +617,12 @@ struct MainPageView: View {
                 if tasksByDate[key]?.isEmpty == true {
                     tasksByDate.removeValue(forKey: key)
                 }
+                
+                // Update calories service after task removed
+                let todayTasks = self.tasks(for: self.selectedDate)
+                self.updateCaloriesServiceIfNeeded(tasks: todayTasks, date: self.selectedDate)
+                // Evaluate day completion for the removed task's date
+                self.evaluateAndSyncDayCompletion(for: task.timeDate)
                 
                 // Update cache immediately
                 cacheService.deleteTask(taskId: task.id, date: dateKey, userId: userId)
@@ -626,6 +660,13 @@ struct MainPageView: View {
         
         // CRITICAL FIX #9: Optimistic update - update UI immediately
         updateTaskInMemory(newTask, oldTask: oldTask, oldDateKey: oldDateKey, newDateKey: newDateKey)
+        
+        // Update calories service after task update
+        let todayTasks = tasks(for: selectedDate)
+        updateCaloriesServiceIfNeeded(tasks: todayTasks, date: selectedDate)
+        // Evaluate day completion for affected dates
+        evaluateAndSyncDayCompletion(for: oldTask.timeDate)
+        evaluateAndSyncDayCompletion(for: newTask.timeDate)
         
         // CRITICAL FIX #10: Update cache in background
         Task.detached(priority: .background) {
@@ -791,6 +832,11 @@ struct MainPageView: View {
             isViewVisible = true
             setupListenerIfNeeded(for: selectedDate)
             setupWorkoutTaskNotification()
+            // Update calories service on appear
+            let todayTasks = tasks(for: selectedDate)
+            updateCaloriesServiceIfNeeded(tasks: todayTasks, date: selectedDate)
+            // Schedule settlement at next midnight
+            scheduleMidnightSettlement()
         }
         .onDisappear {
             print("📍 MainPageView: onDisappear called")
@@ -804,6 +850,8 @@ struct MainPageView: View {
                 name: NSNotification.Name("CreateWorkoutTask"),
                 object: nil
             )
+            
+            cancelMidnightSettlement()
         }
         .onChange(of: selectedDate) { oldValue, newValue in
             print("📅 MainPageView: Date changed from \(oldValue) to \(newValue)")
@@ -813,6 +861,9 @@ struct MainPageView: View {
             }
             stopCurrentListener()
             setupListenerIfNeeded(for: newValue)
+            // Update calories service when date changes
+            let todayTasks = tasks(for: newValue)
+            updateCaloriesServiceIfNeeded(tasks: todayTasks, date: newValue)
         }
     }
     
@@ -900,6 +951,11 @@ struct MainPageView: View {
            // Update in-memory state on main thread
            DispatchQueue.main.async {
                self.tasksByDate[normalizedDate] = tasks
+               // Update calories service after listener update
+               let todayTasks = self.tasks(for: normalizedDate)
+               self.updateCaloriesServiceIfNeeded(tasks: todayTasks, date: normalizedDate)
+                // Evaluate day completion based on latest listener update
+                self.evaluateAndSyncDayCompletion(for: normalizedDate)
            }
        }
     
@@ -947,6 +1003,57 @@ struct MainPageView: View {
         currentListenerHandle = nil
         currentListenerDate = nil
         isListenerActive = false
+    }
+
+    /// Evaluate whether all tasks for a date are completed and sync status
+    private func evaluateAndSyncDayCompletion(for date: Date) {
+        guard let userId = Auth.auth().currentUser?.uid else { return }
+        let calendar = Calendar.current
+        let normalizedDate = calendar.startOfDay(for: date)
+        let today = calendar.startOfDay(for: Date())
+        
+        // Defer settlement for the current day until midnight
+        if calendar.isDate(normalizedDate, inSameDayAs: today) {
+            print("⏳ MainPageView: Deferring day completion settlement until midnight for \(normalizedDate)")
+            return
+        }
+        let dayTasks = tasks(for: normalizedDate)
+        // Only check when there's at least one task that day
+        guard !dayTasks.isEmpty else {
+            progressService.markDayAsNotCompleted(userId: userId, date: normalizedDate, modelContext: modelContext)
+            return
+        }
+        let isCompleted = progressService.isDayCompleted(tasks: dayTasks, date: normalizedDate)
+        if isCompleted {
+            progressService.markDayAsCompleted(userId: userId, date: normalizedDate, modelContext: modelContext)
+        } else {
+            progressService.markDayAsNotCompleted(userId: userId, date: normalizedDate, modelContext: modelContext)
+        }
+    }
+
+    /// Schedule a one-shot timer to settle today's completion at the next midnight
+    private func scheduleMidnightSettlement() {
+        cancelMidnightSettlement()
+        let calendar = Calendar.current
+        // Next midnight start of tomorrow
+        guard let nextMidnight = calendar.nextDate(after: Date(), matching: DateComponents(hour: 0, minute: 0, second: 0), matchingPolicy: .nextTime, direction: .forward) else { return }
+        let interval = max(1, nextMidnight.timeIntervalSinceNow)
+        midnightTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { _ in
+            let today = Date()
+            let normalizedToday = calendar.startOfDay(for: today.addingTimeInterval(-60)) // small backoff
+            // Evaluate settlement for the day that just ended
+            self.evaluateAndSyncDayCompletion(for: normalizedToday)
+            // Reschedule for the following midnight
+            self.scheduleMidnightSettlement()
+        }
+        RunLoop.main.add(midnightTimer!, forMode: .common)
+        print("🕛 MainPageView: Scheduled midnight settlement at \(nextMidnight)")
+    }
+
+    /// Cancel any scheduled midnight settlement timer
+    private func cancelMidnightSettlement() {
+        midnightTimer?.invalidate()
+        midnightTimer = nil
     }
 }
 
