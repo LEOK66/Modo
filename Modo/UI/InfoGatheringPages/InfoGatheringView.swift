@@ -5,6 +5,8 @@ import FirebaseAuth
 struct InfoGatheringView: View {
     @EnvironmentObject var authService: AuthService
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+    @Query private var profiles: [UserProfile]
     @State private var currentStep = 1
     @State private var isBackwards: Bool = false
     
@@ -138,6 +140,8 @@ struct InfoGatheringView: View {
     private func completeOnboarding() {
         saveUserData()
         authService.completeOnboarding()
+        // Dismiss the view if it was presented modally or pushed
+        dismiss()
     }
     
     private func saveUserData() {
@@ -150,8 +154,21 @@ struct InfoGatheringView: View {
         let validTargetWeightLoss = targetWeightLoss.isValidTargetWeight(unit: lossUnit) ? Double(targetWeightLoss) : nil
         let validTargetDays = targetDays.isValidTargetDays ? Int(targetDays) : nil
         
-        // Create user profile
-        let profile = UserProfile(userId: userId)
+        // Check if profile already exists
+        let existingProfile = profiles.first { $0.userId == userId }
+        let profile: UserProfile
+        
+        if let existing = existingProfile {
+            // Update existing profile
+            profile = existing
+            print("Updating existing profile for userId=\(userId)")
+        } else {
+            // Create new profile
+            profile = UserProfile(userId: userId)
+            modelContext.insert(profile)
+            print("Creating new profile for userId=\(userId)")
+        }
+        
         // Goal-specific values
         let validCalories: Int? = {
             if goal == .keepHealthy { return Int(actualCalories) }
@@ -178,9 +195,12 @@ struct InfoGatheringView: View {
             targetDays: validTargetDays
         )
         
-        // Save to SwiftData
-        modelContext.insert(profile)
+        // Set goal start date when saving profile (only if not already set or if goal changed)
+        if profile.goalStartDate == nil || profile.goal != goal?.code {
+            profile.goalStartDate = Date()
+        }
         
+        // Save to SwiftData
         do {
             try modelContext.save()
             print("User profile saved successfully")
