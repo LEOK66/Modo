@@ -1507,6 +1507,22 @@ struct AddTaskView: View {
                     }()
                     
                     // Create the task with all necessary data
+                    // Only save entries from the selected category
+                    let finalDietEntries: [DietEntry]
+                    let finalFitnessEntries: [FitnessEntry]
+                    
+                    switch selectedCategory {
+                    case .diet:
+                        finalDietEntries = dietEntries
+                        finalFitnessEntries = []
+                    case .fitness:
+                        finalDietEntries = []
+                        finalFitnessEntries = fitnessEntries
+                    case .others, .none:
+                        finalDietEntries = []
+                        finalFitnessEntries = []
+                    }
+                    
                     let task = MainPageView.TaskItem(
                         title: titleText.isEmpty ? "New Task" : titleText,
                         subtitle: truncatedSubtitle(descriptionText),
@@ -1517,8 +1533,8 @@ struct AddTaskView: View {
                         isDone: false,
                         emphasisHex: emphasisHexForCategory,
                         category: selectedCategory ?? .others,
-                        dietEntries: dietEntries,
-                        fitnessEntries: fitnessEntries
+                        dietEntries: finalDietEntries,
+                        fitnessEntries: finalFitnessEntries
                     )
                     
                     onTaskCreated(task)
