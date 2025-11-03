@@ -5,6 +5,8 @@ import SwiftData
 final class UserProfile {
     var userId: String
     var username: String?
+    var avatarName: String?        // default animal avatar asset name
+    var profileImageURL: String?   // uploaded photo URL (Firebase Storage)
     var heightValue: Double?
     var heightUnit: String?
     var weightValue: Double?

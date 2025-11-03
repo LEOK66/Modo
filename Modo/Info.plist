@@ -15,5 +15,9 @@
 			</array>
 		</dict>
 	</array>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>This app needs access to your photos to set your profile picture.</string>
+    <key>NSPhotoLibraryAddUsageDescription</key>
+    <string>This app may save your edited images to your library.</string>
 </dict>
 </plist>

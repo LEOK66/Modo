@@ -1,6 +1,8 @@
 import SwiftUI
 import SwiftData
 import FirebaseAuth
+import PhotosUI
+import UIKit
 
 struct ProfilePageView: View {
     @EnvironmentObject var authService: AuthService
@@ -14,6 +16,10 @@ struct ProfilePageView: View {
     @State private var showEditUsernameAlert = false
     @State private var tempUsername: String = "Modor"
     @State private var progressData: (percent: Double, completedDays: Int, targetDays: Int) = (0.0, 0, 0)
+    // Avatar editing state
+    @State private var showAvatarSheet = false
+    @State private var showDefaultAvatarPicker = false
+    @State private var photoPickerItem: PhotosPickerItem? = nil
     
     
     private let databaseService = DatabaseService.shared
@@ -94,6 +100,25 @@ struct ProfilePageView: View {
             .onReceive(NotificationCenter.default.publisher(for: .dayCompletionDidChange)) { _ in
                 loadProgressData()
             }
+            .sheet(isPresented: $showAvatarSheet) {
+                AvatarActionSheet(
+                    onChooseDefault: { showDefaultAvatarPicker = true },
+                    photoPickerItem: $photoPickerItem,
+                    onClose: { showAvatarSheet = false }
+                )
+            }
+            .sheet(isPresented: $showDefaultAvatarPicker) {
+                DefaultAvatarGrid(onSelect: { name in
+                    applyDefaultAvatar(name: name)
+                    showDefaultAvatarPicker = false
+                })
+            }
+            .onChange(of: photoPickerItem) { newItem in
+                guard let item = newItem else { return }
+                // Dismiss the action sheet for a smoother transition
+                showAvatarSheet = false
+                Task { await handlePhotoPicked(item: item) }
+            }
     }
     
     @ViewBuilder
@@ -119,13 +144,16 @@ struct ProfilePageView: View {
                     daysCompletedText: daysCompletedText,
                     expectedCaloriesText: expectedCaloriesText,
                     currentlyCaloriesText: currentlyCaloriesText,
+                    avatarName: userProfile?.avatarName,
+                    profileImageURL: userProfile?.profileImageURL,
                     onEditUsername: {
                         tempUsername = username
                         showEditUsernameAlert = true
                     },
                     onLogoutTap: {
                         showLogoutConfirmation = true
-                    }
+                    },
+                    onEditAvatar: { showAvatarSheet = true }
                 )
                 .background(scrollBackground)
             }
@@ -137,6 +165,7 @@ struct ProfilePageView: View {
             profiles: profiles,
             userProfile: userProfile,
             onAppear: {
+                ensureDefaultAvatarIfNeeded()
                 loadUserProfile()
                 loadProgressData()
             },
@@ -203,6 +232,52 @@ struct ProfilePageView: View {
                     }
                 }
             }
+        }
+    }
+
+    private func ensureDefaultAvatarIfNeeded() {
+        guard let profile = userProfile else { return }
+        // If no uploaded photo and no default avatar, assign one
+        if (profile.profileImageURL == nil || profile.profileImageURL?.isEmpty == true) &&
+            (profile.avatarName == nil || profile.avatarName?.isEmpty == true) {
+            if let randomName = DefaultAvatars.random() {
+                profile.avatarName = randomName
+                profile.updatedAt = Date()
+                do { try modelContext.save() } catch { print("Save error: \(error.localizedDescription)") }
+                DatabaseService.shared.saveUserProfile(profile) { _ in }
+            }
+        }
+    }
+
+    private func applyDefaultAvatar(name: String) {
+        guard let profile = userProfile else { return }
+        profile.avatarName = name
+        profile.updatedAt = Date()
+        do { try modelContext.save() } catch { print("Save error: \(error.localizedDescription)") }
+        DatabaseService.shared.saveUserProfile(profile) { _ in }
+    }
+
+    private func handlePhotoPicked(item: PhotosPickerItem) async {
+        guard let profile = userProfile, let userId = authService.currentUser?.uid else { return }
+        do {
+            if let data = try await item.loadTransferable(type: Data.self), let image = UIImage(data: data) {
+                print("📸 Loaded photo from picker, size: \(data.count) bytes")
+                AvatarUploadService.shared.uploadProfileImage(userId: userId, image: image) { result in
+                    switch result {
+                    case .success(let url):
+                        DispatchQueue.main.async {
+                            profile.profileImageURL = url
+                            profile.updatedAt = Date()
+                            do { try? modelContext.save() }
+                            DatabaseService.shared.saveUserProfile(profile) { _ in }
+                        }
+                    case .failure(let error):
+                        print("❌ Upload failed: \(error.localizedDescription)")
+                    }
+                }
+            }
+        } catch {
+            print("❌ Photo load failed: \(error.localizedDescription)")
         }
     }
     
@@ -378,11 +453,15 @@ private struct UsernameAlertModifier: ViewModifier {
 private struct ProfileHeaderView: View {
     let username: String
     let email: String
+    let avatarName: String?
+    let profileImageURL: String?
     let onEdit: () -> Void
+    let onEditAvatar: () -> Void
     
     var body: some View {
         VStack(spacing: 12) {
-            ZStack {
+            ZStack(alignment: .bottomTrailing) {
+                // Avatar circle background
                 Circle()
                     .stroke(Color.black, lineWidth: 2)
                     .frame(width: 96, height: 96)
@@ -392,12 +471,51 @@ private struct ProfileHeaderView: View {
                             .fill(Color(hexString: "F3F4F6"))
                             .padding(4)
                     )
-                
-                Image(systemName: "person.crop.circle.fill")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 96, height: 96)
-                    .foregroundStyle(Color.gray.opacity(0.6))
+
+                // Content image
+                Group {
+                    if let urlString = profileImageURL, let url = URL(string: urlString) {
+                        AsyncImage(url: url) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image.resizable().scaledToFill()
+                            case .empty:
+                                ProgressView()
+                            case .failure:
+                                Image(avatarName ?? "").resizable().scaledToFill()
+                            @unknown default:
+                                Image(systemName: "person.crop.circle.fill").resizable().scaledToFit().foregroundStyle(Color.gray.opacity(0.6))
+                            }
+                        }
+                        .frame(width: 96, height: 96)
+                        .clipShape(Circle())
+                    } else if let name = avatarName, !name.isEmpty, UIImage(named: name) != nil {
+                        Image(name)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 96, height: 96)
+                            .clipShape(Circle())
+                    } else {
+                        Image(systemName: "person.crop.circle.fill")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 96, height: 96)
+                            .foregroundStyle(Color.gray.opacity(0.6))
+                    }
+                }
+
+                // Pencil button
+                Button(action: onEditAvatar) {
+                    ZStack {
+                        Circle().fill(Color.white).frame(width: 28, height: 28)
+                        Circle().stroke(Color(hexString: "E5E7EB"), lineWidth: 1).frame(width: 28, height: 28)
+                        Image(systemName: "pencil")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(Color(hexString: "6A7282"))
+                    }
+                }
+                .buttonStyle(PlainButtonStyle())
+                .offset(x: 6, y: 6)
             }
             Button(action: onEdit) {
                 HStack(spacing: 4) {
@@ -419,6 +537,80 @@ private struct ProfileHeaderView: View {
                 .foregroundColor(Color(hexString: "6A7282"))
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - Default avatar grid picker
+private struct DefaultAvatarGrid: View {
+    let onSelect: (String) -> Void
+    private let columns = [GridItem(.adaptive(minimum: 72), spacing: 16)]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: 16) {
+                    ForEach(DefaultAvatars.all, id: \.self) { name in
+                        Button {
+                            onSelect(name)
+                        } label: {
+                            Image(name)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 72, height: 72)
+                                .clipShape(Circle())
+                                .overlay(Circle().stroke(Color(hexString: "E5E7EB"), lineWidth: 1))
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                }
+                .padding(20)
+            }
+            .navigationTitle("Choose Avatar")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+}
+
+// MARK: - Avatar action sheet (bottom sheet)
+private struct AvatarActionSheet: View {
+    let onChooseDefault: () -> Void
+    @Binding var photoPickerItem: PhotosPickerItem?
+    let onClose: () -> Void
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Capsule().fill(Color(hexString: "E5E7EB")).frame(width: 36, height: 5).padding(.top, 8)
+            Text("Change avatar").font(.system(size: 17, weight: .semibold))
+            VStack(spacing: 12) {
+                Button(action: { onChooseDefault(); onClose() }) {
+                    HStack {
+                        Image(systemName: "person.circle").foregroundColor(Color(hexString: "364153"))
+                        Text("Choose default avatar")
+                        Spacer()
+                        Image(systemName: "chevron.right").foregroundColor(Color(hexString: "99A1AF"))
+                    }
+                    .padding()
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Color(hexString: "F9FAFB")))
+                }
+                PhotosPicker(selection: $photoPickerItem, matching: .images) {
+                    HStack {
+                        Image(systemName: "photo.on.rectangle").foregroundColor(Color(hexString: "364153"))
+                        Text("Upload picture")
+                        Spacer()
+                        Image(systemName: "chevron.right").foregroundColor(Color(hexString: "99A1AF"))
+                    }
+                    .padding()
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Color(hexString: "F9FAFB")))
+                }
+                Button(role: .cancel, action: { onClose() }) {
+                    Text("Cancel").frame(maxWidth: .infinity)
+                }
+                .padding(.top, 4)
+            }
+            .padding(.horizontal, 20)
+            Spacer(minLength: 8)
+        }
+        .presentationDetents([.height(240), .medium])
     }
 }
 
@@ -561,8 +753,11 @@ private struct ProfileContent: View {
     let daysCompletedText: String
     let expectedCaloriesText: String
     let currentlyCaloriesText: String
+    let avatarName: String?
+    let profileImageURL: String?
     let onEditUsername: () -> Void
     let onLogoutTap: () -> Void
+    let onEditAvatar: () -> Void
     
     var body: some View {
         ScrollView {
@@ -571,7 +766,10 @@ private struct ProfileContent: View {
                 ProfileHeaderView(
                     username: username,
                     email: email,
-                    onEdit: onEditUsername
+                    avatarName: avatarName,
+                    profileImageURL: profileImageURL,
+                    onEdit: onEditUsername,
+                    onEditAvatar: onEditAvatar
                 )
                 .padding(.top, 8)
 

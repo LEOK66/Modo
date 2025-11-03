@@ -24,6 +24,8 @@ final class DatabaseService {
             "updatedAt": profile.updatedAt.timeIntervalSince1970
         ]
         if let username = profile.username { payload["username"] = username }
+        if let avatarName = profile.avatarName { payload["avatarName"] = avatarName }
+        if let profileImageURL = profile.profileImageURL { payload["profileImageURL"] = profileImageURL }
         if let heightValue = profile.heightValue { payload["heightValue"] = heightValue }
         if let heightUnit = profile.heightUnit { payload["heightUnit"] = heightUnit }
         if let weightValue = profile.weightValue { payload["weightValue"] = weightValue }
@@ -351,6 +353,13 @@ final class DatabaseService {
         // Parse username
         if let username = profileDict["username"] as? String {
             profile.username = username
+        }
+        // Parse avatar fields
+        if let avatarName = profileDict["avatarName"] as? String {
+            profile.avatarName = avatarName
+        }
+        if let profileImageURL = profileDict["profileImageURL"] as? String {
+            profile.profileImageURL = profileImageURL
         }
         
         // Parse height
