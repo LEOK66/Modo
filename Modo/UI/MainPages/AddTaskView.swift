@@ -1125,7 +1125,7 @@ struct AddTaskView: View {
                         }
                         
                         if isOnlineLoading {
-                            Text("Searching online¦")
+                            Text("Searching online")
                                 .font(.system(size: 12))
                                 .foregroundColor(Color(hexString: "6A7282"))
                         }
