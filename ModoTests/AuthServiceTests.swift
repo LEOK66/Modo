@@ -2,6 +2,7 @@ import XCTest
 @testable import Modo
 import FirebaseAuth
 import Combine
+import FirebaseCore
 
 final class AuthServiceTests: XCTestCase {
     
@@ -9,7 +10,23 @@ final class AuthServiceTests: XCTestCase {
     var cancellables: Set<AnyCancellable>!
     
     override func setUpWithError() throws {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
+        if FirebaseApp.app() == nil {
+            if ProcessInfo.processInfo.environment["FIREBASE_USE_EMULATOR"] == "true" {
+                let options = FirebaseOptions(googleAppID: "1:demo:ios:abc123", gcmSenderID: "123456789")
+                options.projectID = "demo-modo"
+                FirebaseApp.configure(options: options)
+            } else if let path = ProcessInfo.processInfo.environment["GOOGLE_SERVICE_INFO_PLIST_PATH"],
+                      let options = FirebaseOptions(contentsOfFile: path) {
+                FirebaseApp.configure(options: options)
+            } else {
+                FirebaseApp.configure()
+            }
+        }
+
+        if ProcessInfo.processInfo.environment["FIREBASE_USE_EMULATOR"] == "true" {
+            Auth.auth().useEmulator(withHost: "127.0.0.1", port: 9099)
+        }
+
         authService = AuthService.shared
         cancellables = Set<AnyCancellable>()
     }

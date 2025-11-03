@@ -35,31 +35,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-spm-
 
-      - name: Create GoogleService-Info.plist
+      - name: Install Firebase CLI
         run: |
-          mkdir -p Modo
-          cat > Modo/GoogleService-Info.plist << 'EOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>API_KEY</key>
-              <string>AIzaSyDummyKeyForCI</string>
-              <key>GCM_SENDER_ID</key>
-              <string>123456789</string>
-              <key>PROJECT_ID</key>
-              <string>modo-ci-test</string>
-              <key>STORAGE_BUCKET</key>
-              <string>modo-ci-test.appspot.com</string>
-              <key>GOOGLE_APP_ID</key>
-              <string>1:123456789:ios:abc123def456</string>
-              <key>CLIENT_ID</key>
-              <string>123456789-abcdefg.apps.googleusercontent.com</string>
-              <key>REVERSED_CLIENT_ID</key>
-              <string>com.googleusercontent.apps.123456789-abcdefg</string>
-          </dict>
-          </plist>
-          EOF
+          curl -sL https://firebase.tools | bash
+
+      - name: Start Firebase Auth Emulator
+        run: |
+          firebase emulators:start --only auth --project demo-modo --host 127.0.0.1 --port 9099 &
+          sleep 5
 
       - name: Start iOS Simulator
         run: |
@@ -70,6 +53,8 @@ jobs:
       # 关键改动：使用 -skip-testing 跳过整个 ModoUITests target
       - name: Build and Test
         timeout-minutes: 20
+        env:
+          FIREBASE_USE_EMULATOR: "true"
         run: |
           set -o pipefail
           xcodebuild test \
@@ -83,15 +68,6 @@ jobs:
             -skip-testing:ModoTests/AuthServiceTests/testGoogleSignInWithMissingClientID \
             -skip-testing:ModoTests/AuthServiceTests/testGoogleSignInWithMissingTokens \
             -skip-testing:ModoTests/AuthServiceTests/testGoogleSignInWithNilViewController \
-            -skip-testing:ModoTests/AuthServiceTests/testSignInPerformance \
-            -skip-testing:ModoTests/AuthServiceTests/testSignUpPerformance \
-            -skip-testing:ModoTests/AuthServiceTests/testSignUpWithWeakPassword \
-            -skip-testing:ModoTests/AuthServiceTests/testSignUpWithValidCredentials \
-            -skip-testing:ModoTests/AuthServiceTests/testSignInWithValidCredentials \
-            -skip-testing:ModoTests/AuthServiceTests/testSignInWithInvalidCredentials \
-            -skip-testing:ModoTests/AuthServiceTests/testPasswordResetWithValidEmail \
-            -skip-testing:ModoTests/AuthServiceTests/testPasswordResetWithInvalidEmail \
-            -skip-testing:ModoTests/AuthServiceTests/testSignUpWithInvalidEmail \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
