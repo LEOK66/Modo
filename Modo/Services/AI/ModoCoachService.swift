@@ -171,7 +171,7 @@ class ModoCoachService: ObservableObject {
     }
     
     // MARK: - Save Message to SwiftData
-    private func saveMessage(_ message: ChatMessage) {
+    func saveMessage(_ message: ChatMessage) {
         guard let context = modelContext else { return }
         context.insert(message)
         try? context.save()

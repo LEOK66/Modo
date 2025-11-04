@@ -23,222 +23,10 @@ struct InsightsPageView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // MARK: - Header
-            ZStack {
-                // Center content
-                VStack(spacing: 2) {
-                    Text("Moder")
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundColor(Color(hexString: "101828"))
-                    Text("Your wellness assistant")
-                        .font(.system(size: 13))
-                        .foregroundColor(Color(hexString: "6B7280"))
-                }
-                
-                // Clear History Button (positioned on right)
-                HStack {
-                    Spacer()
-                    Button(action: {
-                        showClearConfirmation = true
-                    }) {
-                        Image(systemName: "trash")
-                            .font(.system(size: 16))
-                            .foregroundColor(Color(hexString: "6B7280"))
-                            .frame(width: 36, height: 36)
-                    }
-                    .padding(.trailing, 16)
-                }
-            }
-            .frame(height: 60)
-            .padding(.top, 12)
-            .background(Color.white)
-            
-            Divider()
-                .background(Color(hexString: "E5E7EB"))
-            
-            // MARK: - Chat Messages
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(spacing: 16) {
-                        ForEach(coachService.messages, id: \.id) { message in
-                            ChatBubble(
-                                message: message,
-                                onAccept: { msg in
-                                    // ✅ Use unified AITaskGenerator (generates detailed tasks with individual exercises/foods)
-                                    handleAcceptWithAIGenerator(for: msg)
-                                    
-                                    // Add confirmation message to chat (without creating tasks again)
-                                    let confirmMessage = ChatMessage(
-                                        content: "Great! I've created your personalized plan with detailed exercises and meals. You'll find it in your Main Page! 💪",
-                                        isFromUser: false
-                                    )
-                                    coachService.messages.append(confirmMessage)
-                                    coachService.saveMessage(confirmMessage)
-                                },
-                                onReject: { msg in
-                                    coachService.rejectWorkoutPlan(for: msg)
-                                }
-                            )
-                            .id(message.id)
-                        }
-                        
-                        // Loading indicator
-                        if coachService.isProcessing {
-                            HStack {
-                                Circle()
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [Color(hexString: "8B5CF6"), Color(hexString: "6366F1")],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        )
-                                    )
-                                    .frame(width: 36, height: 36)
-                                    .overlay(
-                                        Image(systemName: "figure.strengthtraining.traditional")
-                                            .font(.system(size: 18, weight: .semibold))
-                                            .foregroundColor(.white)
-                                    )
-                                
-                                HStack(spacing: 8) {
-                                    ForEach(0..<3) { index in
-                                        Circle()
-                                            .fill(Color(hexString: "9CA3AF"))
-                                            .frame(width: 8, height: 8)
-                                            .scaleEffect(coachService.isProcessing ? 1 : 0.5)
-                                            .animation(
-                                                Animation.easeInOut(duration: 0.6)
-                                                    .repeatForever()
-                                                    .delay(Double(index) * 0.2),
-                                                value: coachService.isProcessing
-                                            )
-                                    }
-                                }
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 12)
-                                .background(Color(hexString: "F3F4F6"))
-                                .cornerRadius(20)
-                                
-                                Spacer()
-                            }
-                            .padding(.horizontal, 16)
-                            .id("loading")
-                        }
-                    }
-                    .padding(.vertical, 16)
-                }
-                .onChange(of: coachService.messages.count) { _, _ in
-                    if let lastMessage = coachService.messages.last {
-                        withAnimation {
-                            proxy.scrollTo(lastMessage.id, anchor: .bottom)
-                        }
-                    }
-                }
-                .onChange(of: coachService.isProcessing) { _, isProcessing in
-                    if isProcessing {
-                        withAnimation {
-                            proxy.scrollTo("loading", anchor: .bottom)
-                        }
-                    }
-                }
-            }
-            .background(Color.white)
-
-            // MARK: - Input Field + Buttons
-            ZStack(alignment: .bottomLeading) {
-                VStack(spacing: 0) {
-                    Divider()
-                        .background(Color(hexString: "E5E7EB"))
-                    
-                    HStack(spacing: 12) {
-                        // Placeholder for plus button space
-                        Color.clear
-                            .frame(width: 40, height: 40)
-
-                        CustomInputField(
-                            placeholder: "Ask questions or add photos...",
-                            text: $inputText
-                        )
-
-                        Button(action: sendMessage) {
-                            Image(systemName: "paperplane.fill")
-                                .foregroundColor(.white)
-                                .frame(width: 40, height: 40)
-                                .background(
-                                    inputText.isEmpty ? Color.gray.opacity(0.5) : Color.purple.opacity(0.7)
-                                )
-                                .clipShape(Circle())
-                        }
-                        .disabled(inputText.isEmpty || coachService.isProcessing)
-                    }
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 16)
-                    .background(Color.white)
-                }
-                
-                // Floating Plus Button with Expandable Menu
-                ZStack {
-                    VStack(spacing: 0) {
-                        if showAttachmentMenu {
-                            Color.clear
-                                .frame(width: 40, height: 40)
-                                .overlay(
-                                    Image(systemName: "photo")
-                                        .font(.system(size: 18))
-                                        .foregroundColor(Color(hexString: "8B5CF6"))
-                                )
-                                .onTapGesture {
-                                    withAnimation(.spring(response: 0.3)) {
-                                        showAttachmentMenu = false
-                                    }
-                                    showPhotoPicker = true
-                                }
-                            
-                            Divider()
-                                .frame(width: 30)
-                            
-                            Color.clear
-                                .frame(width: 40, height: 40)
-                                .overlay(
-                                    Image(systemName: "doc")
-                                        .font(.system(size: 18))
-                                        .foregroundColor(Color(hexString: "8B5CF6"))
-                                )
-                                .onTapGesture {
-                                    withAnimation(.spring(response: 0.3)) {
-                                        showAttachmentMenu = false
-                                    }
-                                    // TODO: Handle file selection
-                                    print("File selected")
-                                }
-                            
-                            Divider()
-                                .frame(width: 30)
-                        }
-                        
-                        Color.clear
-                            .frame(width: 40, height: 40)
-                            .overlay(
-                                Image(systemName: "plus")
-                                    .font(.system(size: 18))
-                                    .foregroundColor(.black)
-                                    .rotationEffect(.degrees(showAttachmentMenu ? 45 : 0))
-                            )
-                            .onTapGesture {
-                                withAnimation(.spring(response: 0.3)) {
-                                    showAttachmentMenu.toggle()
-                                }
-                            }
-                    }
-                }
-                .background(Color.white)
-                .clipShape(Capsule())
-                .overlay(Capsule().stroke(Color(hexString: "E5E7EB"), lineWidth: 1))
-                .padding(.leading, 24)
-                .padding(.bottom, 16)
-            }
-
-            // MARK: - Bottom Navigation Bar
+            headerView
+            Divider().background(Color(hexString: "E5E7EB"))
+            chatMessagesView
+            inputFieldView
             BottomBar(selectedTab: $selectedTab)
         }
         .background(Color(hexString: "F9FAFB").ignoresSafeArea())
@@ -646,6 +434,250 @@ struct InsightsPageView: View {
     // All old text parsing methods (createTaskFromTextPlan, createWorkoutTask, createNutritionTask, etc.)
     // have been removed and replaced with unified AITaskGenerator calls.
     // See handleAcceptWithAIGenerator() for the new implementation.
+    
+    // MARK: - Sub Views
+    
+    private var headerView: some View {
+        ZStack {
+            // Center content
+            VStack(spacing: 2) {
+                Text("Moder")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundColor(Color(hexString: "101828"))
+                Text("Your wellness assistant")
+                    .font(.system(size: 13))
+                    .foregroundColor(Color(hexString: "6B7280"))
+            }
+            
+            // Clear History Button (positioned on right)
+            HStack {
+                Spacer()
+                Button(action: {
+                    showClearConfirmation = true
+                }) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 16))
+                        .foregroundColor(Color(hexString: "6B7280"))
+                        .frame(width: 36, height: 36)
+                }
+                .padding(.trailing, 16)
+            }
+        }
+        .frame(height: 60)
+        .padding(.top, 12)
+        .background(Color.white)
+    }
+    
+    private var chatMessagesView: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 16) {
+                    ForEach(coachService.messages, id: \.id) { message in
+                        ChatBubble(
+                            message: message,
+                            onAccept: { msg in
+                                // ✅ Check if already processed to prevent duplicates
+                                guard !msg.actionTaken else {
+                                    print("⚠️ Task already accepted for this message, skipping...")
+                                    return
+                                }
+                                
+                                // ✅ Mark as taken immediately and save to database
+                                msg.actionTaken = true
+                                if let context = modelContext {
+                                    try? context.save()
+                                }
+                                
+                                handleAcceptWithAIGenerator(for: msg)
+                                
+                                let confirmMessage = ChatMessage(
+                                    content: "Great! I've created your personalized plan with detailed exercises and meals. You'll find it in your Main Page! 💪",
+                                    isFromUser: false
+                                )
+                                coachService.messages.append(confirmMessage)
+                                coachService.saveMessage(confirmMessage)
+                            },
+                            onReject: { msg in
+                                // ✅ Check if already processed
+                                guard !msg.actionTaken else {
+                                    print("⚠️ Task already rejected for this message, skipping...")
+                                    return
+                                }
+                                
+                                // ✅ Mark as taken and save
+                                msg.actionTaken = true
+                                if let context = modelContext {
+                                    try? context.save()
+                                }
+                                
+                                coachService.rejectWorkoutPlan(for: msg)
+                            }
+                        )
+                        .id(message.id)
+                    }
+                    
+                    if coachService.isProcessing {
+                        loadingIndicator
+                    }
+                }
+                .padding(.vertical, 16)
+            }
+            .onChange(of: coachService.messages.count) { _, _ in
+                if let lastMessage = coachService.messages.last {
+                    withAnimation {
+                        proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                    }
+                }
+            }
+            .onChange(of: coachService.isProcessing) { _, isProcessing in
+                if isProcessing {
+                    withAnimation {
+                        proxy.scrollTo("loading", anchor: .bottom)
+                    }
+                }
+            }
+        }
+        .background(Color.white)
+    }
+    
+    private var loadingIndicator: some View {
+        HStack {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [Color(hexString: "8B5CF6"), Color(hexString: "6366F1")],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: 36, height: 36)
+                .overlay(
+                    Image(systemName: "figure.strengthtraining.traditional")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.white)
+                )
+            
+            HStack(spacing: 8) {
+                ForEach(0..<3) { index in
+                    Circle()
+                        .fill(Color(hexString: "9CA3AF"))
+                        .frame(width: 8, height: 8)
+                        .scaleEffect(coachService.isProcessing ? 1 : 0.5)
+                        .animation(
+                            Animation.easeInOut(duration: 0.6)
+                                .repeatForever()
+                                .delay(Double(index) * 0.2),
+                            value: coachService.isProcessing
+                        )
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color(hexString: "F3F4F6"))
+            .cornerRadius(20)
+            
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .id("loading")
+    }
+    
+    private var inputFieldView: some View {
+        ZStack(alignment: .bottomLeading) {
+            VStack(spacing: 0) {
+                Divider()
+                    .background(Color(hexString: "E5E7EB"))
+                
+                HStack(spacing: 12) {
+                    // Placeholder for plus button space
+                    Color.clear
+                        .frame(width: 40, height: 40)
+
+                    CustomInputField(
+                        placeholder: "Ask questions or add photos...",
+                        text: $inputText
+                    )
+
+                    Button(action: sendMessage) {
+                        Image(systemName: "paperplane.fill")
+                            .foregroundColor(.white)
+                            .frame(width: 40, height: 40)
+                            .background(
+                                inputText.isEmpty ? Color.gray.opacity(0.5) : Color.purple.opacity(0.7)
+                            )
+                            .clipShape(Circle())
+                    }
+                    .disabled(inputText.isEmpty || coachService.isProcessing)
+                }
+                .padding(.horizontal, 24)
+                .padding(.vertical, 16)
+                .background(Color.white)
+            }
+            
+            plusButtonMenu
+        }
+    }
+    
+    private var plusButtonMenu: some View {
+        ZStack {
+            VStack(spacing: 0) {
+                if showAttachmentMenu {
+                    Color.clear
+                        .frame(width: 40, height: 40)
+                        .overlay(
+                            Image(systemName: "photo")
+                                .font(.system(size: 18))
+                                .foregroundColor(Color(hexString: "8B5CF6"))
+                        )
+                        .onTapGesture {
+                            withAnimation(.spring(response: 0.3)) {
+                                showAttachmentMenu = false
+                            }
+                            showPhotoPicker = true
+                        }
+                    
+                    Divider()
+                        .frame(width: 30)
+                    
+                    Color.clear
+                        .frame(width: 40, height: 40)
+                        .overlay(
+                            Image(systemName: "doc")
+                                .font(.system(size: 18))
+                                .foregroundColor(Color(hexString: "8B5CF6"))
+                        )
+                        .onTapGesture {
+                            withAnimation(.spring(response: 0.3)) {
+                                showAttachmentMenu = false
+                            }
+                            print("File selected")
+                        }
+                    
+                    Divider()
+                        .frame(width: 30)
+                }
+                
+                Color.clear
+                    .frame(width: 40, height: 40)
+                    .overlay(
+                        Image(systemName: "plus")
+                            .font(.system(size: 18))
+                            .foregroundColor(.black)
+                            .rotationEffect(.degrees(showAttachmentMenu ? 45 : 0))
+                    )
+                    .onTapGesture {
+                        withAnimation(.spring(response: 0.3)) {
+                            showAttachmentMenu.toggle()
+                        }
+                    }
+            }
+        }
+        .background(Color.white)
+        .clipShape(Capsule())
+        .overlay(Capsule().stroke(Color(hexString: "E5E7EB"), lineWidth: 1))
+        .padding(.leading, 24)
+        .padding(.bottom, 16)
+    }
 }
 
 // MARK: - Preview

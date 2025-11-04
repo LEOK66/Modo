@@ -317,6 +317,59 @@ class AITaskGenerator: ObservableObject {
         }
     }
     
+    // MARK: - Fetch Calories for Meals (Refactored)
+    
+    /// Fetch calories for parsed meals using NutritionLookupService
+    /// - Parameters:
+    ///   - parsedMeals: Dictionary of meal names to food items [mealName: [foodName]]
+    ///   - date: Date for the tasks
+    ///   - completion: Completion handler with AIGeneratedTask array
+    private func fetchCaloriesForMeals(_ parsedMeals: [String: [String]], date: Date, completion: @escaping (Result<[AIGeneratedTask], Error>) -> Void) {
+        print("🔍 Fetching calories for \(parsedMeals.count) meals using NutritionLookupService...")
+        
+        let dispatchGroup = DispatchGroup()
+        var generatedTasks: [AIGeneratedTask] = []
+        let tasksQueue = DispatchQueue(label: "com.modo.aitaskgenerator.tasks")
+        
+        for (mealName, foodNames) in parsedMeals {
+            dispatchGroup.enter()
+            
+            // ✅ Use NutritionLookupService for batch calorie lookup (API priority)
+            nutritionLookup.lookupCaloriesBatch(foodNames) { results in
+                let foodItems = results.map { AIFoodItem(name: $0.name, calories: $0.calories) }
+                let totalCalories = foodItems.reduce(0) { $0 + $1.calories }
+                
+                let meal = AIMeal(
+                    name: mealName,
+                    foods: foodNames,
+                    time: self.getMealTime(mealName),
+                    foodItems: foodItems
+                )
+                
+                let task = AIGeneratedTask(
+                    type: .nutrition,
+                    date: date,
+                    title: mealName,
+                    exercises: [],
+                    meals: [meal],
+                    totalDuration: 0,
+                    totalCalories: totalCalories
+                )
+                
+                tasksQueue.async {
+                    generatedTasks.append(task)
+                    print("  ✅ Generated \(mealName): \(foodItems.count) items, \(totalCalories) cal")
+                    dispatchGroup.leave()
+                }
+            }
+        }
+        
+        dispatchGroup.notify(queue: .main) {
+            self.isGenerating = false
+            print("  ✅ All nutrition tasks generated: \(generatedTasks.count)")
+            completion(.success(generatedTasks))
+        }
+    }
     
     // MARK: - Helper: Get Meal Time
     private func getMealTime(_ mealName: String) -> String {

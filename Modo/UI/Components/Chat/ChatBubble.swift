@@ -95,7 +95,6 @@ struct ChatBubble: View {
                     if shouldShowActionButtons(for: message.content) && !message.actionTaken {
                         HStack(spacing: 16) {
                             Button(action: {
-                                message.actionTaken = true
                                 onReject?(message)
                             }) {
                                 HStack(spacing: 6) {
@@ -110,9 +109,9 @@ struct ChatBubble: View {
                                 .background(Color(hexString: "EF4444"))
                                 .cornerRadius(20)
                             }
+                            .disabled(message.actionTaken)
                             
                             Button(action: {
-                                message.actionTaken = true
                                 onAccept?(message)
                             }) {
                                 HStack(spacing: 6) {
@@ -263,7 +262,6 @@ struct ChatBubble: View {
             if !message.actionTaken {
                 HStack(spacing: 16) {
                     Button(action: {
-                        message.actionTaken = true
                         onReject?(message)
                     }) {
                         HStack(spacing: 6) {
@@ -280,7 +278,6 @@ struct ChatBubble: View {
                     }
                     
                     Button(action: {
-                        message.actionTaken = true
                         onAccept?(message)
                     }) {
                         HStack(spacing: 6) {
@@ -362,7 +359,6 @@ struct ChatBubble: View {
             if !message.actionTaken {
                 HStack(spacing: 16) {
                     Button(action: {
-                        message.actionTaken = true
                         onReject?(message)
                     }) {
                         HStack(spacing: 6) {
@@ -379,7 +375,6 @@ struct ChatBubble: View {
                     }
                     
                     Button(action: {
-                        message.actionTaken = true
                         onAccept?(message)
                     }) {
                         HStack(spacing: 6) {
@@ -481,7 +476,6 @@ struct ChatBubble: View {
             if !message.actionTaken {
                 HStack(spacing: 16) {
                     Button(action: {
-                        message.actionTaken = true
                         onReject?(message)
                     }) {
                         HStack(spacing: 6) {
@@ -498,7 +492,6 @@ struct ChatBubble: View {
                     }
                     
                     Button(action: {
-                        message.actionTaken = true
                         onAccept?(message)
                     }) {
                         HStack(spacing: 6) {

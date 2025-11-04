@@ -20,9 +20,19 @@ class AIPromptBuilder {
             if let lifestyle = profile.lifestyle {
                 prompt += "Lifestyle: \(lifestyle). "
             }
-            if let sex = profile.sex {
-                let gender = sex == 1 ? "Male" : sex == 2 ? "Female" : "Other"
-                prompt += "Gender: \(gender). "
+            if let gender = profile.gender {
+                let genderText: String
+                switch gender.lowercased() {
+                case "male", "m":
+                    genderText = "Male"
+                case "female", "f":
+                    genderText = "Female"
+                case "other", "non-binary", "nb":
+                    genderText = "Non-binary"
+                default:
+                    genderText = gender.capitalized
+                }
+                prompt += "Gender: \(genderText). "
             }
         }
         
@@ -333,9 +343,19 @@ class AIPromptBuilder {
                 prompt += "\n- Goal: \(goal)"
             }
             
-            if let sex = profile.sex {
-                let gender = sex == 1 ? "Male" : sex == 2 ? "Female" : "Other"
-                prompt += "\n- Gender: \(gender)"
+            if let gender = profile.gender {
+                let genderText: String
+                switch gender.lowercased() {
+                case "male", "m":
+                    genderText = "Male"
+                case "female", "f":
+                    genderText = "Female"
+                case "other", "non-binary", "nb":
+                    genderText = "Non-binary"
+                default:
+                    genderText = gender.capitalized
+                }
+                prompt += "\n- Gender: \(genderText)"
             }
             
             if let lifestyle = profile.lifestyle {
