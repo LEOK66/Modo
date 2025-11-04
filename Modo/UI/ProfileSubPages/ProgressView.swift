@@ -108,6 +108,19 @@ struct ProgressView: View {
             }
         }
         .navigationBarBackButtonHidden(true)
+        .gesture(
+            DragGesture(minimumDistance: 50)
+                .onEnded { value in
+                    let horizontalAmount = value.translation.width
+                    let verticalAmount = value.translation.height
+                    
+                    // Only handle horizontal swipes (ignore vertical)
+                    // Swipe from left to right: go back to profile page
+                    if abs(horizontalAmount) > abs(verticalAmount) && horizontalAmount > 0 {
+                        dismiss()
+                    }
+                }
+        )
         .onAppear {
             loadProgressData()
         }

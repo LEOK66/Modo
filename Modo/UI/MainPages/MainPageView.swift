@@ -11,6 +11,7 @@ struct MainPageView: View {
     @State private var isShowingCalendar = false
     @State private var navigationPath = NavigationPath()
     @State private var midnightTimer: Timer? = nil
+    @State private var isShowingProfile = false
     
     // Cache and database services
     private let cacheService = TaskCacheService.shared
@@ -424,6 +425,7 @@ struct MainPageView: View {
                 VStack(spacing: 0) {
                     TopHeaderView(
                         isShowingCalendar: $isShowingCalendar,
+                        isShowingProfile: $isShowingProfile,
                         selectedDate: selectedDate,
                         avatarName: userProfile?.avatarName,
                         profileImageURL: userProfile?.profileImageURL
@@ -477,7 +479,14 @@ struct MainPageView: View {
                     )
                         .transition(.scale.combined(with: .opacity))
                 }
+                
+                if isShowingProfile {
+                    ProfilePageView(isPresented: $isShowingProfile)
+                        .transition(.opacity)
+                        .zIndex(1)
+                }
             }
+            .animation(.easeInOut(duration: 0.2), value: isShowingProfile)
             .navigationDestination(for: AddTaskDestination.self) { _ in
                 AddTaskView(
                     selectedDate: selectedDate,
@@ -499,6 +508,28 @@ struct MainPageView: View {
                     }
                 )
             }
+            .gesture(
+                DragGesture(minimumDistance: 50)
+                    .onEnded { value in
+                        let horizontalAmount = value.translation.width
+                        let verticalAmount = value.translation.height
+                        
+                        // Only handle horizontal swipes (ignore vertical)
+                        if abs(horizontalAmount) > abs(verticalAmount) {
+                            if horizontalAmount > 0 {
+                                // Swipe from left to right: navigate to profile
+                                withAnimation {
+                                    isShowingProfile = true
+                                }
+                            } else if horizontalAmount < 0 {
+                                // Swipe from right to left: go to insights tab
+                                withAnimation {
+                                    selectedTab = .insights
+                                }
+                            }
+                        }
+                    }
+            )
         }
         .onAppear {
             print("📍 MainPageView: onAppear called")
@@ -734,8 +765,13 @@ private enum TaskDetailDestination: Hashable {
     }
 }
 
+private enum ProfileDestination: Hashable {
+    case profile
+}
+
 private struct TopHeaderView: View {
     @Binding var isShowingCalendar: Bool
+    @Binding var isShowingProfile: Bool
     let selectedDate: Date
     let avatarName: String?
     let profileImageURL: String?
@@ -749,7 +785,11 @@ private struct TopHeaderView: View {
     var body: some View {
         HStack(spacing: 12) {
             // Avatar
-            NavigationLink(destination: ProfilePageView()) {
+            Button(action: {
+                withAnimation {
+                    isShowingProfile = true
+                }
+            }) {
                 ZStack {
                     Circle()
                         .fill(Color.white)

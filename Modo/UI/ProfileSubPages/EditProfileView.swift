@@ -191,6 +191,14 @@ struct EditProfileView: View {
                     dailyProtein = String(rec)
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(
+                Color.white
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                    }
+            )
         }
     }
 

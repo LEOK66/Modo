@@ -57,7 +57,12 @@ struct InfoGatheringView: View {
     
     var body: some View {
         ZStack {
-            Color.white.ignoresSafeArea()
+            Color.white
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                }
             
             VStack(spacing: 0) {
                 ProgressBar(currentStep: currentStep, totalSteps: totalSteps)

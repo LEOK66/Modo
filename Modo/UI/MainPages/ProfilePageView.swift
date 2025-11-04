@@ -6,6 +6,7 @@ import PhotosUI
 import UIKit
 
 struct ProfilePageView: View {
+    @Binding var isPresented: Bool
     @EnvironmentObject var authService: AuthService
     @EnvironmentObject var userProgress: UserProgress
     @EnvironmentObject var dailyCaloriesService: DailyCaloriesService
@@ -21,6 +22,10 @@ struct ProfilePageView: View {
     @State private var showAvatarSheet = false
     @State private var showDefaultAvatarPicker = false
     @State private var photoPickerItem: PhotosPickerItem? = nil
+    
+    init(isPresented: Binding<Bool> = .constant(false)) {
+        self._isPresented = isPresented
+    }
     
     
     private let databaseService = DatabaseService.shared
@@ -90,6 +95,8 @@ struct ProfilePageView: View {
         }
     }
     
+    @Environment(\.dismiss) private var dismiss
+    
     var body: some View {
         let content = baseView
             .navigationBarBackButtonHidden(true)
@@ -120,6 +127,21 @@ struct ProfilePageView: View {
                 showAvatarSheet = false
                 Task { await handlePhotoPicked(item: item) }
             }
+            .gesture(
+                DragGesture(minimumDistance: 50)
+                    .onEnded { value in
+                        let horizontalAmount = value.translation.width
+                        let verticalAmount = value.translation.height
+                        
+                        // Only handle horizontal swipes (ignore vertical)
+                        // Swipe from left to right: go back to main page
+                        if abs(horizontalAmount) > abs(verticalAmount) && horizontalAmount > 0 {
+                            withAnimation {
+                                isPresented = false
+                            }
+                        }
+                    }
+            )
     }
     
     @ViewBuilder
@@ -132,9 +154,34 @@ struct ProfilePageView: View {
             
             VStack(spacing: 0) {
                 // Header
-                PageHeader(title: "Profile")
-                    .padding(.top, 12)
-                    .padding(.horizontal, 24)
+                HStack {
+                    BackButton {
+                        // Handle back button - works for both swipe navigation and button tap
+                        // Always try isPresented binding first (for swipe/button navigation)
+                        // Fall back to dismiss only if isPresented is not active
+                        if $isPresented.wrappedValue {
+                            // If presented via swipe or button tap (isPresented binding is true)
+                            withAnimation {
+                                isPresented = false
+                            }
+                        } else {
+                            // Fallback: if isPresented is false, use dismiss (for NavigationLink)
+                            dismiss()
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    Text("Profile")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundColor(Color(hexString: "101828"))
+                    
+                    Spacer()
+                    
+                    Color.clear.frame(width: 36, height: 36)
+                }
+                .padding(.top, 12)
+                .padding(.horizontal, 24)
                 
                 Spacer().frame(height: 12)
                 
@@ -829,7 +876,7 @@ private struct ProfileContent: View {
 
 #Preview {
     NavigationStack {
-        ProfilePageView()
+        ProfilePageView(isPresented: .constant(true))
             .environmentObject(AuthService.shared)
             .environmentObject(UserProgress())
             .environmentObject(DailyCaloriesService())
