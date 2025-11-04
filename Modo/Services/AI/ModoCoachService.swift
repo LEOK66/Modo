@@ -10,6 +10,9 @@ class ModoCoachService: ObservableObject {
     private var modelContext: ModelContext?
     private var hasLoadedHistory = false
     
+    // ✅ Use AIPromptBuilder for unified prompt construction
+    private let promptBuilder = AIPromptBuilder()
+    
     init() {
         // Welcome message will be added after loading history
     }
@@ -247,18 +250,23 @@ class ModoCoachService: ObservableObject {
         do {
             // Build vision API request
             let systemPrompt = """
-            You are a nutrition expert. Analyze the food in the image and provide:
-            1. Food identification
+            You are a creative nutrition expert with diverse culinary knowledge. Analyze the food in the image and provide:
+            1. Food identification (be specific: type of cuisine, preparation style)
             2. Estimated serving size (use oz, cups, or pieces)
             3. Nutritional information: Protein (g), Fat (g), Carbs (g), Calories (kcal)
             
             Format your response EXACTLY as (plain text, no markdown):
-            Food: [name]
+            Food: [name and style, e.g., "Grilled Chicken Breast (Mediterranean style)"]
             Serving: [size in oz, cups, or pieces]
             Protein: [X]g
             Fat: [X]g
             Carbs: [X]g
             Calories: [X]kcal
+            
+            Be specific and consider:
+            - Cooking methods (grilled, fried, steamed, baked, raw)
+            - Cuisine type (Asian, Mediterranean, American, Mexican, etc.)
+            - Ingredient variations
             
             Use Imperial/US measurements:
             - Weight: oz (ounces) for food portions
@@ -352,8 +360,8 @@ class ModoCoachService: ObservableObject {
             // Build conversation history
             var apiMessages: [ChatCompletionRequest.Message] = []
             
-            // Add system prompt
-            let systemPrompt = OpenAIService.shared.buildSystemPrompt(userProfile: userProfile)
+            // ✅ Use AIPromptBuilder for unified prompt construction
+            let systemPrompt = promptBuilder.buildChatSystemPrompt(userProfile: userProfile)
             apiMessages.append(ChatCompletionRequest.Message(
                 role: "system",
                 content: systemPrompt,

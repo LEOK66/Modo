@@ -38,8 +38,9 @@ struct MainPageView: View {
         var fitnessEntries: [AddTaskView.FitnessEntry]
         var createdAt: Date // For sync conflict resolution
         var updatedAt: Date // For sync conflict resolution
+        var isAIGenerated: Bool // Mark if task is AI generated
         
-        init(id: UUID = UUID(), title: String, subtitle: String, time: String, timeDate: Date, endTime: String? = nil, meta: String, isDone: Bool = false, emphasisHex: String, category: AddTaskView.Category, dietEntries: [AddTaskView.DietEntry], fitnessEntries: [AddTaskView.FitnessEntry], createdAt: Date = Date(), updatedAt: Date = Date()) {
+        init(id: UUID = UUID(), title: String, subtitle: String, time: String, timeDate: Date, endTime: String? = nil, meta: String, isDone: Bool = false, emphasisHex: String, category: AddTaskView.Category, dietEntries: [AddTaskView.DietEntry], fitnessEntries: [AddTaskView.FitnessEntry], createdAt: Date = Date(), updatedAt: Date = Date(), isAIGenerated: Bool = false) {
             self.id = id
             self.title = title
             self.subtitle = subtitle
@@ -54,6 +55,7 @@ struct MainPageView: View {
             self.fitnessEntries = fitnessEntries
             self.createdAt = createdAt
             self.updatedAt = updatedAt
+            self.isAIGenerated = isAIGenerated
         }
         
         // Calculate total calories for this task
@@ -71,7 +73,7 @@ struct MainPageView: View {
         
         // Custom Codable implementation to handle Date serialization
         private enum CodingKeys: String, CodingKey {
-            case id, title, subtitle, time, timeDate, endTime, meta, isDone, emphasisHex, category, dietEntries, fitnessEntries, createdAt, updatedAt
+            case id, title, subtitle, time, timeDate, endTime, meta, isDone, emphasisHex, category, dietEntries, fitnessEntries, createdAt, updatedAt, isAIGenerated
         }
         
         init(from decoder: Decoder) throws {
@@ -96,6 +98,8 @@ struct MainPageView: View {
             createdAt = Date(timeIntervalSince1970: Double(createdAtTimestamp) / 1000.0)
             let updatedAtTimestamp = try container.decodeIfPresent(Int64.self, forKey: .updatedAt) ?? Int64(Date().timeIntervalSince1970 * 1000)
             updatedAt = Date(timeIntervalSince1970: Double(updatedAtTimestamp) / 1000.0)
+            // Decode isAIGenerated (defaults to false for backwards compatibility)
+            isAIGenerated = try container.decodeIfPresent(Bool.self, forKey: .isAIGenerated) ?? false
         }
         
         func encode(to encoder: Encoder) throws {
@@ -116,6 +120,7 @@ struct MainPageView: View {
             // Encode timestamps (milliseconds)
             try container.encode(Int64(createdAt.timeIntervalSince1970 * 1000.0), forKey: .createdAt)
             try container.encode(Int64(updatedAt.timeIntervalSince1970 * 1000.0), forKey: .updatedAt)
+            try container.encode(isAIGenerated, forKey: .isAIGenerated)
         }
     }
     
@@ -150,9 +155,9 @@ struct MainPageView: View {
     
     // MARK: - AI Task Generation
     
-    /// Generate AI Task (workout or nutrition) and add to current date
+    /// Generate AI Tasks based on what's missing for the day
     private func generateAITask() {
-        print("🎲 Generating AI Task for \(selectedDate)")
+        print("🎲 Smart AI Task Generation for \(selectedDate)")
         showAITaskLoading = true
         
         // Get current user profile
@@ -161,18 +166,107 @@ struct MainPageView: View {
             return try? modelContext.fetch(fetchDescriptor).first
         }()
         
-        aiTaskGenerator.generateBothTasks(for: selectedDate, userProfile: userProfile) { aiTasks in
-            DispatchQueue.main.async {
-                self.showAITaskLoading = false
-                
-                // Create task for each generated task
-                for aiTask in aiTasks {
+        // Analyze existing tasks for the selected date
+        let existingTasks = tasks(for: selectedDate)
+        let analysis = analyzeExistingTasks(existingTasks)
+        
+        print("📊 Task Analysis:")
+        print("   - Fitness: \(analysis.hasFitness ? "✅" : "❌")")
+        print("   - Breakfast: \(analysis.hasBreakfast ? "✅" : "❌")")
+        print("   - Lunch: \(analysis.hasLunch ? "✅" : "❌")")
+        print("   - Dinner: \(analysis.hasDinner ? "✅" : "❌")")
+        print("💡 Will generate: \(analysis.missingTasks.joined(separator: ", "))")
+        
+        // Generate tasks one by one
+        aiTaskGenerator.generateMissingTasksSequentially(
+            missing: analysis.missingTasks,
+            for: selectedDate,
+            userProfile: userProfile,
+            onEachTask: { aiTask in
+                // Create task immediately as each one is generated
+                DispatchQueue.main.async {
                     self.createTaskFromAIGenerated(aiTask)
+                    print("✅ Generated and added: \(aiTask.title)")
+                    // Animation is triggered by setting newlyAddedTaskId in createTaskFromAIGenerated
+                    // It will auto-clear after 1.5 seconds via TaskListView's onChange
                 }
-                
-                print("✅ Generated \(aiTasks.count) AI tasks")
+            },
+            onComplete: {
+                DispatchQueue.main.async {
+                    self.showAITaskLoading = false
+                    print("✅ All AI tasks generation completed")
+                }
             }
+        )
+    }
+    
+    struct TaskAnalysis {
+        let hasFitness: Bool
+        let hasBreakfast: Bool
+        let hasLunch: Bool
+        let hasDinner: Bool
+        let missingTasks: [String] // ["fitness", "breakfast", "lunch", "dinner"]
+    }
+    
+    /// Analyze existing tasks to determine what's missing
+    private func analyzeExistingTasks(_ tasks: [TaskItem]) -> TaskAnalysis {
+        print("🔍 Analyzing \(tasks.count) existing tasks:")
+        for (index, task) in tasks.enumerated() {
+            let categoryStr = task.category == .fitness ? "fitness" : task.category == .diet ? "diet" : "others"
+            print("   \(index + 1). [\(categoryStr)] \(task.title) at \(task.time)")
         }
+        
+        let hasFitness = tasks.contains { $0.category == .fitness }
+        
+        // Check for meals by time or keywords
+        let hasBreakfast = tasks.contains { task in
+            task.category == .diet && (
+                (task.time.contains("AM") && !task.time.contains("12:")) ||
+                task.title.lowercased().contains("breakfast")
+            )
+        }
+        
+        let hasLunch = tasks.contains { task in
+            task.category == .diet && (
+                (task.time.contains("12:") || task.time.contains("01:") || task.time.contains("02:")) ||
+                task.title.lowercased().contains("lunch")
+            )
+        }
+        
+        let hasDinner = tasks.contains { task in
+            task.category == .diet && (
+                (task.time.contains("PM") && !task.time.contains("12:") && !task.time.contains("01:") && !task.time.contains("02:")) ||
+                task.title.lowercased().contains("dinner")
+            )
+        }
+        
+        // Build list of missing tasks
+        var missingTasks: [String] = []
+        if !hasFitness {
+            missingTasks.append("fitness")
+        }
+        if !hasBreakfast {
+            missingTasks.append("breakfast")
+        }
+        if !hasLunch {
+            missingTasks.append("lunch")
+        }
+        if !hasDinner {
+            missingTasks.append("dinner")
+        }
+        
+        // If all tasks are present, add a snack as bonus
+        if missingTasks.isEmpty {
+            missingTasks.append("snack")
+        }
+        
+        return TaskAnalysis(
+            hasFitness: hasFitness,
+            hasBreakfast: hasBreakfast,
+            hasLunch: hasLunch,
+            hasDinner: hasDinner,
+            missingTasks: missingTasks
+        )
     }
     
     /// Create TaskItem from AI Generated Task
@@ -183,10 +277,17 @@ struct MainPageView: View {
         case .workout:
             // Create workout task
             let exerciseNames = aiTask.exercises.map { $0.name }
-            let subtitle = exerciseNames.joined(separator: ", ")
+            let subtitle = exerciseNames.prefix(3).joined(separator: ", ") + (exerciseNames.count > 3 ? "..." : "")
             
-            let description = aiTask.exercises.map { exercise in
-                "\(exercise.name): \(exercise.sets) sets x \(exercise.reps) reps, \(exercise.restSec)s rest (\(exercise.durationMin)min, \(exercise.calories)cal)"
+            // Create more detailed description
+            let description = """
+            Total Duration: \(aiTask.totalDuration) min
+            Exercises: \(aiTask.exercises.count)
+            Estimated Calories: \(aiTask.totalCalories) cal
+            
+            Workout Details:
+            """ + "\n" + aiTask.exercises.map { exercise in
+                "• \(exercise.name): \(exercise.sets) sets × \(exercise.reps) reps, \(exercise.restSec)s rest (~\(exercise.calories) cal)"
             }.joined(separator: "\n")
             
             let fitnessEntries = aiTask.exercises.map { exercise in
@@ -208,17 +309,18 @@ struct MainPageView: View {
             let endTime = timeFormatter.string(from: endDate)
             
             task = TaskItem(
-                title: "AI Generated Task - \(aiTask.title)",
+                title: aiTask.title,
                 subtitle: subtitle,
                 time: startTime,
                 timeDate: startDate,
                 endTime: endTime,
-                meta: "\(aiTask.totalDuration) min • \(aiTask.exercises.count) exercises • \(aiTask.totalCalories) cal",
+                meta: "\(aiTask.totalDuration) min • \(aiTask.exercises.count) exercises • -\(aiTask.totalCalories) cal",
                 isDone: false,
                 emphasisHex: "8B5CF6",
                 category: .fitness,
                 dietEntries: [],
-                fitnessEntries: fitnessEntries
+                fitnessEntries: fitnessEntries,
+                isAIGenerated: true
             )
             
             print("✅ Created AI workout task: \(task.title)")
@@ -227,9 +329,16 @@ struct MainPageView: View {
             // Create nutrition task for single meal
             let meal = aiTask.meals.first!
             let foodNames = meal.foodItems.map { $0.name }
-            let subtitle = foodNames.joined(separator: ", ")
+            let subtitle = foodNames.prefix(3).joined(separator: ", ") + (foodNames.count > 3 ? "..." : "")
             
-            let description = meal.foodItems.map { "\($0.name) (\($0.calories)cal)" }.joined(separator: ", ")
+            // Create more detailed description
+            let description = """
+            Meal: \(meal.name)
+            Total Calories: \(aiTask.totalCalories) kcal
+            Items: \(meal.foodItems.count)
+            
+            Food Items:
+            """ + "\n" + meal.foodItems.map { "• \($0.name) (~\($0.calories) cal)" }.joined(separator: "\n")
             
             let dietEntries = meal.foodItems.map { foodItem in
                 // Create as custom food item
@@ -251,7 +360,7 @@ struct MainPageView: View {
             } ?? aiTask.date
             
             task = TaskItem(
-                title: "AI Generated Task - \(aiTask.title)",  // "AI Generated Task - Breakfast"
+                title: aiTask.title,
                 subtitle: subtitle,
                 time: startTime,
                 timeDate: startDate,
@@ -261,7 +370,8 @@ struct MainPageView: View {
                 emphasisHex: "10B981",
                 category: .diet,
                 dietEntries: dietEntries,
-                fitnessEntries: []
+                fitnessEntries: [],
+                isAIGenerated: true
             )
             
             print("✅ Created AI nutrition task: \(task.title)")
@@ -269,6 +379,9 @@ struct MainPageView: View {
         
         // Add task to list
         addTask(task)
+        
+        // Trigger animation for newly added task
+        newlyAddedTaskId = task.id
         
         // Show success feedback
         print("🎉 AI Task added successfully!")
@@ -326,17 +439,44 @@ struct MainPageView: View {
             let emphasisColor: String
             let category: AddTaskView.Category
             
-            // Create fitnessEntries array for workout tasks
+            // Create entries arrays for both task types
             var fitnessEntries: [AddTaskView.FitnessEntry] = []
+            var dietEntries: [AddTaskView.DietEntry] = []  // ✅ Define at top level
             var totalCalories = 0
             var durationMinutes = 0  // Will be calculated based on type
             
             if isNutrition {
-                // Nutrition task
+                // Nutrition task - create DietEntries for each food item
                 let calories = userInfo["calories"] as? Int ?? 2000
-                taskTitle = "🥗 AI Generated Nutrition Plan"
+                
+                // Use mealName if provided, otherwise use generic title
+                if let mealName = userInfo["mealName"] as? String {
+                    taskTitle = mealName // "Breakfast", "Lunch", "Dinner", "Snack"
+                } else {
+                    taskTitle = "🥗 AI Generated Nutrition Plan"
+                }
+                
+                // ✅ Create DietEntry for each food item (similar to FitnessEntry for exercises)
+                let foodItemsData = userInfo["foodItems"] as? [[String: Any]] ?? []
+                
+                for foodData in foodItemsData {
+                    guard let name = foodData["name"] as? String else { continue }
+                    let foodCalories = foodData["calories"] as? Int ?? 0
+                    
+                    // Create as custom food item (not from standard library)
+                    let entry = AddTaskView.DietEntry(
+                        food: nil,  // Not from standard library
+                        customName: name,
+                        caloriesText: String(foodCalories)
+                    )
+                    dietEntries.append(entry)
+                }
+                
+                // Extract food names for subtitle
+                let foodNames = foodItemsData.compactMap { $0["name"] as? String }
+                subtitle = foodNames.prefix(3).joined(separator: ", ") + (foodNames.count > 3 ? "..." : "")
+                
                 meta = "\(calories)kcal"
-                subtitle = description.components(separatedBy: .newlines).first ?? "Daily meal plan"
                 emphasisColor = "10B981"  // Green for nutrition
                 category = .diet
                 totalCalories = calories
@@ -366,7 +506,7 @@ struct MainPageView: View {
                     fitnessEntries.append(entry)
                 }
                 
-                // Set title with theme
+                // Set title with theme (no "AI-" prefix, will use AI badge instead)
                 var cleanTheme = theme
                     .replacingOccurrences(of: " Workout", with: "", options: .caseInsensitive)
                     .replacingOccurrences(of: " Training", with: "", options: .caseInsensitive)
@@ -380,11 +520,11 @@ struct MainPageView: View {
                     cleanTheme = String(cleanTheme.prefix(30))
                 }
                 
-                taskTitle = "AI Generated Task - \(cleanTheme)"
+                taskTitle = cleanTheme  // No "AI-" prefix, use isAIGenerated flag instead
                 
-                // Subtitle shows all exercises (not just first 3)
+                // Subtitle shows first 3 exercises (consistent with createTaskFromAIGenerated)
                 let exerciseNames = exercisesData.compactMap { $0["name"] as? String }
-                subtitle = exerciseNames.joined(separator: ", ")
+                subtitle = exerciseNames.prefix(3).joined(separator: ", ") + (exerciseNames.count > 3 ? "..." : "")
                 
                 // Calculate pure workout time from individual exercises
                 let pureWorkoutTime = exercisesData.reduce(0) { sum, exercise in
@@ -398,8 +538,8 @@ struct MainPageView: View {
                 print("   Total duration (with warm-up/transitions): \(actualDuration) min")
                 print("   Exercises: \(exercisesData.count)")
                 
-                // Meta shows total duration, exercises, and calories
-                meta = "\(actualDuration) min • \(exerciseNames.count) exercises • \(totalCalories) cal"
+                // Meta shows total duration, exercises, and calories (negative for burned calories)
+                meta = "\(actualDuration) min • \(exerciseNames.count) exercises • -\(totalCalories) cal"
                 emphasisColor = "8B5CF6"  // Purple for workout
                 category = .fitness
                 
@@ -454,7 +594,10 @@ struct MainPageView: View {
                 displayEndTime = timeFormatter.string(from: endDate)
             }
             
-            // Create task with fitness entries
+            // Check if task is AI-generated (from InsightPageView or AI Generate button)
+            let isAIGenerated = userInfo["isAIGenerated"] as? Bool ?? false
+            
+            // Create task with detailed entries (both diet and fitness)
             let task = TaskItem(
                 title: taskTitle,
                 subtitle: subtitle,
@@ -465,8 +608,9 @@ struct MainPageView: View {
                 isDone: false,
                 emphasisHex: emphasisColor,
                 category: category,
-                dietEntries: [],
-                fitnessEntries: fitnessEntries
+                dietEntries: dietEntries,  // ✅ Use created diet entries
+                fitnessEntries: fitnessEntries,
+                isAIGenerated: isAIGenerated
             )
             
             // Add to tasks
@@ -1282,10 +1426,11 @@ private struct TaskRowCard: View {
     @Binding var isDone: Bool
     let emphasis: Color
     let category: AddTaskView.Category
+    let isAIGenerated: Bool
     @State private var checkboxScale: CGFloat = 1.0
     @State private var strikethroughProgress: CGFloat = 0.0
 
-    init(title: String, subtitle: String, time: String, endTime: String?, meta: String, isDone: Binding<Bool>, emphasis: Color, category: AddTaskView.Category) {
+    init(title: String, subtitle: String, time: String, endTime: String?, meta: String, isDone: Binding<Bool>, emphasis: Color, category: AddTaskView.Category, isAIGenerated: Bool = false) {
         self.title = title
         self.subtitle = subtitle
         self.time = time
@@ -1294,6 +1439,7 @@ private struct TaskRowCard: View {
         self._isDone = isDone
         self.emphasis = emphasis
         self.category = category
+        self.isAIGenerated = isAIGenerated
     }
 
     var body: some View {
@@ -1378,31 +1524,74 @@ private struct TaskRowCard: View {
                         .foregroundColor(Color(hexString: "6A7282"))
                         .lineLimit(1)
                 }
-                if let endTime = endTime {
-                    HStack(spacing: 4) {
-                        Image(systemName: "clock")
-                            .font(.system(size: 12))
-                        Text("\(time) - \(endTime)")
-                            .font(.system(size: 12))
+                HStack(spacing: 8) {
+                    // Time display
+                    if let endTime = endTime {
+                        HStack(spacing: 4) {
+                            Image(systemName: "clock")
+                                .font(.system(size: 12))
+                            Text("\(time) - \(endTime)")
+                                .font(.system(size: 12))
+                        }
+                        .foregroundColor(Color(hexString: "364153"))
+                    } else {
+                        HStack(spacing: 4) {
+                            Image(systemName: "clock")
+                                .font(.system(size: 12))
+                            Text(time)
+                                .font(.system(size: 12))
+                        }
+                        .foregroundColor(Color(hexString: "364153"))
                     }
-                    .foregroundColor(Color(hexString: "364153"))
-                } else {
-                    HStack(spacing: 4) {
-                        Image(systemName: "clock")
-                            .font(.system(size: 12))
-                        Text(time)
-                            .font(.system(size: 12))
+                    
+                    // AI badge if task is AI generated
+                    if isAIGenerated {
+                        HStack(spacing: 3) {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 10, weight: .semibold))
+                            Text("AI")
+                                .font(.system(size: 10, weight: .bold))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(
+                            LinearGradient(
+                                colors: [Color(hexString: "8B5CF6"), Color(hexString: "6366F1")],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .cornerRadius(8)
                     }
-                    .foregroundColor(Color(hexString: "364153"))
                 }
             }
             Spacer(minLength: 0)
             
-            // Meta information (calories)
+            // Meta information (calories and exercises for fitness, calories for diet)
             if !meta.isEmpty {
-                Text(meta)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(emphasis)
+                if category == .fitness {
+                    // For fitness tasks, show calories and exercises count in 2 lines
+                    VStack(alignment: .trailing, spacing: 4) {
+                        // Extract calories from meta (format: "XX min • Y exercises • -ZZZ cal")
+                        if let calMatch = meta.range(of: #"-?\d+\s*cal"#, options: .regularExpression) {
+                            Text(meta[calMatch].replacingOccurrences(of: " ", with: ""))
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(emphasis)
+                        }
+                        // Extract exercises count
+                        if let exMatch = meta.range(of: #"\d+\s*exercises?"#, options: .regularExpression) {
+                            Text(meta[exMatch])
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(Color(hexString: "6A7282"))
+                        }
+                    }
+                } else {
+                    // For diet and other tasks, show meta as is
+                    Text(meta)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(emphasis)
+                }
             }
         }
         .padding(16)
@@ -1506,13 +1695,15 @@ private struct TaskListView: View {
                                                 emphasisHex: task.emphasisHex,
                                                 category: task.category,
                                                 dietEntries: task.dietEntries,
-                                                fitnessEntries: task.fitnessEntries
+                                                fitnessEntries: task.fitnessEntries,
+                                                isAIGenerated: task.isAIGenerated
                                             )
                                             onUpdateTask(updatedTask)
                                         }
                                     ),
                                     emphasis: Color(hexString: task.emphasisHex),
-                                    category: task.category
+                                    category: task.category,
+                                    isAIGenerated: task.isAIGenerated
                                 )
                                 .scaleEffect(isNewlyAdded ? 1.05 : 1.0)
                                 .shadow(

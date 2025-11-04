@@ -21,7 +21,7 @@ struct OpenAIConfig {
     
     static let apiURL = "https://api.openai.com/v1/chat/completions"
     static let model = "gpt-4o" 
-    static let temperature: Double = 0.7
+    static let temperature: Double = 0.9  // Higher for more creative and diverse outputs
     static let maxTokens = 1000
 }
 
@@ -50,6 +50,14 @@ struct ChatCompletionRequest: Codable {
         enum CodingKeys: String, CodingKey {
             case role, content, name
             case functionCall = "function_call"
+        }
+        
+        // Convenience initializer for simple messages
+        init(role: String, content: String, name: String? = nil, functionCall: FunctionCall? = nil) {
+            self.role = role
+            self.content = content
+            self.name = name
+            self.functionCall = functionCall
         }
     }
     
