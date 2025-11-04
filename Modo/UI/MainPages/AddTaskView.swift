@@ -125,7 +125,12 @@ struct AddTaskView: View {
     
     var body: some View {
         ZStack(alignment: .top) {
-            Color(hexString: "F9FAFB").ignoresSafeArea()
+            Color(hexString: "F9FAFB")
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                }
             VStack(spacing: 0) {
                 PageHeader(title: "Add New Task")
                     .padding(.top, 12)
@@ -290,6 +295,20 @@ struct AddTaskView: View {
                 }
             }
         }
+        .gesture(
+            DragGesture(minimumDistance: 50)
+                .onEnded { value in
+                    let horizontalAmount = value.translation.width
+                    let verticalAmount = value.translation.height
+                    
+                    // Only handle horizontal swipes (ignore vertical)
+                    // Swipe from left to right: dismiss view (return to main page)
+                    if abs(horizontalAmount) > abs(verticalAmount) && horizontalAmount > 0 {
+                        // Swipe from left to right: dismiss
+                        dismiss()
+                    }
+                }
+        )
         
         .navigationBarBackButtonHidden(true)
     }

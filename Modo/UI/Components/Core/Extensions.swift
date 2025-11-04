@@ -1,4 +1,34 @@
 import SwiftUI
+import UIKit
+
+// MARK: - Keyboard Dismissal Extension
+extension View {
+    /// Dismisses the keyboard when tapping outside of text fields
+    /// This modifier adds a tap gesture that will dismiss the keyboard without interfering with other interactions
+    func hideKeyboardOnTap() -> some View {
+        self.simultaneousGesture(
+            TapGesture().onEnded {
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            }
+        )
+    }
+    
+    /// Dismisses the keyboard programmatically
+    func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+    
+    /// Adds a background that dismisses keyboard on tap, without interfering with foreground interactions
+    func dismissKeyboardOnBackgroundTap() -> some View {
+        self.background(
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                }
+        )
+    }
+}
 
 // MARK: - Color Extension
 extension Color {

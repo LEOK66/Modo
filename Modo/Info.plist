@@ -11,13 +11,9 @@
 			<string>GoogleSignIn</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.googleusercontent.apps.536469357129-dl7ev3tvlgio1m4bc9f58qdqekomdkkq</string>
+				<string>com.googleusercontent.apps.536469357129-jtdismcrrfc29ctf2u3qsbb3jnk7a9db</string>
 			</array>
 		</dict>
 	</array>
-    <key>NSPhotoLibraryUsageDescription</key>
-    <string>This app needs access to your photos to set your profile picture.</string>
-    <key>NSPhotoLibraryAddUsageDescription</key>
-    <string>This app may save your edited images to your library.</string>
 </dict>
 </plist>

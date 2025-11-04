@@ -66,7 +66,14 @@ struct ForgotPasswordView: View {
         }
         .padding(.top, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.white.ignoresSafeArea())
+        .background(
+            Color.white
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                }
+        )
         .overlay(
             SuccessToast(
                 message: "Reset link sent to your email",

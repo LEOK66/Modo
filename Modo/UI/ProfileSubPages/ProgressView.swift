@@ -38,7 +38,12 @@ struct ProgressView: View {
                             .font(.system(size: 20, weight: .semibold))
                             .foregroundColor(Color(hexString: "101828"))
                         Spacer()
-                        Color.clear.frame(width: 44, height: 44)
+                        NavigationLink(destination: EditProfileView().environmentObject(authService)) {
+                            Text("Change")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(Color(hexString: "7C3AED"))
+                        }
+                        .frame(width: 66, height: 44)
                     }
                     .padding(.horizontal, 24)
                     .padding(.top, 12)
@@ -86,18 +91,10 @@ struct ProgressView: View {
                     
                     // Current Goal
                     VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Text("Current Goal")
-                                .font(.system(size: 14))
-                                .foregroundColor(Color(hexString: "6A7282"))
-                            Spacer()
-                            NavigationLink(destination: EditProfileView().environmentObject(authService)) {
-                                Text("Change")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(Color(hexString: "7C3AED"))
-                            }
-                        }
-                        .padding(.horizontal, 24)
+                        Text("Current Goal")
+                            .font(.system(size: 14))
+                            .foregroundColor(Color(hexString: "6A7282"))
+                            .padding(.horizontal, 24)
                         GoalCard(
                             percent: userProgress.progressPercent,
                             goalDescription: goalDescriptionText,
@@ -111,6 +108,19 @@ struct ProgressView: View {
             }
         }
         .navigationBarBackButtonHidden(true)
+        .gesture(
+            DragGesture(minimumDistance: 50)
+                .onEnded { value in
+                    let horizontalAmount = value.translation.width
+                    let verticalAmount = value.translation.height
+                    
+                    // Only handle horizontal swipes (ignore vertical)
+                    // Swipe from left to right: go back to profile page
+                    if abs(horizontalAmount) > abs(verticalAmount) && horizontalAmount > 0 {
+                        dismiss()
+                    }
+                }
+        )
         .onAppear {
             loadProgressData()
         }
