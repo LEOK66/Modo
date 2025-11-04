@@ -2,97 +2,15 @@ import Foundation
 
 // MARK: - OpenAI Configuration
 struct OpenAIConfig {
-    
-    static var apiKey: String {
-        // Priority 1: Read from environment variable (production/CI)
-        if let key = ProcessInfo.processInfo.environment["OPENAI_API_KEY"], !key.isEmpty {
-            return key
-        }
-        
-        // Priority 2: Read from Info.plist
-        if let key = Bundle.main.object(forInfoDictionaryKey: "OPENAI_API_KEY") as? String, !key.isEmpty {
-            return key
-        }
-        
-        // Priority 3: Read from APIKeys.swift (development only)
-        #if DEBUG
-        return APIKeys.openAI
-        #else
-        // In production/CI without API key, return empty string
-        return ""
-        #endif
-    }
-    
-    static let apiURL = "https://api.openai.com/v1/chat/completions"
-    static let model = "gpt-4o" 
-    static let temperature: Double = 0.9  // Higher for more creative and diverse outputs
+    static let model = "gpt-4o"
+    static let temperature: Double = 0.9
     static let maxTokens = 1000
+    
+    // Note: All API calls now go through Firebase Cloud Functions (FirebaseAIService)
+    // No direct OpenAI API calls are made from the client anymore
 }
 
-// MARK: - API Request/Response Models
-struct ChatCompletionRequest: Codable {
-    let model: String
-    let messages: [Message]
-    let temperature: Double
-    let maxTokens: Int?
-    let functions: [Function]?
-    let functionCall: String?
-    
-    enum CodingKeys: String, CodingKey {
-        case model, messages, temperature
-        case maxTokens = "max_tokens"
-        case functions
-        case functionCall = "function_call"
-    }
-    
-    struct Message: Codable {
-        let role: String
-        let content: String
-        let name: String?
-        let functionCall: FunctionCall?
-        
-        enum CodingKeys: String, CodingKey {
-            case role, content, name
-            case functionCall = "function_call"
-        }
-        
-        // Convenience initializer for simple messages
-        init(role: String, content: String, name: String? = nil, functionCall: FunctionCall? = nil) {
-            self.role = role
-            self.content = content
-            self.name = name
-            self.functionCall = functionCall
-        }
-    }
-    
-    struct Function: Codable {
-        let name: String
-        let description: String
-        let parameters: Parameters
-        
-        struct Parameters: Codable {
-            let type: String
-            let properties: [String: Property]
-            let required: [String]
-            
-            struct Property: Codable {
-                let type: String
-                let description: String
-                let items: Items?
-                
-                struct Items: Codable {
-                    let type: String
-                }
-            }
-        }
-    }
-    
-    struct FunctionCall: Codable {
-        let name: String
-        let arguments: String
-    }
-}
-
+// MARK: - API Response Models
 struct ChatCompletionResponse: Codable {
     let id: String
     let object: String
@@ -141,12 +59,12 @@ struct ChatCompletionResponse: Codable {
     }
 }
 
-// MARK: - Function Call Response Models
+// 保留 Function Response Models
 struct WorkoutPlanFunctionResponse: Codable {
     let date: String
     let goal: String
-    let dailyKcalTarget: Int?  // Optional
-    let exercises: [Exercise]?  // Optional, AI may not return
+    let dailyKcalTarget: Int?
+    let exercises: [Exercise]?
     let notes: String?
     
     enum CodingKeys: String, CodingKey {
@@ -187,4 +105,3 @@ struct FoodCalorieFunctionResponse: Codable {
         case calories, protein, carbs, fat, confidence
     }
 }
-

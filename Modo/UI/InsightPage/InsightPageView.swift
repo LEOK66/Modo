@@ -26,7 +26,7 @@ struct InsightsPageView: View {
         VStack(spacing: 0) {
             headerView
             Divider().background(Color(hexString: "E5E7EB"))
-            chatMessagesView
+            FirebaseChatMessagesView
             inputFieldView
             BottomBar(selectedTab: $selectedTab)
         }
@@ -85,7 +85,7 @@ struct InsightsPageView: View {
     }
     
     // MARK: - Handle Accept with Unified AI Generator (NEW)
-    private func handleAcceptWithAIGenerator(for message: ChatMessage) {
+    private func handleAcceptWithAIGenerator(for message: FirebaseChatMessage) {
         print("🎯 ========== ACCEPT BUTTON PRESSED ==========")
         print("   Message ID: \(message.id)")
         print("   Message content: \(message.content.prefix(100))")
@@ -491,7 +491,7 @@ struct InsightsPageView: View {
         .background(Color.white)
     }
     
-    private var chatMessagesView: some View {
+    private var FirebaseChatMessagesView: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 16) {
@@ -511,7 +511,7 @@ struct InsightsPageView: View {
                                 
                                 handleAcceptWithAIGenerator(for: msg)
                                 
-                                let confirmMessage = ChatMessage(
+                                let confirmMessage = FirebaseChatMessage(
                                     content: "Great! I've created your personalized plan with detailed exercises and meals. You'll find it in your Main Page! 💪",
                                     isFromUser: false
                                 )

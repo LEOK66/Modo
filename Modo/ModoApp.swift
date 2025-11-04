@@ -28,7 +28,7 @@ struct ModoApp: App {
         let schema = Schema([
             Item.self,
             UserProfile.self,
-            ChatMessage.self,
+            FirebaseChatMessage.self,
             DailyCompletion.self,
         ])
         

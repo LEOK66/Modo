@@ -3,7 +3,7 @@ import SwiftData
 
 // MARK: - Chat Message Model
 @Model
-final class ChatMessage {
+final class FirebaseChatMessage {
     var id: UUID
     var content: String
     var isFromUser: Bool

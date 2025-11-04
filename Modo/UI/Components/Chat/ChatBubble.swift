@@ -1,9 +1,9 @@
 import SwiftUI
 
 struct ChatBubble: View {
-    let message: ChatMessage
-    var onAccept: ((ChatMessage) -> Void)?
-    var onReject: ((ChatMessage) -> Void)?
+    let message: FirebaseChatMessage
+    var onAccept: ((FirebaseChatMessage) -> Void)?
+    var onReject: ((FirebaseChatMessage) -> Void)?
     
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -520,17 +520,17 @@ struct ChatBubble: View {
 // MARK: - Preview
 #Preview {
     VStack(spacing: 16) {
-        ChatBubble(message: ChatMessage(
+        ChatBubble(message: FirebaseChatMessage(
             content: "Hi! I'm your MODO wellness assistant. I can help you with diet planning, fitness routines, and healthy lifestyle tips. What would you like to know?",
             isFromUser: false
         ))
         
-        ChatBubble(message: ChatMessage(
+        ChatBubble(message: FirebaseChatMessage(
             content: "add a work out plan for tomorrow.",
             isFromUser: true
         ))
         
-        ChatBubble(message: ChatMessage(
+        ChatBubble(message: FirebaseChatMessage(
             content: "Here's your workout plan for tomorrow 💪:",
             isFromUser: false,
             messageType: "workout_plan",

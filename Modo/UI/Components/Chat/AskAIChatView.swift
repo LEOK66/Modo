@@ -11,7 +11,7 @@ struct AskAIChatView: View {
     @State private var isLoading: Bool = false
     @FocusState private var isInputFocused: Bool
     
-    private let openAIService = OpenAIService.shared
+    private let firebaseAIService = FirebaseAIService.shared
     
     // ✅ Use AIPromptBuilder for unified prompt construction
     private let promptBuilder = AIPromptBuilder()
@@ -191,27 +191,27 @@ struct AskAIChatView: View {
                 // ✅ Use AIPromptBuilder for unified prompt construction
                 let systemPrompt = promptBuilder.buildSystemPrompt(userProfile: userProfile)
                 
-                // Build conversation history
-                var apiMessages: [ChatCompletionRequest.Message] = [
-                    ChatCompletionRequest.Message(role: "system", content: systemPrompt)
+                // Build conversation history using FirebaseFirebaseChatMessage
+                var apiMessages: [FirebaseFirebaseChatMessage] = [
+                    FirebaseFirebaseChatMessage(role: "system", content: systemPrompt)
                 ]
                 
                 // Add recent chat history (last 8 messages)
                 let recentMessages = messages.suffix(9).dropLast() // Exclude current message
                 for msg in recentMessages {
-                    apiMessages.append(ChatCompletionRequest.Message(
+                    apiMessages.append(FirebaseFirebaseChatMessage(
                         role: msg.isFromUser ? "user" : "assistant",
                         content: msg.content
                     ))
                 }
                 
                 // Add current user message
-                apiMessages.append(ChatCompletionRequest.Message(
+                apiMessages.append(FirebaseFirebaseChatMessage(
                     role: "user",
                     content: questionText
                 ))
-                
-                let response = try await openAIService.sendChatRequest(
+
+                let response = try await firebaseAIService.sendChatRequest(
                     messages: apiMessages,
                     functions: nil,
                     functionCall: nil

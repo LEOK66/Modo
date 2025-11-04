@@ -52,7 +52,7 @@ struct AddTaskView: View {
     // AI Generation state
     @State private var isAIGenerating: Bool = false
     @State private var aiGenerateError: String? = nil
-    private let openAIService = OpenAIService.shared
+    private let firebaseAIService = FirebaseAIService.shared
     
     // ✅ Use AIPromptBuilder for unified prompt construction
     private let promptBuilder = AIPromptBuilder()
@@ -1644,11 +1644,13 @@ struct AddTaskView: View {
         Task {
             do {
                 print("📡 Sending request to OpenAI...")
-                let response = try await openAIService.sendChatRequest(
-                    messages: [
-                        ChatCompletionRequest.Message(role: "system", content: systemPrompt),
-                        ChatCompletionRequest.Message(role: "user", content: userMessage)
-                    ]
+                let FirebaseChatMessages = [
+                    FirebaseFirebaseChatMessage(role: "system", content: systemPrompt),
+                    FirebaseFirebaseChatMessage(role: "user", content: userMessage)
+                ]
+
+                let response = try await firebaseAIService.sendChatRequest(
+                    messages: FirebaseChatMessages
                 )
                 
                 print("✅ Received response from OpenAI")
@@ -1922,13 +1924,14 @@ struct AddTaskView: View {
         Task {
             do {
                 print("📡 Sending request to OpenAI...")
-                let response = try await openAIService.sendChatRequest(
-                    messages: [
-                        ChatCompletionRequest.Message(role: "system", content: systemPrompt),
-                        ChatCompletionRequest.Message(role: "user", content: userMessage)
-                    ]
+                let FirebaseChatMessages = [
+                    FirebaseFirebaseChatMessage(role: "system", content: systemPrompt),
+                    FirebaseFirebaseChatMessage(role: "user", content: userMessage)
+                ]
+
+                let response = try await firebaseAIService.sendChatRequest(
+                    messages: FirebaseChatMessages
                 )
-                
                 print("✅ Received response from OpenAI")
                 
                 // Extract content from response

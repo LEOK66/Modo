@@ -4,11 +4,12 @@ import Combine
 
 class ModoCoachService: ObservableObject {
     
-    @Published var messages: [ChatMessage] = []
+    @Published var messages: [FirebaseChatMessage] = []
     @Published var isProcessing: Bool = false
     
     private var modelContext: ModelContext?
     private var hasLoadedHistory = false
+    private let firebaseAIService = FirebaseAIService.shared
     
     // ✅ Use AIPromptBuilder for unified prompt construction
     private let promptBuilder = AIPromptBuilder()
@@ -23,7 +24,7 @@ class ModoCoachService: ObservableObject {
         
         self.modelContext = context
         
-        let descriptor = FetchDescriptor<ChatMessage>(
+        let descriptor = FetchDescriptor<FirebaseChatMessage>(
             sortBy: [SortDescriptor(\.timestamp, order: .forward)]
         )
         
@@ -124,7 +125,7 @@ class ModoCoachService: ObservableObject {
         userInfoText += "\nI have basic gym equipment available (dumbbells, barbells, and machines). Please create personalized workout and nutrition plans based on this information. No need to ask me for these details again!"
         
         // Add user message
-        let userMessage = ChatMessage(content: userInfoText, isFromUser: true)
+        let userMessage = FirebaseChatMessage(content: userInfoText, isFromUser: true)
         messages.append(userMessage)
         saveMessage(userMessage)
         
@@ -140,7 +141,7 @@ class ModoCoachService: ObservableObject {
         
         // Delete all messages from database
         do {
-            let descriptor = FetchDescriptor<ChatMessage>()
+            let descriptor = FetchDescriptor<FirebaseChatMessage>()
             let allMessages = try context.fetch(descriptor)
             
             for message in allMessages {
@@ -162,7 +163,7 @@ class ModoCoachService: ObservableObject {
     
     // MARK: - Add Welcome Message
     private func addWelcomeMessage() {
-        let welcomeMessage = ChatMessage(
+        let welcomeMessage = FirebaseChatMessage(
             content: "Hi! I'm your MODO wellness assistant. I can help you with diet planning, fitness routines, and healthy lifestyle tips.\nWhat would you like to know?",
             isFromUser: false
         )
@@ -171,20 +172,20 @@ class ModoCoachService: ObservableObject {
     }
     
     // MARK: - Save Message to SwiftData
-    func saveMessage(_ message: ChatMessage) {
+    func saveMessage(_ message: FirebaseChatMessage) {
         guard let context = modelContext else { return }
         context.insert(message)
         try? context.save()
     }
     
     // MARK: - Accept Workout Plan
-    func acceptWorkoutPlan(for message: ChatMessage, onTaskCreated: ((WorkoutPlanData) -> Void)? = nil, onTextPlanAccepted: (() -> Void)? = nil) {
+    func acceptWorkoutPlan(for message: FirebaseChatMessage, onTaskCreated: ((WorkoutPlanData) -> Void)? = nil, onTextPlanAccepted: (() -> Void)? = nil) {
         // Check if it's a structured workout plan
         if let plan = message.workoutPlan {
             // Call the callback to create task
             onTaskCreated?(plan)
             
-            let confirmMessage = ChatMessage(
+            let confirmMessage = FirebaseChatMessage(
                 content: "Great! I've added your workout plan to your tasks. Don't forget to log your progress after completing it! 💪",
                 isFromUser: false
             )
@@ -194,7 +195,7 @@ class ModoCoachService: ObservableObject {
             // Handle text-based workout plan
             onTextPlanAccepted?()
             
-            let confirmMessage = ChatMessage(
+            let confirmMessage = FirebaseChatMessage(
                 content: "Great! I've added this workout to your tasks. Don't forget to log your progress! 💪",
                 isFromUser: false
             )
@@ -204,8 +205,8 @@ class ModoCoachService: ObservableObject {
     }
     
     // MARK: - Reject Workout Plan
-    func rejectWorkoutPlan(for message: ChatMessage) {
-        let rejectMessage = ChatMessage(
+    func rejectWorkoutPlan(for message: FirebaseChatMessage) {
+        let rejectMessage = FirebaseChatMessage(
             content: "No problem! Let me know what you'd like to adjust. Would you prefer:\n\n• Different exercises\n• More/less intensity\n• Shorter/longer workout\n\nJust tell me what works better for you!",
             isFromUser: false
         )
@@ -216,7 +217,7 @@ class ModoCoachService: ObservableObject {
     // MARK: - Send Message
     func sendMessage(_ text: String, userProfile: UserProfile?) {
         // Add user message
-        let userMessage = ChatMessage(content: text, isFromUser: true)
+        let userMessage = FirebaseChatMessage(content: text, isFromUser: true)
         messages.append(userMessage)
         saveMessage(userMessage)
         
@@ -231,14 +232,14 @@ class ModoCoachService: ObservableObject {
     
     // MARK: - Send Text Message (without AI processing)
     func sendTextMessage(_ text: String) {
-        let message = ChatMessage(content: text, isFromUser: false)
+        let message = FirebaseChatMessage(content: text, isFromUser: false)
         messages.append(message)
         saveMessage(message)
     }
     
     // MARK: - Send User Message
     func sendUserMessage(_ text: String) {
-        let message = ChatMessage(content: text, isFromUser: true)
+        let message = FirebaseChatMessage(content: text, isFromUser: true)
         messages.append(message)
         saveMessage(message)
     }
@@ -276,59 +277,38 @@ class ModoCoachService: ObservableObject {
             If it's not food or you can't identify it, say "This doesn't appear to be food."
             """
             
-            let messages: [[String: Any]] = [
+            // Build multimodal message with image
+            let userContent: [[String: Any]] = [
                 [
-                    "role": "system",
-                    "content": systemPrompt
+                    "type": "text",
+                    "text": "Analyze this food and provide nutritional information."
                 ],
                 [
-                    "role": "user",
-                    "content": [
-                        [
-                            "type": "text",
-                            "text": "Analyze this food and provide nutritional information."
-                        ],
-                        [
-                            "type": "image_url",
-                            "image_url": [
-                                "url": "data:image/jpeg;base64,\(base64Image)"
-                            ]
-                        ]
+                    "type": "image_url",
+                    "image_url": [
+                        "url": "data:image/jpeg;base64,\(base64Image)"
                     ]
                 ]
             ]
             
-            let requestBody: [String: Any] = [
-                "model": "gpt-4o",
-                "messages": messages,
-                "max_tokens": 300
+            // Create messages using FirebaseAIService
+            let messages: [FirebaseFirebaseChatMessage] = [
+                FirebaseFirebaseChatMessage(role: "system", content: systemPrompt),
+                FirebaseFirebaseChatMessage(role: "user", multimodalContent: userContent)
             ]
             
-            guard let jsonData = try? JSONSerialization.data(withJSONObject: requestBody) else {
-                throw OpenAIError.invalidResponse
-            }
+            // Call Firebase AI Service with reduced maxTokens for food analysis
+            let response = try await firebaseAIService.sendChatRequest(
+                messages: messages,
+                functions: nil,
+                functionCall: nil,
+                maxTokens: 300
+            )
             
-            var urlRequest = URLRequest(url: URL(string: OpenAIConfig.apiURL)!)
-            urlRequest.httpMethod = "POST"
-            urlRequest.setValue("Bearer \(OpenAIConfig.apiKey)", forHTTPHeaderField: "Authorization")
-            urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            urlRequest.httpBody = jsonData
-            
-            let (data, response) = try await URLSession.shared.data(for: urlRequest)
-            
-            guard let httpResponse = response as? HTTPURLResponse,
-                  httpResponse.statusCode == 200 else {
-                throw OpenAIError.invalidResponse
-            }
-            
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let choices = json["choices"] as? [[String: Any]],
-               let firstChoice = choices.first,
-               let message = firstChoice["message"] as? [String: Any],
-               let content = message["content"] as? String {
-                
+            // Extract content from response
+            if let content = response.choices.first?.message.content {
                 await MainActor.run {
-                    let nutritionMessage = ChatMessage(
+                    let nutritionMessage = FirebaseChatMessage(
                         content: "🍽️ Food Analysis:\n\n\(content)",
                         isFromUser: false
                     )
@@ -337,13 +317,13 @@ class ModoCoachService: ObservableObject {
                     self.isProcessing = false
                 }
             } else {
-                throw OpenAIError.decodingError
+                throw FirebaseAIError.decodingError
             }
             
         } catch {
             await MainActor.run {
                 print("Vision API Error: \(error)")
-                let errorMessage = ChatMessage(
+                let errorMessage = FirebaseChatMessage(
                     content: "Sorry, I couldn't analyze the image. Please make sure it's a clear photo of food and try again.",
                     isFromUser: false
                 )
@@ -358,70 +338,74 @@ class ModoCoachService: ObservableObject {
     private func processWithOpenAI(_ text: String, userProfile: UserProfile?) async {
         do {
             // Build conversation history
-            var apiMessages: [ChatCompletionRequest.Message] = []
+            var apiMessages: [FirebaseFirebaseChatMessage] = []
             
             // ✅ Use AIPromptBuilder for unified prompt construction
             let systemPrompt = promptBuilder.buildChatSystemPrompt(userProfile: userProfile)
-            apiMessages.append(ChatCompletionRequest.Message(
+            apiMessages.append(FirebaseFirebaseChatMessage(
                 role: "system",
-                content: systemPrompt,
-                name: nil,
-                functionCall: nil
+                content: systemPrompt
             ))
             
             // Add recent conversation history (last 10 messages)
             let recentMessages = messages.suffix(11) // 10 + current message
             for msg in recentMessages.dropLast() {
-                apiMessages.append(ChatCompletionRequest.Message(
+                apiMessages.append(FirebaseFirebaseChatMessage(
                     role: msg.isFromUser ? "user" : "assistant",
-                    content: msg.content,
-                    name: nil,
-                    functionCall: nil
+                    content: msg.content
                 ))
             }
             
             // Add current user message
-            apiMessages.append(ChatCompletionRequest.Message(
+            apiMessages.append(FirebaseFirebaseChatMessage(
                 role: "user",
-                content: text,
-                name: nil,
-                functionCall: nil
+                content: text
             ))
             
-            // Call OpenAI API - Simple text chat without Function Calling
-            let response = try await OpenAIService.shared.sendChatRequest(
+            // Call Firebase AI Service
+            let response = try await firebaseAIService.sendChatRequest(
                 messages: apiMessages,
-                functions: nil,  // Not using Function Calling for now
+                functions: nil,
                 functionCall: nil
             )
             
             await MainActor.run {
-                // Handle text response only
-                if let choice = response.choices.first,
-                   let content = choice.message.content {
-                    let aiMessage = ChatMessage(
+                self.isProcessing = false
+                
+                // Check if OpenAI wants to call a function
+                if let functionCall = response.choices.first?.message.functionCall {
+                    print("🔧 Function call detected: \(functionCall.name)")
+                    
+                    // Handle function calls
+                    if functionCall.name == "generate_workout_plan" {
+                        handleWorkoutPlanFunction(arguments: functionCall.arguments, userProfile: userProfile)
+                    } else if functionCall.name == "lookup_food_calorie" {
+                        handleFoodCalorieFunction(arguments: functionCall.arguments)
+                    }
+                }
+                // Regular text response
+                else if let content = response.choices.first?.message.content {
+                    let responseMessage = FirebaseChatMessage(
                         content: content,
                         isFromUser: false
                     )
-                    self.messages.append(aiMessage)
-                    self.saveMessage(aiMessage)
-                } else {
-                    print("No content in response")
+                    self.messages.append(responseMessage)
+                    self.saveMessage(responseMessage)
                 }
-                self.isProcessing = false
             }
             
         } catch {
             await MainActor.run {
-                print("OpenAI API Error: \(error)")
-                // Show error message
-                let errorMessage = ChatMessage(
-                    content: "Sorry, I encountered an issue. Please try again later.\n\nError: \(error.localizedDescription)",
+                self.isProcessing = false
+                print("❌ Error processing with OpenAI: \(error)")
+                
+                // Fallback response
+                let errorMessage = FirebaseChatMessage(
+                    content: "Sorry, I'm having trouble connecting right now. Please try again in a moment.",
                     isFromUser: false
                 )
                 self.messages.append(errorMessage)
                 self.saveMessage(errorMessage)
-                self.isProcessing = false
             }
         }
     }
@@ -435,7 +419,7 @@ class ModoCoachService: ObservableObject {
             handleFunctionCall(functionCall, userProfile: userProfile)
         } else if let content = choice.message.content {
             // Regular text response
-            let aiMessage = ChatMessage(
+            let aiMessage = FirebaseChatMessage(
                 content: content,
                 isFromUser: false
             )
@@ -498,7 +482,7 @@ class ModoCoachService: ObservableObject {
                 notes: functionResponse.notes
             )
             
-            let response = ChatMessage(
+            let response = FirebaseChatMessage(
                 content: "Here's your personalized workout plan 💪:\n\(formatDate(plan.date)) – \(plan.goal)",
                 isFromUser: false,
                 messageType: "workout_plan",
@@ -523,7 +507,7 @@ class ModoCoachService: ObservableObject {
     
     // MARK: - Send Error Message
     private func sendErrorMessage(_ text: String) {
-        let errorMessage = ChatMessage(
+        let errorMessage = FirebaseChatMessage(
             content: text,
             isFromUser: false
         )
@@ -550,7 +534,7 @@ class ModoCoachService: ObservableObject {
             Confidence: \(Int(foodInfo.confidence * 100))%
             """
             
-            let response = ChatMessage(
+            let response = FirebaseChatMessage(
                 content: content,
                 isFromUser: false
             )
@@ -606,7 +590,7 @@ class ModoCoachService: ObservableObject {
             notes: "Sounds good?"
         )
         
-        let response = ChatMessage(
+        let response = FirebaseChatMessage(
             content: "Here's your workout plan for tomorrow 💪:\n\(formatDate(plan.date)) – Full Body Strength",
             isFromUser: false,
             messageType: "workout_plan",
@@ -619,7 +603,7 @@ class ModoCoachService: ObservableObject {
     
     // MARK: - Provide Food Info
     private func provideFoodInfo(query: String) {
-        let response = ChatMessage(
+        let response = FirebaseChatMessage(
             content: "I can help estimate calories! For example:\n• Chicken breast (150g): ~240 kcal, 45g protein\n• Brown rice (100g): ~110 kcal, 23g carbs\n• Avocado (100g): ~160 kcal, 15g fat\n\nWhat specific food would you like to know about?",
             isFromUser: false
         )
@@ -629,7 +613,7 @@ class ModoCoachService: ObservableObject {
     
     // MARK: - Provide Progress Review
     private func provideProgressReview() {
-        let response = ChatMessage(
+        let response = FirebaseChatMessage(
             content: "Great question! To review your progress, I need to see your recent workout logs. Once you start logging workouts, I can analyze:\n\n• Volume trends\n• Strength gains\n• Consistency\n• Recovery patterns\n\nKeep logging and I'll help you optimize!",
             isFromUser: false
         )
@@ -639,7 +623,7 @@ class ModoCoachService: ObservableObject {
     
     // MARK: - Refuse Off-Topic
     private func refuseOffTopic() {
-        let response = ChatMessage(
+        let response = FirebaseChatMessage(
             content: "That question isn't related to training or nutrition. I can help you with your fitness plan or calorie estimation instead. What would you like to know about your training?",
             isFromUser: false
         )
@@ -649,7 +633,7 @@ class ModoCoachService: ObservableObject {
     
     // MARK: - Provide General Help
     private func provideGeneralHelp() {
-        let response = ChatMessage(
+        let response = FirebaseChatMessage(
             content: "I'm here to help with your fitness journey! I can assist with:\n\n💪 Workout Plans – Daily/weekly training schedules\n🍽️ Nutrition – Calorie and macro estimates\n📊 Progress – Review your training logs\n\nWhat would you like to focus on today?",
             isFromUser: false
         )

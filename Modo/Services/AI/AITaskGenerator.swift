@@ -8,7 +8,7 @@ class AITaskGenerator: ObservableObject {
     @Published var isGenerating = false
     
     // Core services
-    private let openAIService = OpenAIService.shared
+    private let firebaseAIService = FirebaseAIService.shared
     
     // ✅ NEW: Modular services for better separation of concerns
     private let promptBuilder = AIPromptBuilder()
@@ -190,11 +190,11 @@ class AITaskGenerator: ObservableObject {
         Task {
             do {
                 let messages = [
-                    ChatCompletionRequest.Message(role: "system", content: systemPrompt),
-                    ChatCompletionRequest.Message(role: "user", content: userPrompt)
+                    FirebaseFirebaseChatMessage(role: "system", content: systemPrompt),
+                    FirebaseFirebaseChatMessage(role: "user", content: userPrompt)
                 ]
-                
-                let response = try await openAIService.sendChatRequest(messages: messages)
+
+                let response = try await firebaseAIService.sendChatRequest(messages: messages)
                 
                 await MainActor.run {
                     self.isGenerating = false
@@ -279,11 +279,11 @@ class AITaskGenerator: ObservableObject {
         Task {
             do {
                 let messages = [
-                    ChatCompletionRequest.Message(role: "system", content: systemPrompt),
-                    ChatCompletionRequest.Message(role: "user", content: userPrompt)
+                    FirebaseFirebaseChatMessage(role: "system", content: systemPrompt),
+                    FirebaseFirebaseChatMessage(role: "user", content: userPrompt)
                 ]
-                
-                let response = try await openAIService.sendChatRequest(messages: messages)
+
+                let response = try await firebaseAIService.sendChatRequest(messages: messages)
                 
                 await MainActor.run {
                     if let content = response.choices.first?.message.content {
