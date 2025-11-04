@@ -68,4 +68,6 @@ fastlane/test_output
 GoogleService-Info.plist
 
 # API Keys (sensitive information)
-**/APIKeys.swift
+# Note: APIKeys.swift is tracked with placeholder key for CI
+# Use: git update-index --skip-worktree Modo/Services/AI/APIKeys.swift
+# to ignore local changes with real keys
