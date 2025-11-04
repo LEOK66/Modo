@@ -84,29 +84,30 @@ class AIPromptBuilder {
         
         prompt += """
         
-        CRITICAL FORMAT - COMPLETE DISH NAMES ONLY:
-        - For each meal, list 2-4 COMPLETE DISH NAMES
-        - Examples: "Scrambled Eggs with Spinach", "Grilled Chicken Salad", "Oatmeal with Berries"
+        CRITICAL FORMAT - DISH NAME WITH CALORIES:
+        - For each meal, list 2-4 COMPLETE DISH NAMES with estimated calories
+        - Format: "Dish Name (~XXX calories)"
+        - Examples: "Scrambled Eggs with Spinach (~250 calories)", "Grilled Chicken Salad (~350 calories)"
         - Use COMPLETE dish names, NOT individual ingredients
+        - Provide reasonable calorie estimates for typical single servings
         - NO markdown formatting (no **, __, ##)
         - NO bullet points or numbers
         - NO descriptions or explanatory text
-        - Just plain dish names, one per line
-        - I will look up calories using a food database
+        - Just dish names with calories, one per line
         
         Example format:
         Breakfast:
-        Scrambled Eggs with Spinach
-        Whole Wheat Toast with Avocado
+        Scrambled Eggs with Spinach (~250 calories)
+        Whole Wheat Toast with Avocado (~300 calories)
         
         Lunch:
-        Grilled Chicken Caesar Salad
-        Brown Rice Bowl
+        Grilled Chicken Caesar Salad (~400 calories)
+        Brown Rice Bowl (~350 calories)
         
         IMPORTANT:
         - Single servings for ONE PERSON
-        - Complete dish names for accurate database lookup
-        - NO portion sizes (will be determined by database)
+        - Provide accurate calorie estimates for typical portions
+        - Use your nutrition knowledge to estimate calories
         """
         
         return prompt

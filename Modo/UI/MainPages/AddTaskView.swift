@@ -1351,11 +1351,16 @@ struct AddTaskView: View {
         .presentationDetents([.fraction(0.6)])
         .presentationDragIndicator(.visible)
         .onChange(of: quickPickSearch) { _, newValue in
-            guard quickPickMode == .food else { return }
+            guard quickPickMode == .food else {
+                return
+            }
             searchDebounceWork?.cancel()
             let work = DispatchWorkItem { [newValue] in
                 let q = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard q.count >= 2 else { onlineFoods = []; return }
+                guard q.count >= 2 else {
+                    onlineFoods = []
+                    return
+                }
                 isOnlineLoading = true
                 OffClient.searchFoodsCached(query: q, limit: 50) { results in
                     isOnlineLoading = false

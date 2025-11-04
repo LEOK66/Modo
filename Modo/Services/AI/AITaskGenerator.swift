@@ -319,29 +319,32 @@ class AITaskGenerator: ObservableObject {
     
     // MARK: - Fetch Calories for Meals (Refactored)
     
-    /// Fetch calories for parsed meals using NutritionLookupService
+    /// Process parsed meals and create tasks (using AI-provided calories or cache lookup)
     /// - Parameters:
-    ///   - parsedMeals: Dictionary of meal names to food items [mealName: [foodName]]
+    ///   - parsedMeals: Dictionary of meal names to food items with calories [mealName: [(name, calories)]]
     ///   - date: Date for the tasks
     ///   - completion: Completion handler with AIGeneratedTask array
-    private func fetchCaloriesForMeals(_ parsedMeals: [String: [String]], date: Date, completion: @escaping (Result<[AIGeneratedTask], Error>) -> Void) {
-        print("🔍 Fetching calories for \(parsedMeals.count) meals using NutritionLookupService...")
+    private func fetchCaloriesForMeals(_ parsedMeals: [String: [(name: String, calories: Int)]], date: Date, completion: @escaping (Result<[AIGeneratedTask], Error>) -> Void) {
+        print("🔍 Processing \(parsedMeals.count) meals (using AI-provided calories or cache)...")
         
         let dispatchGroup = DispatchGroup()
         var generatedTasks: [AIGeneratedTask] = []
         let tasksQueue = DispatchQueue(label: "com.modo.aitaskgenerator.tasks")
         
-        for (mealName, foodNames) in parsedMeals {
+        for (mealName, foods) in parsedMeals {
             dispatchGroup.enter()
             
-            // ✅ Use NutritionLookupService for batch calorie lookup (API priority)
-            nutritionLookup.lookupCaloriesBatch(foodNames) { results in
-                let foodItems = results.map { AIFoodItem(name: $0.name, calories: $0.calories) }
+            // Check if AI provided calories for all foods
+            let allHaveCalories = foods.allSatisfy { $0.calories > 0 }
+            
+            if allHaveCalories {
+                // Use AI-provided calories directly
+                let foodItems = foods.map { AIFoodItem(name: $0.name, calories: $0.calories) }
                 let totalCalories = foodItems.reduce(0) { $0 + $1.calories }
                 
                 let meal = AIMeal(
                     name: mealName,
-                    foods: foodNames,
+                    foods: foods.map { $0.name },
                     time: self.getMealTime(mealName),
                     foodItems: foodItems
                 )
@@ -358,8 +361,51 @@ class AITaskGenerator: ObservableObject {
                 
                 tasksQueue.async {
                     generatedTasks.append(task)
-                    print("  ✅ Generated \(mealName): \(foodItems.count) items, \(totalCalories) cal")
+                    print("  ✅ Generated \(mealName) using AI calories: \(foodItems.count) items, \(totalCalories) cal")
                     dispatchGroup.leave()
+                }
+            } else {
+                // Some foods missing calories - use cache lookup (cache-only, no network)
+                // Note: AI should provide calories, but we fallback to cache for robustness
+                let foodNames = foods.map { $0.name }
+                nutritionLookup.lookupCaloriesBatch(foodNames, allowNetwork: false) { results in
+                    // Merge AI-provided calories with cache results
+                    let foodItems = foods.map { food in
+                        // Priority: AI-provided calories > Cache > Default (250)
+                        // AI should have provided calories, but if not, use cache if available
+                        let cached = results.first(where: { $0.name == food.name })
+                        let calories = food.calories > 0 ? food.calories : (cached?.calories ?? 250)
+                        
+                        if food.calories == 0 && cached == nil {
+                            print("  ⚠️ No calories from AI or cache for '\(food.name)', using default 250")
+                        }
+                        
+                        return AIFoodItem(name: food.name, calories: calories)
+                    }
+                    let totalCalories = foodItems.reduce(0) { $0 + $1.calories }
+                    
+                    let meal = AIMeal(
+                        name: mealName,
+                        foods: foodNames,
+                        time: self.getMealTime(mealName),
+                        foodItems: foodItems
+                    )
+                    
+                    let task = AIGeneratedTask(
+                        type: .nutrition,
+                        date: date,
+                        title: mealName,
+                        exercises: [],
+                        meals: [meal],
+                        totalDuration: 0,
+                        totalCalories: totalCalories
+                    )
+                    
+                    tasksQueue.async {
+                        generatedTasks.append(task)
+                        print("  ✅ Generated \(mealName) using cache: \(foodItems.count) items, \(totalCalories) cal")
+                        dispatchGroup.leave()
+                    }
                 }
             }
         }

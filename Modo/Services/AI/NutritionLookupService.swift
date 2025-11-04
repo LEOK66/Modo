@@ -1,190 +1,196 @@
 import Foundation
 
-/// Service responsible for looking up nutrition data from external APIs
-/// Priority: External API (OffClient) → AI Estimation → Hardcoded Fallback
+/// Service responsible for looking up nutrition data
+/// Priority: Cache → Local foods.json → OpenAI (FirebaseAIService)
+/// For manual search: Cache → Network API → Local foods.json → OpenAI
 class NutritionLookupService {
+    private let firebaseAIService = FirebaseAIService.shared
     
     // MARK: - Lookup Methods
     
     /// Look up calories for a food item
     /// - Parameters:
     ///   - foodName: Name of the food
+    ///   - allowNetwork: Whether to allow network requests (default: false for AI usage)
     ///   - completion: Completion handler with calories (nil if not found)
-    func lookupCalories(for foodName: String, completion: @escaping (Int?) -> Void) {
-        print("🔍 NutritionLookupService: Looking up calories for '\(foodName)'")
-        
-        // Priority 1: Try external food API (OffClient)
-        OffClient.searchFoodsCached(query: foodName, limit: 1) { foodItems in
+    func lookupCalories(for foodName: String, allowNetwork: Bool = false, completion: @escaping (Int?) -> Void) {
+        // Priority 1: Try cache (memory + disk)
+        OffClient.searchFoodsFromCacheOnly(query: foodName) { foodItems in
             if let firstItem = foodItems.first, let calories = firstItem.calories {
-                print("   ✅ Found in API: \(calories) cal")
                 completion(calories)
+                return
+            }
+            
+            // Priority 2: If network allowed, try API
+            if allowNetwork {
+                OffClient.searchFoodsCached(query: foodName, limit: 1) { foodItems in
+                    if let firstItem = foodItems.first, let calories = firstItem.calories {
+                        completion(calories)
+                        return
+                    }
+                    // Continue to local foods.json
+                    self.checkLocalFoods(foodName: foodName, completion: completion)
+                }
             } else {
-                // Priority 2: Use AI-based estimation
-                print("   ⚠️ Not found in API, using estimation")
-                let estimated = self.estimateCalories(for: foodName)
-                completion(estimated)
+                // Cache-only mode: check local foods.json, then OpenAI
+                self.checkLocalFoods(foodName: foodName, completion: completion)
             }
         }
     }
     
-    /// Look up calories for multiple food items
+    /// Check local foods.json file
+    private func checkLocalFoods(foodName: String, completion: @escaping (Int?) -> Void) {
+        let searchName = foodName.lowercased()
+        let localFoods = MenuData.foods
+        
+        // Try exact match first
+        if let food = localFoods.first(where: { $0.name.lowercased() == searchName }) {
+            if let calories = food.servingCalories {
+                completion(calories)
+                return
+            }
+        }
+        
+        // Try contains match
+        if let food = localFoods.first(where: { foodName.lowercased().contains($0.name.lowercased()) || $0.name.lowercased().contains(searchName) }) {
+            if let calories = food.servingCalories {
+                completion(calories)
+                return
+            }
+        }
+        
+        // Not found in local data, use OpenAI to estimate
+        self.estimateCaloriesWithAI(foodName: foodName, completion: completion)
+    }
+    
+    /// Use OpenAI (FirebaseAIService) to estimate calories
+    private func estimateCaloriesWithAI(foodName: String, completion: @escaping (Int?) -> Void) {
+        let prompt = "Estimate the calories for a typical single serving of '\(foodName)'. Respond with ONLY a number (e.g., '250' for 250 calories). Do not include any other text."
+        
+        Task {
+            do {
+                let messages = [
+                    FirebaseFirebaseChatMessage(role: "user", content: prompt)
+                ]
+                
+                let response = try await firebaseAIService.sendChatRequest(messages: messages)
+                
+                if let content = response.choices.first?.message.content,
+                   let calories = Int(content.trimmingCharacters(in: .whitespacesAndNewlines)) {
+                    await MainActor.run {
+                        completion(calories)
+                    }
+                } else {
+                    await MainActor.run {
+                        completion(nil)
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    completion(nil)
+                }
+            }
+        }
+    }
+    
+    /// Look up calories for multiple food items (cache-only mode for AI)
     /// - Parameters:
     ///   - foodNames: Array of food names
+    ///   - allowNetwork: Whether to allow network requests (default: false for AI usage)
     ///   - completion: Completion handler with array of (name, calories) tuples
-    func lookupCaloriesBatch(_ foodNames: [String], completion: @escaping ([(name: String, calories: Int)]) -> Void) {
+    func lookupCaloriesBatch(_ foodNames: [String], allowNetwork: Bool = false, completion: @escaping ([(name: String, calories: Int)]) -> Void) {
         print("🔍 NutritionLookupService: Batch lookup for \(foodNames.count) items")
         
         let dispatchGroup = DispatchGroup()
         var results: [(name: String, calories: Int)] = []
         let resultsQueue = DispatchQueue(label: "com.modo.nutrition.results")
+        var completedCount = 0
+        let totalCount = foodNames.count
+        var overallCompleted = false
+        let overallCompletedLock = NSLock()
+        
+        // Timeout: Maximum 30 seconds per item, or 60 seconds total (whichever comes first)
+        let perItemTimeout: TimeInterval = 30.0
+        let totalTimeout: TimeInterval = 60.0
+        let startTime = Date()
+        
+        // Overall timeout timer
+        let timeoutTimer = DispatchSource.makeTimerSource(queue: .main)
+        timeoutTimer.schedule(deadline: .now() + totalTimeout)
+        timeoutTimer.setEventHandler {
+            overallCompletedLock.lock()
+            defer { overallCompletedLock.unlock() }
+            
+            if !overallCompleted {
+                overallCompleted = true
+                let elapsed = Date().timeIntervalSince(startTime)
+                print("⏱️ NutritionLookupService: Overall timeout (\(totalTimeout)s) reached after \(String(format: "%.2f", elapsed))s")
+                print("   Completed: \(completedCount)/\(totalCount) items")
+                // Complete with whatever results we have
+                print("   ✅ Batch lookup completed (with timeout): \(results.count) items")
+                completion(results)
+            }
+        }
+        timeoutTimer.resume()
         
         for foodName in foodNames {
             dispatchGroup.enter()
             
-            lookupCalories(for: foodName) { calories in
-                resultsQueue.async {
-                    results.append((name: foodName, calories: calories ?? 250))
-                    dispatchGroup.leave()
+            // Per-item timeout with thread-safe flag
+            let itemStartTime = Date()
+            let itemCompletedLock = NSLock()
+            var itemCompleted = false
+            
+            // Create a timeout timer for this specific item
+            let itemTimeoutWork = DispatchWorkItem {
+                itemCompletedLock.lock()
+                defer { itemCompletedLock.unlock() }
+                
+                if !itemCompleted {
+                    itemCompleted = true
+                    let elapsed = Date().timeIntervalSince(itemStartTime)
+                    print("⏱️ NutritionLookupService: Timeout for '\(foodName)' after \(String(format: "%.2f", elapsed))s, using default")
+                    resultsQueue.async {
+                        // Use default 250 if timeout
+                        results.append((name: foodName, calories: 250))
+                        completedCount += 1
+                        dispatchGroup.leave()
+                    }
+                }
+            }
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + perItemTimeout, execute: itemTimeoutWork)
+            
+            lookupCalories(for: foodName, allowNetwork: allowNetwork) { calories in
+                itemCompletedLock.lock()
+                defer { itemCompletedLock.unlock() }
+                
+                if !itemCompleted {
+                    itemCompleted = true
+                    itemTimeoutWork.cancel()  // Cancel timeout since we got a result
+                    resultsQueue.async {
+                        // Use default 250 if lookup failed
+                        results.append((name: foodName, calories: calories ?? 250))
+                        completedCount += 1
+                        dispatchGroup.leave()
+                    }
                 }
             }
         }
         
         dispatchGroup.notify(queue: .main) {
-            print("   ✅ Batch lookup completed: \(results.count) items")
-            completion(results)
+            overallCompletedLock.lock()
+            defer { overallCompletedLock.unlock() }
+            
+            if !overallCompleted {
+                overallCompleted = true
+                timeoutTimer.cancel()  // Cancel overall timeout since all items completed
+                let elapsed = Date().timeIntervalSince(startTime)
+                print("   ✅ Batch lookup completed: \(results.count) items in \(String(format: "%.2f", elapsed))s")
+                completion(results)
+            }
         }
     }
     
-    // MARK: - Estimation (Fallback)
-    
-    /// Estimate calories when API data is not available
-    /// Uses intelligent estimation based on food type and keywords
-    /// - Parameter food: Food name
-    /// - Returns: Estimated calories
-    private func estimateCalories(for food: String) -> Int {
-        let lowercased = food.lowercased()
-        
-        // Breakfast dishes
-        if lowercased.contains("oatmeal") || lowercased.contains("oat") {
-            return 300
-        } else if lowercased.contains("scrambled egg") || lowercased.contains("fried egg") {
-            return 200
-        } else if lowercased.contains("toast") && lowercased.contains("avocado") {
-            return 250
-        } else if lowercased.contains("yogurt") && lowercased.contains("granola") {
-            return 280
-        } else if lowercased.contains("pancake") || lowercased.contains("waffle") {
-            return 350
-        }
-        
-        // Salads and bowls
-        else if lowercased.contains("salad") {
-            if lowercased.contains("chicken") || lowercased.contains("caesar") {
-                return 350
-            } else {
-                return 200
-            }
-        } else if lowercased.contains("bowl") {
-            return 400
-        }
-        
-        // Main protein dishes
-        else if lowercased.contains("chicken") || lowercased.contains("turkey") {
-            if lowercased.contains("grilled") || lowercased.contains("baked") {
-                return 300
-            } else if lowercased.contains("fried") {
-                return 450
-            } else {
-                return 300
-            }
-        } else if lowercased.contains("salmon") || lowercased.contains("fish") {
-            return 350
-        } else if lowercased.contains("beef") || lowercased.contains("steak") {
-            return 400
-        } else if lowercased.contains("pork") {
-            return 350
-        }
-        
-        // Carbs and sides
-        else if lowercased.contains("rice") {
-            return 250
-        } else if lowercased.contains("pasta") {
-            return 300
-        } else if lowercased.contains("quinoa") {
-            return 220
-        } else if lowercased.contains("potato") {
-            if lowercased.contains("sweet") {
-                return 180
-            } else if lowercased.contains("fried") || lowercased.contains("fries") {
-                return 400
-            } else {
-                return 200
-            }
-        }
-        
-        // Vegetables
-        else if lowercased.contains("vegetable") || lowercased.contains("broccoli") ||
-                lowercased.contains("asparagus") || lowercased.contains("green bean") ||
-                lowercased.contains("spinach") || lowercased.contains("kale") {
-            return 100
-        }
-        
-        // Fruits
-        else if lowercased.contains("fruit") || lowercased.contains("apple") ||
-                lowercased.contains("banana") || lowercased.contains("berries") ||
-                lowercased.contains("orange") {
-            return 100
-        }
-        
-        // Beverages
-        else if lowercased.contains("juice") {
-            return 110
-        } else if lowercased.contains("smoothie") {
-            return 200
-        } else if lowercased.contains("coffee") || lowercased.contains("tea") {
-            if lowercased.contains("latte") || lowercased.contains("cappuccino") {
-                return 150
-            } else {
-                return 50
-            }
-        }
-        
-        // Sandwiches and wraps
-        else if lowercased.contains("sandwich") || lowercased.contains("burger") {
-            return 450
-        } else if lowercased.contains("wrap") {
-            return 350
-        }
-        
-        // Soups and stews
-        else if lowercased.contains("soup") || lowercased.contains("stew") {
-            return 250
-        }
-        
-        // Snacks and desserts
-        else if lowercased.contains("cookie") || lowercased.contains("brownie") {
-            return 200
-        } else if lowercased.contains("ice cream") {
-            return 250
-        } else if lowercased.contains("chips") {
-            return 300
-        }
-        
-        // Default for unknown dishes
-        else {
-            print("   ⚠️ Unknown food type, using default: 250 cal")
-            return 250
-        }
-    }
-    
-    // MARK: - Future Extension Point
-    
-    /// Placeholder for future external nutrition API integration
-    /// Can be expanded to use multiple APIs for better coverage
-    private func lookupFromAlternativeAPI(foodName: String, completion: @escaping (Int?) -> Void) {
-        // TODO: Integrate additional nutrition APIs here
-        // Examples: USDA FoodData Central, Nutritionix, Edamam, etc.
-        completion(nil)
-    }
 }
 
