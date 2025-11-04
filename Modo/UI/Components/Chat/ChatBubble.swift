@@ -197,13 +197,33 @@ struct ChatBubble: View {
     private func shouldShowActionButtons(for content: String) -> Bool {
         let lowercaseContent = content.lowercased()
         
-        // Check if message contains plan-related keywords
-        let planKeywords = ["workout", "exercise", "training", "sets", "reps", "rest", 
-                           "meal", "breakfast", "lunch", "dinner", "calories", "protein",
-                           "day 1", "day 2", "monday", "tuesday", "week"]
-        let hasPlanKeywords = planKeywords.contains { lowercaseContent.contains($0) }
+        // First check: Message must have a structured plan format (multiple exercises/meals listed)
+        // This is the strongest indicator of an actual plan
         
-        // Check if ends with plan confirmation questions (more flexible)
+        // Check for structured workout plan (multiple exercises with sets x reps format)
+        // Look for patterns like "3 sets x 10 reps" or "4 sets x 8-10 reps"
+        let hasSetsXReps = lowercaseContent.contains("sets x") || lowercaseContent.contains("sets ×")
+        let setsXRepsCount = lowercaseContent.components(separatedBy: "sets x").count + 
+                             lowercaseContent.components(separatedBy: "sets ×").count
+        // Also check for number patterns that indicate multiple exercises
+        let hasMultipleSets = setsXRepsCount > 2
+        // Check for exercise names followed by sets/reps (strong indicator of structured plan)
+        let hasExerciseStructure = lowercaseContent.contains("sets") && 
+                                   (lowercaseContent.contains("reps") || lowercaseContent.contains("rest"))
+        let hasMultipleExercises = (hasSetsXReps && hasMultipleSets) || 
+                                   (hasExerciseStructure && setsXRepsCount >= 2)
+        
+        // Check for structured meal plan (multiple meals with specific foods)
+        let hasMultipleMeals = (lowercaseContent.contains("breakfast") && lowercaseContent.contains("lunch")) ||
+                               (lowercaseContent.contains("lunch") && lowercaseContent.contains("dinner")) ||
+                               (lowercaseContent.contains("breakfast") && lowercaseContent.contains("dinner"))
+        
+        // Check for multi-day plan structure
+        let hasMultiDayStructure = lowercaseContent.contains("day 1") || 
+                                   lowercaseContent.contains("day 2") ||
+                                   lowercaseContent.contains("monday") && lowercaseContent.contains("tuesday")
+        
+        // Second check: Must end with plan confirmation question
         let confirmationPhrases = [
             "what do you think of this plan?",
             "what do you think?",
@@ -217,16 +237,11 @@ struct ChatBubble: View {
         ]
         let endsWithQuestion = confirmationPhrases.contains { lowercaseContent.contains($0) }
         
-        // Also check if message has multiple exercises/meals (strong indicator of a plan)
-        let hasMultipleExercises = (lowercaseContent.components(separatedBy: "x").count > 2) || 
-                                   (lowercaseContent.components(separatedBy: "×").count > 2)
-        let hasMultipleMeals = (lowercaseContent.contains("breakfast") && lowercaseContent.contains("lunch")) ||
-                               (lowercaseContent.contains("lunch") && lowercaseContent.contains("dinner"))
-        
-        // Show buttons if:
-        // 1. Has plan keywords AND ends with confirmation question, OR
-        // 2. Has clear plan structure (multiple exercises or meals)
-        return (hasPlanKeywords && endsWithQuestion) || hasMultipleExercises || hasMultipleMeals
+        // Only show buttons if:
+        // 1. Has clear structured plan (multiple exercises OR multiple meals OR multi-day structure) AND
+        // 2. Ends with confirmation question
+        // This prevents showing buttons for general questions that just mention keywords
+        return (hasMultipleExercises || hasMultipleMeals || hasMultiDayStructure) && endsWithQuestion
     }
     
     // MARK: - Highlighted Text View (with purple numbers and red times)

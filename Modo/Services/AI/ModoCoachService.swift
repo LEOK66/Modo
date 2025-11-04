@@ -216,6 +216,12 @@ class ModoCoachService: ObservableObject {
     
     // MARK: - Send Message
     func sendMessage(_ text: String, userProfile: UserProfile?) {
+        // Check for inappropriate content before sending
+        if isInappropriate(text) {
+            refuseInappropriate()
+            return
+        }
+        
         // Add user message
         let userMessage = FirebaseChatMessage(content: text, isFromUser: true)
         messages.append(userMessage)
@@ -548,29 +554,12 @@ class ModoCoachService: ObservableObject {
     }
     
     // MARK: - Process User Intent
+    // NOTE: This function is kept for potential future use, but currently
+    // all messages go through processWithOpenAI which handles them via AI
     private func processUserIntent(_ text: String, userProfile: UserProfile?) {
-        let lowercased = text.lowercased()
-        
-        // Check if it's a workout request
-        if lowercased.contains("workout") || lowercased.contains("train") || lowercased.contains("exercise") || lowercased.contains("plan") {
-            generateWorkoutPlan(userProfile: userProfile)
-        }
-        // Check if it's a food/calorie request
-        else if lowercased.contains("calorie") || lowercased.contains("food") || lowercased.contains("nutrition") || lowercased.contains("eat") {
-            provideFoodInfo(query: text)
-        }
-        // Check if it's progress review
-        else if lowercased.contains("progress") || lowercased.contains("review") || lowercased.contains("how am i doing") {
-            provideProgressReview()
-        }
-        // Off-topic detection
-        else if isOffTopic(text) {
-            refuseOffTopic()
-        }
-        // Default helpful response
-        else {
-            provideGeneralHelp()
-        }
+        // This function is not currently used in the main flow
+        // All messages are sent directly to AI via processWithOpenAI
+        // Keeping it here for potential future quick responses or shortcuts
     }
     
     // MARK: - Generate Workout Plan
@@ -621,10 +610,10 @@ class ModoCoachService: ObservableObject {
         saveMessage(response)
     }
     
-    // MARK: - Refuse Off-Topic
-    private func refuseOffTopic() {
+    // MARK: - Refuse Inappropriate Content
+    private func refuseInappropriate() {
         let response = FirebaseChatMessage(
-            content: "That question isn't related to training or nutrition. I can help you with your fitness plan or calorie estimation instead. What would you like to know about your training?",
+            content: "I'm here to help with your fitness and health journey. Let's keep our conversation focused on that. How can I help you reach your fitness goals today?",
             isFromUser: false
         )
         messages.append(response)
@@ -641,12 +630,40 @@ class ModoCoachService: ObservableObject {
         saveMessage(response)
     }
     
-    // MARK: - Off-Topic Detection
-    private func isOffTopic(_ text: String) -> Bool {
-        let offTopicKeywords = ["politics", "election", "president", "movie", "music", "celebrity", "weather", "news", "stock", "crypto"]
+    // MARK: - Inappropriate Content Detection
+    private func isInappropriate(_ text: String) -> Bool {
+        // Only block clearly inappropriate or harmful content
+        // Be careful: some words might appear in legitimate health contexts
         let lowercased = text.lowercased()
         
-        return offTopicKeywords.contains { lowercased.contains($0) }
+        // Check for explicit sexual content (not health-related)
+        let explicitSexual = ["porn", "pornography", "xxx", "nsfw"]
+        let hasExplicitSexual = explicitSexual.contains { lowercased.contains($0) }
+        
+        // Check for violence (not exercise-related)
+        let violenceKeywords = ["kill", "murder", "weapon", "gun", "bomb", "attack"]
+        let hasViolence = violenceKeywords.contains { lowercased.contains($0) }
+        
+        // Check for illegal activities (not supplement-related)
+        // Note: "drug" could be in "drug testing" or "drug store", so we need context
+        let illegalKeywords = ["illegal", "steal", "rob", "fraud"]
+        let hasIllegal = illegalKeywords.contains { lowercased.contains($0) }
+        
+        // Only block if it's clearly inappropriate AND not health/fitness related
+        if hasExplicitSexual || hasViolence || hasIllegal {
+            // Double-check: don't block if it's in a health/fitness context
+            let healthContext = ["health", "fitness", "exercise", "workout", "training", "nutrition", "supplement", "medical", "recovery", "therapy"]
+            let hasHealthContext = healthContext.contains { lowercased.contains($0) }
+            
+            // If it's in a health context, let it through (AI will handle it appropriately)
+            if hasHealthContext {
+                return false
+            }
+            
+            return true
+        }
+        
+        return false
     }
     
     // MARK: - Helper Functions

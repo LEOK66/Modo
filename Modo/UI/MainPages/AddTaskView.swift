@@ -456,7 +456,7 @@ struct AddTaskView: View {
                 // AI suggestions row (placeholder)
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        aiSuggestionChip("Low-fat lunch â€¢ 600 cal")
+                        aiSuggestionChip("Low-fat lunch 600 cal")
                         aiSuggestionChip("30m run after 7pm")
                         aiSuggestionChip("High-protein dinner")
                     }
