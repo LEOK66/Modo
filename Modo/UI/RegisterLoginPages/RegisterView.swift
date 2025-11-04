@@ -1,6 +1,8 @@
 import SwiftUI
 import FirebaseAuth
 import UIKit
+import AuthenticationServices
+import CryptoKit
 
 struct RegisterView: View {
     @EnvironmentObject var authService: AuthService
@@ -100,9 +102,12 @@ struct RegisterView: View {
                     // Divider
                     DividerWithText(text: "or")
                     
-                    // Google login
-                    SocialButton(title: "Google", systemImage: "g.circle.fill") {
-                        signInWithGoogle()
+                    // Apple/Google login
+                    HStack(spacing: 12) {
+                        AppleSignInButton(action: signInWithApple)
+                        SocialButton(title: "Google", systemImage: "g.circle.fill") {
+                            signInWithGoogle()
+                        }
                     }
                     .frame(maxWidth: LayoutConstants.inputFieldMaxWidth)
                 }
@@ -168,6 +173,54 @@ struct RegisterView: View {
                 }
             }
         }
+    }
+    
+    private func signInWithApple() {
+        let nonce = AuthService.randomNonceString()
+        let hashedNonce = AuthService.sha256(nonce)
+        
+        let appleIDProvider = ASAuthorizationAppleIDProvider()
+        let request = appleIDProvider.createRequest()
+        request.requestedScopes = [.fullName, .email]
+        request.nonce = hashedNonce
+        
+        let authorizationController = ASAuthorizationController(authorizationRequests: [request])
+        authorizationController.delegate = AppleSignInDelegate(
+            nonce: nonce,
+            onSuccess: { _ in
+                // Auth state will automatically update via the listener
+            },
+            onError: { error in
+                DispatchQueue.main.async {
+                    // Check if user canceled
+                    let nsError = error as NSError
+                    let errorDomain = nsError.domain
+                    let errorCode = nsError.code
+                    let errorDescription = nsError.localizedDescription.lowercased()
+                    
+                    let isCancelled = errorDomain == "com.apple.AuthenticationServices.AuthorizationError" && errorCode == 1001
+                        || errorDomain.contains("AuthenticationServices") && (errorCode == 1001 || errorCode == -1001)
+                        || errorDescription.contains("cancel") || errorDescription.contains("cancelled") || errorDescription.contains("user canceled")
+                    
+                    if !isCancelled {
+                        // Check for Bundle ID mismatch error
+                        if errorDescription.contains("audience") && errorDescription.contains("does not match") {
+                            errorMessage = "Bundle ID configuration mismatch. Please check Firebase Console settings."
+                        } else {
+                            errorMessage = error.localizedDescription
+                        }
+                        showErrorMessage = true
+                        
+                        // Hide error message after 3 seconds
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                            showErrorMessage = false
+                        }
+                    }
+                }
+            }
+        )
+        authorizationController.presentationContextProvider = AppleSignInPresentationContextProvider()
+        authorizationController.performRequests()
     }
     
     private func signInWithGoogle() {
@@ -274,6 +327,7 @@ private let samplePrivacy = """
 Your Privacy Policy content goes here.
 Describe data collection, usage, and retention.
 """
+
 
 #Preview {
     RegisterView()

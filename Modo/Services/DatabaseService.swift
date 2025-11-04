@@ -12,8 +12,31 @@ final class DatabaseService {
     
     private init() {
         // Enable offline persistence BEFORE creating any database reference
+        // When enabled, Firebase Realtime Database will:
+        // 1. Store data locally on disk
+        // 2. Queue write operations when offline
+        // 3. Automatically sync when network is restored
+        // 4. Maintain local cache for read operations
         Database.database().isPersistenceEnabled = true
         self.db = Database.database().reference()
+        
+        // Monitor connection status for debugging
+        setupConnectionMonitoring()
+    }
+    
+    // MARK: - Connection Monitoring
+    
+    /// Monitor Firebase connection status
+    /// This helps track when data is being synced from offline queue
+    private func setupConnectionMonitoring() {
+        let connectedRef = Database.database().reference(withPath: ".info/connected")
+        connectedRef.observe(.value) { snapshot in
+            if let connected = snapshot.value as? Bool, connected {
+                print("✅ DatabaseService: Connected to Firebase - syncing offline changes")
+            } else {
+                print("⚠️ DatabaseService: Offline - writes will be queued and synced when online")
+            }
+        }
     }
     
     func saveUserProfile(_ profile: UserProfile, completion: ((Result<Void, Error>) -> Void)? = nil) {
