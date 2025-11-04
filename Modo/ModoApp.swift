@@ -15,6 +15,13 @@ struct ModoApp: App {
     init() {
         print("newest version")
         FirebaseApp.configure()
+        
+        // Configure URLCache for image caching
+        // Memory cache: 50MB, Disk cache: 100MB
+        let cacheSizeMemory = 50 * 1024 * 1024  // 50 MB
+        let cacheSizeDisk = 100 * 1024 * 1024   // 100 MB
+        let cache = URLCache(memoryCapacity: cacheSizeMemory, diskCapacity: cacheSizeDisk, diskPath: "image_cache")
+        URLCache.shared = cache
     }
     
     var sharedModelContainer: ModelContainer = {

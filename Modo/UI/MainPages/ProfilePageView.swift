@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import FirebaseAuth
+import FirebaseStorage
 import PhotosUI
 import UIKit
 
@@ -250,11 +251,28 @@ struct ProfilePageView: View {
     }
 
     private func applyDefaultAvatar(name: String) {
-        guard let profile = userProfile else { return }
+        guard let profile = userProfile, let userId = authService.currentUser?.uid else { return }
         profile.avatarName = name
+        // Clear uploaded photo URL so default avatar can be displayed
+        if profile.profileImageURL != nil {
+            profile.profileImageURL = nil
+            // Optionally delete the old photo from Storage to save space
+            deleteOldProfileImage(userId: userId)
+        }
         profile.updatedAt = Date()
         do { try modelContext.save() } catch { print("Save error: \(error.localizedDescription)") }
         DatabaseService.shared.saveUserProfile(profile) { _ in }
+    }
+    
+    private func deleteOldProfileImage(userId: String) {
+        let storageRef = Storage.storage().reference().child("users/\(userId)/profile.jpg")
+        storageRef.delete { error in
+            if let error = error {
+                print("⚠️ Failed to delete old profile image: \(error.localizedDescription)")
+            } else {
+                print("✅ Deleted old profile image from Storage")
+            }
+        }
     }
 
     private func handlePhotoPicked(item: PhotosPickerItem) async {
@@ -475,17 +493,21 @@ private struct ProfileHeaderView: View {
                 // Content image
                 Group {
                     if let urlString = profileImageURL, let url = URL(string: urlString) {
-                        AsyncImage(url: url) { phase in
-                            switch phase {
-                            case .success(let image):
-                                image.resizable().scaledToFill()
-                            case .empty:
-                                ProgressView()
-                            case .failure:
-                                Image(avatarName ?? "").resizable().scaledToFill()
-                            @unknown default:
-                                Image(systemName: "person.crop.circle.fill").resizable().scaledToFit().foregroundStyle(Color.gray.opacity(0.6))
-                            }
+                        // Use cached image with a neutral placeholder (not the default avatar)
+                        // This prevents showing default avatar when user has uploaded a custom image
+                        CachedAsyncImage(url: url) {
+                            // Use a subtle placeholder that matches the background, not the default avatar
+                            // This prevents the flash of default avatar when cached image loads
+                            Circle()
+                                .fill(Color(hexString: "E5E7EB"))
+                                .frame(width: 96, height: 96)
+                                .overlay(
+                                    Image(systemName: "person.crop.circle.fill")
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: 60, height: 60)
+                                        .foregroundStyle(Color.gray.opacity(0.4))
+                                )
                         }
                         .frame(width: 96, height: 96)
                         .clipShape(Circle())

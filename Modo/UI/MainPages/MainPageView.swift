@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 import FirebaseAuth
 import FirebaseDatabase
 
@@ -6,6 +7,7 @@ struct MainPageView: View {
     @Binding var selectedTab: Tab
     @EnvironmentObject var dailyCaloriesService: DailyCaloriesService
     @Environment(\.modelContext) private var modelContext
+    @Query private var profiles: [UserProfile]
     @State private var isShowingCalendar = false
     @State private var navigationPath = NavigationPath()
     @State private var midnightTimer: Timer? = nil
@@ -20,6 +22,12 @@ struct MainPageView: View {
     @State private var currentListenerDate: Date? = nil
     @State private var isListenerActive = false
     @State private var listenerUpdateTask: Task<Void, Never>? = nil
+    
+    // Get current user's profile for avatar
+    private var userProfile: UserProfile? {
+        guard let userId = Auth.auth().currentUser?.uid else { return nil }
+        return profiles.first { $0.userId == userId }
+    }
     
     // Can refactor this to different file to reuse struct
     struct TaskItem: Identifiable, Codable {
@@ -416,7 +424,9 @@ struct MainPageView: View {
                 VStack(spacing: 0) {
                     TopHeaderView(
                         isShowingCalendar: $isShowingCalendar,
-                        selectedDate: selectedDate
+                        selectedDate: selectedDate,
+                        avatarName: userProfile?.avatarName,
+                        profileImageURL: userProfile?.profileImageURL
                     )
                         .padding(.horizontal, 24)
                         .padding(.top, 12)
@@ -727,6 +737,14 @@ private enum TaskDetailDestination: Hashable {
 private struct TopHeaderView: View {
     @Binding var isShowingCalendar: Bool
     let selectedDate: Date
+    let avatarName: String?
+    let profileImageURL: String?
+    
+    private var fallbackAvatar: some View {
+        Text("A")
+            .font(.system(size: 16, weight: .semibold))
+            .foregroundColor(Color(hexString: "101828"))
+    }
     
     var body: some View {
         HStack(spacing: 12) {
@@ -739,9 +757,45 @@ private struct TopHeaderView: View {
                         .overlay(
                             Circle().stroke(Color(hexString: "E5E7EB"), lineWidth: 1)
                         )
-                    Text("A")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(Color(hexString: "101828"))
+                    
+                    // Display user avatar or default
+                    Group {
+                        if let urlString = profileImageURL, !urlString.isEmpty {
+                            if urlString.hasPrefix("http") || urlString.hasPrefix("https") {
+                                if let url = URL(string: urlString) {
+                                    // Use cached image with placeholder
+                                    CachedAsyncImage(url: url) {
+                                        // Placeholder: show default avatar or fallback
+                                        if let name = avatarName, !name.isEmpty, UIImage(named: name) != nil {
+                                            Image(name)
+                                                .resizable()
+                                                .scaledToFill()
+                                                .frame(width: 40, height: 40)
+                                                .clipShape(Circle())
+                                        } else {
+                                            fallbackAvatar
+                                                .frame(width: 40, height: 40)
+                                                .clipShape(Circle())
+                                        }
+                                    }
+                                    .frame(width: 40, height: 40)
+                                    .clipShape(Circle())
+                                } else {
+                                    fallbackAvatar
+                                }
+                            } else {
+                                fallbackAvatar
+                            }
+                        } else if let name = avatarName, !name.isEmpty, UIImage(named: name) != nil {
+                            Image(name)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 40, height: 40)
+                                .clipShape(Circle())
+                        } else {
+                            fallbackAvatar
+                        }
+                    }
                 }
             }
             .buttonStyle(PlainButtonStyle())
