@@ -4,19 +4,23 @@ import Foundation
 struct OpenAIConfig {
     
     static var apiKey: String {
-        // Priority 1: Read from environment variable (production)
-        if let key = ProcessInfo.processInfo.environment["OPENAI_API_KEY"] {
+        // Priority 1: Read from environment variable (production/CI)
+        if let key = ProcessInfo.processInfo.environment["OPENAI_API_KEY"], !key.isEmpty {
             return key
         }
         
         // Priority 2: Read from Info.plist
-        if let key = Bundle.main.object(forInfoDictionaryKey: "OPENAI_API_KEY") as? String {
+        if let key = Bundle.main.object(forInfoDictionaryKey: "OPENAI_API_KEY") as? String, !key.isEmpty {
             return key
         }
         
-        // Priority 3: Read from APIKeys.swift (development)
-        // This file is in .gitignore and will NOT be committed
+        // Priority 3: Read from APIKeys.swift (development only)
+        #if DEBUG
         return APIKeys.openAI
+        #else
+        // In production/CI without API key, return empty string
+        return ""
+        #endif
     }
     
     static let apiURL = "https://api.openai.com/v1/chat/completions"

@@ -61,13 +61,17 @@ jobs:
           </plist>
           EOF
 
+      - name: Setup OpenAI API Key from Secret
+        run: |
+          echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> $GITHUB_ENV
+
       - name: Start iOS Simulator
         run: |
           echo "Booting simulator..."
           xcrun simctl boot "iPhone 16" 2>/dev/null || echo "Simulator already booted"
           sleep 5
 
-      # 关键改动：使用 -skip-testing 跳过整个 ModoUITests target
+
       - name: Build and Test
         timeout-minutes: 20
         run: |
