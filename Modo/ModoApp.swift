@@ -9,6 +9,7 @@ struct ModoApp: App {
     @StateObject private var authService = AuthService.shared
     @StateObject private var userProgress = UserProgress()
     @StateObject private var dailyCaloriesService = DailyCaloriesService()
+    @StateObject private var userProfileService = UserProfileService()
     @State private var isEmailVerified = false
     @State private var verificationTimer: Timer?
     @State private var showAuthenticatedUI = false
@@ -93,6 +94,7 @@ struct ModoApp: App {
                                 .environmentObject(authService)
                                 .environmentObject(userProgress)
                                 .environmentObject(dailyCaloriesService)
+                                .environmentObject(userProfileService)
                                 .transition(.asymmetric(
                                     insertion: .opacity.combined(with: .scale(scale: 0.95)),
                                     removal: .opacity.combined(with: .scale(scale: 1.05))

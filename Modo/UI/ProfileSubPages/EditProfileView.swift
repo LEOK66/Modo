@@ -6,6 +6,7 @@ struct EditProfileView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthService
+    @EnvironmentObject var userProfileService: UserProfileService
     @Query private var profiles: [UserProfile]
 
     // Local editable states (initialized from existing profile)
@@ -29,8 +30,7 @@ struct EditProfileView: View {
     @State private var showTargetDaysError = false
 
     private var userProfile: UserProfile? {
-        guard let userId = authService.currentUser?.uid else { return nil }
-        return profiles.first { $0.userId == userId }
+        userProfileService.currentProfile
     }
     
     // MARK: - Helpers for recommendations
@@ -320,6 +320,9 @@ struct EditProfileView: View {
         do { try modelContext.save() } catch { print("Save error: \(error.localizedDescription)") }
 
         DatabaseService.shared.saveUserProfile(profile) { _ in }
+        
+        // Refresh the shared service
+        userProfileService.setProfile(profile)
 
         dismiss()
     }

@@ -10,8 +10,8 @@ struct ProfilePageView: View {
     @EnvironmentObject var authService: AuthService
     @EnvironmentObject var userProgress: UserProgress
     @EnvironmentObject var dailyCaloriesService: DailyCaloriesService
+    @EnvironmentObject var userProfileService: UserProfileService
     @Environment(\.modelContext) private var modelContext
-    @Query private var profiles: [UserProfile]
     
     @State private var showLogoutConfirmation = false
     @State private var username: String = "Modor"
@@ -31,11 +31,6 @@ struct ProfilePageView: View {
     private let databaseService = DatabaseService.shared
     private let progressService = ProgressCalculationService.shared
     
-    // Get current user's profile
-    private var userProfile: UserProfile? {
-        guard let userId = authService.currentUser?.uid else { return nil }
-        return profiles.first { $0.userId == userId }
-    }
     
     // Computed properties for display
     private var daysCompletedText: String {
@@ -46,7 +41,7 @@ struct ProfilePageView: View {
     }
     
     private var expectedCaloriesText: String {
-        guard let profile = userProfile else { return "-" }
+        guard let profile = userProfileService.currentProfile else { return "-" }
         
         // Check if we have data to calculate calories
         guard profile.hasDataForCaloriesCalculation() || profile.dailyCalories != nil else {
@@ -192,8 +187,8 @@ struct ProfilePageView: View {
                     daysCompletedText: daysCompletedText,
                     expectedCaloriesText: expectedCaloriesText,
                     currentlyCaloriesText: currentlyCaloriesText,
-                    avatarName: userProfile?.avatarName,
-                    profileImageURL: userProfile?.profileImageURL,
+                    avatarName: userProfileService.avatarName,
+                    profileImageURL: userProfileService.profileImageURL,
                     onEditUsername: {
                         tempUsername = username
                         showEditUsernameAlert = true
@@ -210,8 +205,6 @@ struct ProfilePageView: View {
     
     private var profileDataChangeModifier: some ViewModifier {
         ProfileDataChangeModifier(
-            profiles: profiles,
-            userProfile: userProfile,
             onAppear: {
                 ensureDefaultAvatarIfNeeded()
                 loadUserProfile()
@@ -284,7 +277,7 @@ struct ProfilePageView: View {
     }
 
     private func ensureDefaultAvatarIfNeeded() {
-        guard let profile = userProfile else { return }
+        guard let profile = userProfileService.currentProfile else { return }
         // If no uploaded photo and no default avatar, assign one
         if (profile.profileImageURL == nil || profile.profileImageURL?.isEmpty == true) &&
             (profile.avatarName == nil || profile.avatarName?.isEmpty == true) {
@@ -293,12 +286,14 @@ struct ProfilePageView: View {
                 profile.updatedAt = Date()
                 do { try modelContext.save() } catch { print("Save error: \(error.localizedDescription)") }
                 DatabaseService.shared.saveUserProfile(profile) { _ in }
+                // Refresh the shared service
+                userProfileService.setProfile(profile)
             }
         }
     }
 
     private func applyDefaultAvatar(name: String) {
-        guard let profile = userProfile, let userId = authService.currentUser?.uid else { return }
+        guard let profile = userProfileService.currentProfile, let userId = authService.currentUser?.uid else { return }
         profile.avatarName = name
         // Clear uploaded photo URL so default avatar can be displayed
         if profile.profileImageURL != nil {
@@ -309,6 +304,8 @@ struct ProfilePageView: View {
         profile.updatedAt = Date()
         do { try modelContext.save() } catch { print("Save error: \(error.localizedDescription)") }
         DatabaseService.shared.saveUserProfile(profile) { _ in }
+        // Refresh the shared service
+        userProfileService.setProfile(profile)
     }
     
     private func deleteOldProfileImage(userId: String) {
@@ -323,7 +320,7 @@ struct ProfilePageView: View {
     }
 
     private func handlePhotoPicked(item: PhotosPickerItem) async {
-        guard let profile = userProfile, let userId = authService.currentUser?.uid else { return }
+        guard let profile = userProfileService.currentProfile, let userId = authService.currentUser?.uid else { return }
         do {
             if let data = try await item.loadTransferable(type: Data.self), let image = UIImage(data: data) {
                 print("📸 Loaded photo from picker, size: \(data.count) bytes")
@@ -335,6 +332,8 @@ struct ProfilePageView: View {
                             profile.updatedAt = Date()
                             do { try? modelContext.save() }
                             DatabaseService.shared.saveUserProfile(profile) { _ in }
+                            // Refresh the shared service
+                            userProfileService.setProfile(profile)
                         }
                     case .failure(let error):
                         print("❌ Upload failed: \(error.localizedDescription)")
@@ -356,7 +355,7 @@ struct ProfilePageView: View {
     }
     
     private func loadProgressData() {
-        guard let profile = userProfile else {
+        guard let profile = userProfileService.currentProfile else {
             if progressData != (0.0, 0, 0) || userProgress.progressPercent != 0.0 {
                 DispatchQueue.main.async {
                     self.progressData = (0.0, 0, 0)
@@ -411,8 +410,7 @@ struct ProfilePageView: View {
 // MARK: - View Modifiers
 
 private struct ProfileDataChangeModifier: ViewModifier {
-    let profiles: [UserProfile]
-    let userProfile: UserProfile?
+    @EnvironmentObject var userProfileService: UserProfileService
     let onAppear: () -> Void
     let onDataChange: () -> Void
     
@@ -421,57 +419,44 @@ private struct ProfileDataChangeModifier: ViewModifier {
             .onAppear {
                 onAppear()
             }
-            .modifier(ProfilesChangeModifier(profiles: profiles, onDataChange: onDataChange))
-            .modifier(UserProfileChangeModifier(userProfile: userProfile, onDataChange: onDataChange))
-    }
-}
-
-private struct ProfilesChangeModifier: ViewModifier {
-    let profiles: [UserProfile]
-    let onDataChange: () -> Void
-    
-    func body(content: Content) -> some View {
-        content
-            .onChange(of: profiles.count) { _, _ in
-                onDataChange()
-            }
+            .modifier(UserProfileChangeModifier(onDataChange: onDataChange))
     }
 }
 
 private struct UserProfileChangeModifier: ViewModifier {
-    let userProfile: UserProfile?
+    @EnvironmentObject var userProfileService: UserProfileService
     let onDataChange: () -> Void
     
     func body(content: Content) -> some View {
         content
-            .onChange(of: userProfile?.goalStartDate) { oldValue, newValue in
-                guard userProfile != nil, oldValue != newValue else { return }
+            .onChange(of: userProfileService.currentProfile?.goalStartDate) { oldValue, newValue in
+                guard userProfileService.currentProfile != nil, oldValue != newValue else { return }
                 onDataChange()
             }
-            .onChange(of: userProfile?.targetDays) { oldValue, newValue in
-                guard userProfile != nil, oldValue != newValue else { return }
+            .onChange(of: userProfileService.currentProfile?.targetDays) { oldValue, newValue in
+                guard userProfileService.currentProfile != nil, oldValue != newValue else { return }
                 onDataChange()
             }
-            .onChange(of: userProfile?.goal) { _, _ in
+            .onChange(of: userProfileService.currentProfile?.goal) { _, _ in
                 onDataChange()
             }
-            .modifier(ProfileMetricsChangeModifier(userProfile: userProfile, onDataChange: onDataChange))
+            .modifier(ProfileMetricsChangeModifier(onDataChange: onDataChange))
     }
 }
 
 private struct ProfileMetricsChangeModifier: ViewModifier {
-    let userProfile: UserProfile?
+    @EnvironmentObject var userProfileService: UserProfileService
     let onDataChange: () -> Void
     
     func body(content: Content) -> some View {
         content
-            .onChange(of: userProfile?.heightValue) { _, _ in
+            .onChange(of: userProfileService.currentProfile?.heightValue) { _, _ in
                 onDataChange()
             }
-            .onChange(of: userProfile?.weightValue) { _, _ in
+            .onChange(of: userProfileService.currentProfile?.weightValue) { _, _ in
                 onDataChange()
             }
-            .onChange(of: userProfile?.dailyCalories) { _, _ in
+            .onChange(of: userProfileService.currentProfile?.dailyCalories) { _, _ in
                 onDataChange()
             }
     }

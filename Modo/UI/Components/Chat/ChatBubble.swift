@@ -4,6 +4,15 @@ struct ChatBubble: View {
     let message: FirebaseChatMessage
     var onAccept: ((FirebaseChatMessage) -> Void)?
     var onReject: ((FirebaseChatMessage) -> Void)?
+    @EnvironmentObject var userProfileService: UserProfileService
+    
+    // Allow override for testing or specific cases
+    var avatarName: String? {
+        userProfileService.avatarName
+    }
+    var profileImageURL: String? {
+        userProfileService.profileImageURL
+    }
     
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -39,6 +48,57 @@ struct ChatBubble: View {
         }
     }
     
+    // MARK: - User Avatar
+    private var userAvatarView: some View {
+        ZStack {
+            Circle()
+                .fill(Color(hexString: "8B5CF6").opacity(0.3))
+                .frame(width: 36, height: 36)
+            
+            Group {
+                if let urlString = profileImageURL, !urlString.isEmpty {
+                    if urlString.hasPrefix("http") || urlString.hasPrefix("https") {
+                        if let url = URL(string: urlString) {
+                            // Use cached image with placeholder
+                            CachedAsyncImage(url: url) {
+                                // Placeholder: show default avatar or fallback
+                                if let name = avatarName, !name.isEmpty, UIImage(named: name) != nil {
+                                    Image(name)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 36, height: 36)
+                                        .clipShape(Circle())
+                                } else {
+                                    fallbackAvatar
+                                }
+                            }
+                            .frame(width: 36, height: 36)
+                            .clipShape(Circle())
+                        } else {
+                            fallbackAvatar
+                        }
+                    } else {
+                        fallbackAvatar
+                    }
+                } else if let name = avatarName, !name.isEmpty, UIImage(named: name) != nil {
+                    Image(name)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 36, height: 36)
+                        .clipShape(Circle())
+                } else {
+                    fallbackAvatar
+                }
+            }
+        }
+    }
+    
+    private var fallbackAvatar: some View {
+        Image(systemName: "person.fill")
+            .font(.system(size: 18))
+            .foregroundColor(Color(hexString: "8B5CF6"))
+    }
+    
     // MARK: - User Message
     private var userMessageView: some View {
         VStack(alignment: .trailing, spacing: 4) {
@@ -52,15 +112,8 @@ struct ChatBubble: View {
                     .cornerRadius(20)
                     .frame(maxWidth: 260, alignment: .trailing)
                 
-                // User avatar placeholder
-                Circle()
-                    .fill(Color(hexString: "8B5CF6").opacity(0.3))
-                    .frame(width: 36, height: 36)
-                    .overlay(
-                        Image(systemName: "person.fill")
-                            .font(.system(size: 18))
-                            .foregroundColor(Color(hexString: "8B5CF6"))
-                    )
+                // User avatar
+                userAvatarView
             }
             
             // Timestamp

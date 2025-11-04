@@ -6,8 +6,8 @@ import FirebaseDatabase
 struct MainPageView: View {
     @Binding var selectedTab: Tab
     @EnvironmentObject var dailyCaloriesService: DailyCaloriesService
+    @EnvironmentObject var userProfileService: UserProfileService
     @Environment(\.modelContext) private var modelContext
-    @Query private var profiles: [UserProfile]
     @State private var isShowingCalendar = false
     @State private var navigationPath = NavigationPath()
     @State private var midnightTimer: Timer? = nil
@@ -24,11 +24,6 @@ struct MainPageView: View {
     @State private var isListenerActive = false
     @State private var listenerUpdateTask: Task<Void, Never>? = nil
     
-    // Get current user's profile for avatar
-    private var userProfile: UserProfile? {
-        guard let userId = Auth.auth().currentUser?.uid else { return nil }
-        return profiles.first { $0.userId == userId }
-    }
     
     // Can refactor this to different file to reuse struct
     struct TaskItem: Identifiable, Codable {
@@ -908,9 +903,7 @@ struct MainPageView: View {
                     TopHeaderView(
                         isShowingCalendar: $isShowingCalendar,
                         isShowingProfile: $isShowingProfile,
-                        selectedDate: selectedDate,
-                        avatarName: userProfile?.avatarName,
-                        profileImageURL: userProfile?.profileImageURL
+                        selectedDate: selectedDate
                     )
                         .padding(.horizontal, 24)
                         .padding(.top, 12)
@@ -959,7 +952,8 @@ struct MainPageView: View {
                     CalendarPopupView(
                         showCalendar: $isShowingCalendar,
                         selectedDate: $selectedDate,
-                        dateRange: dateRange
+                        dateRange: dateRange,
+                        tasksByDate: tasksByDate
                     )
                         .transition(.scale.combined(with: .opacity))
                 }
@@ -1266,8 +1260,7 @@ private struct TopHeaderView: View {
     @Binding var isShowingCalendar: Bool
     @Binding var isShowingProfile: Bool
     let selectedDate: Date
-    let avatarName: String?
-    let profileImageURL: String?
+    @EnvironmentObject var userProfileService: UserProfileService
     
     private var fallbackAvatar: some View {
         Text("A")
@@ -1293,13 +1286,13 @@ private struct TopHeaderView: View {
                     
                     // Display user avatar or default
                     Group {
-                        if let urlString = profileImageURL, !urlString.isEmpty {
+                        if let urlString = userProfileService.profileImageURL, !urlString.isEmpty {
                             if urlString.hasPrefix("http") || urlString.hasPrefix("https") {
                                 if let url = URL(string: urlString) {
                                     // Use cached image with placeholder
                                     CachedAsyncImage(url: url) {
                                         // Placeholder: show default avatar or fallback
-                                        if let name = avatarName, !name.isEmpty, UIImage(named: name) != nil {
+                                        if let name = userProfileService.avatarName, !name.isEmpty, UIImage(named: name) != nil {
                                             Image(name)
                                                 .resizable()
                                                 .scaledToFill()
@@ -1319,7 +1312,7 @@ private struct TopHeaderView: View {
                             } else {
                                 fallbackAvatar
                             }
-                        } else if let name = avatarName, !name.isEmpty, UIImage(named: name) != nil {
+                        } else if let name = userProfileService.avatarName, !name.isEmpty, UIImage(named: name) != nil {
                             Image(name)
                                 .resizable()
                                 .scaledToFill()

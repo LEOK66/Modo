@@ -17,12 +17,8 @@ struct InsightsPageView: View {
     @FocusState private var isInputFocused: Bool  // Control input field focus
     @State private var keyboardShowObserver: NSObjectProtocol?
     @State private var keyboardHideObserver: NSObjectProtocol?
-    @Query private var userProfiles: [UserProfile]
+    @EnvironmentObject var userProfileService: UserProfileService
     @Environment(\.modelContext) private var modelContext
-    
-    private var currentUserProfile: UserProfile? {
-        userProfiles.first
-    }
     
     // Callback to notify MainPageView about task creation
     var onWorkoutPlanAccepted: ((Date, String, [WorkoutPlanData.Exercise]) -> Void)?
@@ -53,7 +49,7 @@ struct InsightsPageView: View {
             }
         }
         .onAppear {
-            coachService.loadHistory(from: modelContext, userProfile: currentUserProfile)
+            coachService.loadHistory(from: modelContext, userProfile: userProfileService.currentProfile)
             setupKeyboardObservers()
         }
         .onDisappear {
@@ -120,7 +116,7 @@ struct InsightsPageView: View {
         
         // Send to OpenAI Vision API for food analysis
         Task {
-            await coachService.analyzeFoodImage(base64Image: base64String, userProfile: currentUserProfile)
+            await coachService.analyzeFoodImage(base64Image: base64String, userProfile: userProfileService.currentProfile)
         }
     }
     
@@ -128,7 +124,7 @@ struct InsightsPageView: View {
     private func sendMessage() {
         guard !inputText.isEmpty else { return }
         
-        coachService.sendMessage(inputText, userProfile: currentUserProfile)
+        coachService.sendMessage(inputText, userProfile: userProfileService.currentProfile)
         inputText = ""
         // Keep keyboard open after sending message
     }
@@ -248,7 +244,7 @@ struct InsightsPageView: View {
         
         aiTaskGenerator.generateWorkoutTask(
             for: date,
-            userProfile: currentUserProfile
+            userProfile: userProfileService.currentProfile
         ) { result in
             DispatchQueue.main.async {
                 switch result {
@@ -274,7 +270,7 @@ struct InsightsPageView: View {
         aiTaskGenerator.generateSpecificNutritionTasks(
             ["breakfast", "lunch", "dinner"],
             for: date,
-            userProfile: currentUserProfile
+            userProfile: userProfileService.currentProfile
         ) { result in
             DispatchQueue.main.async {
                 switch result {

@@ -4,16 +4,18 @@ struct CalendarPopupView: View {
     @Binding var showCalendar: Bool
     @Binding var selectedDate: Date
     let dateRange: (min: Date, max: Date)
+    let tasksByDate: [Date: [MainPageView.TaskItem]]
 
     @State private var currentMonth: Date = Date()
     @State private var selectedDay: Int? = nil
 
     private let weekSymbols = ["Su","Mo","Tu","We","Th","Fr","Sa"]
     
-    init(showCalendar: Binding<Bool>, selectedDate: Binding<Date>, dateRange: (min: Date, max: Date)) {
+    init(showCalendar: Binding<Bool>, selectedDate: Binding<Date>, dateRange: (min: Date, max: Date), tasksByDate: [Date: [MainPageView.TaskItem]] = [:]) {
         self._showCalendar = showCalendar
         self._selectedDate = selectedDate
         self.dateRange = dateRange
+        self.tasksByDate = tasksByDate
         // Initialize currentMonth to selectedDate's month
         self._currentMonth = State(initialValue: selectedDate.wrappedValue)
     }
@@ -29,7 +31,8 @@ struct CalendarPopupView: View {
             DaysGridView(
                 selectedDay: $selectedDay,
                 currentMonth: $currentMonth,
-                dateRange: dateRange
+                dateRange: dateRange,
+                tasksByDate: tasksByDate
             )
 
             Spacer(minLength: 0)
@@ -212,6 +215,7 @@ private struct DaysGridView: View {
     @Binding var selectedDay: Int?
     @Binding var currentMonth: Date
     let dateRange: (min: Date, max: Date)
+    let tasksByDate: [Date: [MainPageView.TaskItem]]
 
     private let columns = Array(repeating: GridItem(.fixed(36.57), spacing: 6), count: 7)
     private let calendar = Calendar.current
@@ -227,6 +231,8 @@ private struct DaysGridView: View {
                 if let day = days[index] {
                     let dayDate = buildDate(day: day, month: currentMonth)
                     let isSelectable = isDateSelectable(day: day, in: currentMonth)
+                    let normalizedDate = calendar.startOfDay(for: dayDate)
+                    let hasUncompletedTasks = hasUncompletedTasks(for: normalizedDate)
                     
                     DayCell(
                         number: day,
@@ -235,7 +241,8 @@ private struct DaysGridView: View {
                                       currentMonthComponents.month == todayComponents.month &&
                                       day == todayComponents.day,
                         isFilledBlack: day == selectedDay,
-                        isDisabled: !isSelectable
+                        isDisabled: !isSelectable,
+                        hasUncompletedTasks: hasUncompletedTasks
                     )
                     .onTapGesture {
                         if isSelectable {
@@ -280,6 +287,13 @@ private struct DaysGridView: View {
         let normalizedDate = calendar.startOfDay(for: dayDate)
         return normalizedDate >= dateRange.min && normalizedDate <= dateRange.max
     }
+    
+    // Check if a date has uncompleted tasks
+    private func hasUncompletedTasks(for date: Date) -> Bool {
+        let normalizedDate = calendar.startOfDay(for: date)
+        guard let tasks = tasksByDate[normalizedDate] else { return false }
+        return tasks.contains { !$0.isDone }
+    }
 }
 
 // MARK: - Day Cell
@@ -289,6 +303,7 @@ private struct DayCell: View {
     let isFilledGray: Bool
     let isFilledBlack: Bool
     let isDisabled: Bool
+    let hasUncompletedTasks: Bool
 
     private var bgColor: Color {
         if isFilledBlack { return .black }
@@ -302,6 +317,14 @@ private struct DayCell: View {
         }
         return isFilledBlack ? .white : Color(hex: 0x364153)
     }
+    
+    private var dotColor: Color {
+        // Use gray color that works on both light and dark backgrounds
+        if isFilledBlack {
+            return Color(hex: 0x9CA3AF) // Lighter gray for black background
+        }
+        return Color(hex: 0x6B7280) // Darker gray for light background
+    }
 
     var body: some View {
         ZStack {
@@ -312,6 +335,15 @@ private struct DayCell: View {
                 .foregroundColor(fgColor)
         }
         .frame(width: 36.57, height: 36.57)
+        .overlay(alignment: .bottom) {
+            // Indicator dot for uncompleted tasks
+            if hasUncompletedTasks {
+                Circle()
+                    .fill(dotColor)
+                    .frame(width: 4, height: 4)
+                    .offset(y: 8) // Position dot slightly below the cell with more spacing
+            }
+        }
     }
 }
 
