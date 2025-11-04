@@ -12,6 +12,11 @@ struct InsightsPageView: View {
     @State private var selectedImage: UIImage?
     @State private var showTaskCreatedToast = false
     @State private var sentTaskIds: Set<String> = []  // Track sent tasks to prevent duplicates
+    @State private var dragStartLocation: CGPoint? = nil  // Track drag start location for edge detection
+    @State private var keyboardHeight: CGFloat = 0  // Track keyboard height
+    @FocusState private var isInputFocused: Bool  // Control input field focus
+    @State private var keyboardShowObserver: NSObjectProtocol?
+    @State private var keyboardHideObserver: NSObjectProtocol?
     @Query private var userProfiles: [UserProfile]
     @Environment(\.modelContext) private var modelContext
     
@@ -28,10 +33,19 @@ struct InsightsPageView: View {
             Divider().background(Color(hexString: "E5E7EB"))
             FirebaseChatMessagesView
             inputFieldView
-            BottomBar(selectedTab: $selectedTab)
+            if keyboardHeight == 0 {
+                BottomBar(selectedTab: $selectedTab)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
+        .animation(.easeOut(duration: 0.3), value: keyboardHeight)
         .background(Color(hexString: "F9FAFB").ignoresSafeArea())
         .onTapGesture {
+            // Dismiss keyboard when tapping outside input field
+            if isInputFocused {
+                isInputFocused = false
+            }
+            // Dismiss attachment menu
             if showAttachmentMenu {
                 withAnimation {
                     showAttachmentMenu = false
@@ -40,6 +54,10 @@ struct InsightsPageView: View {
         }
         .onAppear {
             coachService.loadHistory(from: modelContext, userProfile: currentUserProfile)
+            setupKeyboardObservers()
+        }
+        .onDisappear {
+            removeKeyboardObservers()
         }
         .sheet(isPresented: $showPhotoPicker) {
             PhotoPicker(selectedImage: $selectedImage)
@@ -58,6 +76,36 @@ struct InsightsPageView: View {
         } message: {
             Text("Are you sure you want to clear all chat history? This action cannot be undone.")
         }
+        .gesture(
+            DragGesture(minimumDistance: 10)
+                .onChanged { value in
+                    // Track the start location when drag begins
+                    if dragStartLocation == nil {
+                        dragStartLocation = value.startLocation
+                    }
+                }
+                .onEnded { value in
+                    defer {
+                        // Reset drag start location
+                        dragStartLocation = nil
+                    }
+                    
+                    let horizontalAmount = value.translation.width
+                    let verticalAmount = value.translation.height
+                    let startX = dragStartLocation?.x ?? value.startLocation.x
+                    
+                    // Only handle horizontal swipes (ignore vertical)
+                    // Check if swipe starts from left edge (within 20 points) to avoid conflicts with ScrollView
+                    if abs(horizontalAmount) > abs(verticalAmount) && startX < 20 {
+                        if horizontalAmount > 50 {
+                            // Swipe from left to right: go back to main page
+                            withAnimation {
+                                selectedTab = .todos
+                            }
+                        }
+                    }
+                }
+        )
     }
     
     // MARK: - Handle Image Selection
@@ -82,6 +130,56 @@ struct InsightsPageView: View {
         
         coachService.sendMessage(inputText, userProfile: currentUserProfile)
         inputText = ""
+        // Keep keyboard open after sending message
+    }
+    
+    // MARK: - Scroll to Bottom
+    private func scrollToBottom(proxy: ScrollViewProxy) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            if let lastMessage = coachService.messages.last {
+                withAnimation(.easeOut(duration: 0.3)) {
+                    proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                }
+            } else if coachService.isProcessing {
+                withAnimation(.easeOut(duration: 0.3)) {
+                    proxy.scrollTo("loading", anchor: .bottom)
+                }
+            }
+        }
+    }
+    
+    // MARK: - Keyboard Observers
+    private func setupKeyboardObservers() {
+        keyboardShowObserver = NotificationCenter.default.addObserver(
+            forName: UIResponder.keyboardWillShowNotification,
+            object: nil,
+            queue: .main
+        ) { notification in
+            if let keyboardFrame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect {
+                withAnimation(.easeOut(duration: 0.3)) {
+                    self.keyboardHeight = keyboardFrame.height
+                }
+            }
+        }
+        
+        keyboardHideObserver = NotificationCenter.default.addObserver(
+            forName: UIResponder.keyboardWillHideNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            withAnimation(.easeOut(duration: 0.3)) {
+                self.keyboardHeight = 0
+            }
+        }
+    }
+    
+    private func removeKeyboardObservers() {
+        if let showObserver = keyboardShowObserver {
+            NotificationCenter.default.removeObserver(showObserver)
+        }
+        if let hideObserver = keyboardHideObserver {
+            NotificationCenter.default.removeObserver(hideObserver)
+        }
     }
     
     // MARK: - Handle Accept with Unified AI Generator (NEW)
@@ -464,7 +562,7 @@ struct InsightsPageView: View {
         ZStack {
             // Center content
             VStack(spacing: 2) {
-                Text("Moder")
+                Text("Modor")
                     .font(.system(size: 22, weight: .bold))
                     .foregroundColor(Color(hexString: "101828"))
                 Text("Your wellness assistant")
@@ -540,13 +638,11 @@ struct InsightsPageView: View {
                     }
                 }
                 .padding(.vertical, 16)
+                .padding(.bottom, keyboardHeight > 0 ? max(0, keyboardHeight - 80) : 0)  // Adjust for keyboard, subtract input field (~80) height (BottomBar is hidden when keyboard is shown)
             }
             .onChange(of: coachService.messages.count) { _, _ in
-                if let lastMessage = coachService.messages.last {
-                    withAnimation {
-                        proxy.scrollTo(lastMessage.id, anchor: .bottom)
-                    }
-                }
+                // Scroll to latest message when new message arrives
+                scrollToBottom(proxy: proxy)
             }
             .onChange(of: coachService.isProcessing) { _, isProcessing in
                 if isProcessing {
@@ -555,6 +651,21 @@ struct InsightsPageView: View {
                     }
                 }
             }
+            .onChange(of: keyboardHeight) { _, _ in
+                // Scroll to bottom when keyboard appears
+                if keyboardHeight > 0 {
+                    scrollToBottom(proxy: proxy)
+                }
+            }
+            .simultaneousGesture(
+                TapGesture()
+                    .onEnded { _ in
+                        // Dismiss keyboard when tapping on message area
+                        if isInputFocused {
+                            isInputFocused = false
+                        }
+                    }
+            )
         }
         .background(Color.white)
     }
@@ -616,6 +727,7 @@ struct InsightsPageView: View {
                         placeholder: "Ask questions or add photos...",
                         text: $inputText
                     )
+                    .focused($isInputFocused)
 
                     Button(action: sendMessage) {
                         Image(systemName: "paperplane.fill")

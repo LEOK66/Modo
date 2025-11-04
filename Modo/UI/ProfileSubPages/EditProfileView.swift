@@ -24,6 +24,8 @@ struct EditProfileView: View {
     @State private var targetDays: String = ""
 
     // Validation flags (lightweight)
+    @State private var showHeightError = false
+    @State private var showWeightError = false
     @State private var showTargetDaysError = false
 
     private var userProfile: UserProfile? {
@@ -54,9 +56,9 @@ struct EditProfileView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section(header: Text("Body Metrics")) {
+        Form {
+            Section(header: Text("Body Metrics")) {
+                VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text("Height")
                         Spacer()
@@ -69,6 +71,28 @@ struct EditProfileView: View {
                         }
                         .pickerStyle(.menu)
                     }
+                    .onChange(of: heightValue) {
+                        if !heightValue.isEmpty {
+                            showHeightError = !heightValue.isValidHeight(unit: heightUnit)
+                        } else {
+                            showHeightError = false
+                        }
+                    }
+                    .onChange(of: heightUnit) {
+                        if !heightValue.isEmpty {
+                            showHeightError = !heightValue.isValidHeight(unit: heightUnit)
+                        } else {
+                            showHeightError = false
+                        }
+                    }
+                    if showHeightError {
+                        let range = heightUnit == "cm" ? "50-250" : "20-96"
+                        Text("Please enter a valid height (\(range) \(heightUnit))")
+                            .font(.footnote)
+                            .foregroundColor(.red)
+                    }
+                }
+                VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text("Weight")
                         Spacer()
@@ -81,125 +105,145 @@ struct EditProfileView: View {
                         }
                         .pickerStyle(.menu)
                     }
-                    HStack {
-                        Text("Age")
-                        Spacer()
-                        TextField("-", text: $ageValue)
-                            .keyboardType(.numberPad)
-                            .multilineTextAlignment(.trailing)
-                    }
-                }
-
-                Section(header: Text("Basics")) {
-                    Picker("Gender", selection: Binding(get: { genderCode ?? "" }, set: { genderCode = $0.isEmpty ? nil : $0 })) {
-                        Text("-").tag("")
-                        Text("Male").tag("male")
-                        Text("Female").tag("female")
-                        Text("Other").tag("other")
-                    }
-                    Picker("Lifestyle", selection: Binding(get: { lifestyleCode ?? "" }, set: { lifestyleCode = $0.isEmpty ? nil : $0 })) {
-                        Text("-").tag("")
-                        Text("Sedentary").tag("sedentary")
-                        Text("Moderately Active").tag("moderately_active")
-                        Text("Athletic").tag("athletic")
-                    }
-                }
-
-                Section(header: Text("Goal")) {
-                    Picker("Type", selection: Binding(get: { goalCode ?? "" }, set: { goalCode = $0.isEmpty ? nil : $0 })) {
-                        Text("-").tag("")
-                        Text("Lose Weight").tag("lose_weight")
-                        Text("Keep Healthy").tag("keep_healthy")
-                        Text("Gain Muscle").tag("gain_muscle")
-                    }
-                    if goalCode == "lose_weight" {
-                        HStack {
-                            Text("Target Loss")
-                            Spacer()
-                            TextField("-", text: $targetWeightLoss)
-                                .keyboardType(.decimalPad)
-                                .multilineTextAlignment(.trailing)
-                            Picker("Unit", selection: $targetWeightLossUnit) {
-                                Text("kg").tag("kg")
-                                Text("lb").tag("lb")
-                            }
-                            .pickerStyle(.menu)
-                        }
-                    } else if goalCode == "keep_healthy" {
-                        HStack {
-                            Text("Daily Calories")
-                            Spacer()
-                            TextField("-", text: $dailyCalories)
-                                .keyboardType(.numberPad)
-                                .multilineTextAlignment(.trailing)
-                            Text("kcal")
-                        }
-                        if let rec = recommendedCaloriesValue() {
-                            HStack {
-                                Text("Recommended")
-                                Spacer()
-                                Text("\(rec) kcal").foregroundColor(.secondary)
-                                Button("Use") { dailyCalories = String(rec) }
-                            }
-                        }
-                    } else if goalCode == "gain_muscle" {
-                        HStack {
-                            Text("Daily Protein")
-                            Spacer()
-                            TextField("-", text: $dailyProtein)
-                                .keyboardType(.numberPad)
-                                .multilineTextAlignment(.trailing)
-                            Text("g")
-                        }
-                        if let rec = recommendedProteinValue() {
-                            HStack {
-                                Text("Recommended")
-                                Spacer()
-                                Text("\(rec) g").foregroundColor(.secondary)
-                                Button("Use") { dailyProtein = String(rec) }
-                            }
+                    .onChange(of: weightValue) {
+                        if !weightValue.isEmpty {
+                            showWeightError = !weightValue.isValidWeight(unit: weightUnit)
+                        } else {
+                            showWeightError = false
                         }
                     }
-                    HStack {
-                        Text("Target Days")
-                        Spacer()
-                        TextField("-", text: $targetDays)
-                            .keyboardType(.numberPad)
-                            .multilineTextAlignment(.trailing)
+                    .onChange(of: weightUnit) {
+                        if !weightValue.isEmpty {
+                            showWeightError = !weightValue.isValidWeight(unit: weightUnit)
+                        } else {
+                            showWeightError = false
+                        }
                     }
-                    if showTargetDaysError {
-                        Text("Please enter 1-365 days")
+                    if showWeightError {
+                        let range = weightUnit == "kg" ? "20-500" : "44-1100"
+                        Text("Please enter a valid weight (\(range) \(weightUnit))")
                             .font(.footnote)
                             .foregroundColor(.red)
                     }
                 }
-            }
-            .navigationTitle("Edit Profile")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { saveChanges() }
+                HStack {
+                    Text("Age")
+                    Spacer()
+                    TextField("-", text: $ageValue)
+                        .keyboardType(.numberPad)
+                        .multilineTextAlignment(.trailing)
                 }
             }
-            .onAppear {
-                hydrateFromProfile()
-                // Prefill suggestions if empty
-                if goalCode == "keep_healthy", dailyCalories.isEmpty, let rec = recommendedCaloriesValue() {
-                    dailyCalories = String(rec)
+
+            Section(header: Text("Basics")) {
+                Picker("Gender", selection: Binding(get: { genderCode ?? "" }, set: { genderCode = $0.isEmpty ? nil : $0 })) {
+                    Text("-").tag("")
+                    Text("Male").tag("male")
+                    Text("Female").tag("female")
+                    Text("Other").tag("other")
                 }
-                if goalCode == "gain_muscle", dailyProtein.isEmpty, let rec = recommendedProteinValue() {
-                    dailyProtein = String(rec)
+                Picker("Lifestyle", selection: Binding(get: { lifestyleCode ?? "" }, set: { lifestyleCode = $0.isEmpty ? nil : $0 })) {
+                    Text("-").tag("")
+                    Text("Sedentary").tag("sedentary")
+                    Text("Moderately Active").tag("moderately_active")
+                    Text("Athletic").tag("athletic")
                 }
             }
-            .scrollContentBackground(.hidden)
-            .background(
-                Color.white
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+
+            Section(header: Text("Goal")) {
+                Picker("Type", selection: Binding(get: { goalCode ?? "" }, set: { goalCode = $0.isEmpty ? nil : $0 })) {
+                    Text("-").tag("")
+                    Text("Lose Weight").tag("lose_weight")
+                    Text("Keep Healthy").tag("keep_healthy")
+                    Text("Gain Muscle").tag("gain_muscle")
+                }
+                if goalCode == "lose_weight" {
+                    HStack {
+                        Text("Target Loss")
+                        Spacer()
+                        TextField("-", text: $targetWeightLoss)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                        Picker("Unit", selection: $targetWeightLossUnit) {
+                            Text("kg").tag("kg")
+                            Text("lb").tag("lb")
+                        }
+                        .pickerStyle(.menu)
                     }
-            )
+                } else if goalCode == "keep_healthy" {
+                    HStack {
+                        Text("Daily Calories")
+                        Spacer()
+                        TextField("-", text: $dailyCalories)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
+                        Text("kcal")
+                    }
+                    if let rec = recommendedCaloriesValue() {
+                        HStack {
+                            Text("Recommended")
+                            Spacer()
+                            Text("\(rec) kcal").foregroundColor(.secondary)
+                            Button("Use") { dailyCalories = String(rec) }
+                        }
+                    }
+                } else if goalCode == "gain_muscle" {
+                    HStack {
+                        Text("Daily Protein")
+                        Spacer()
+                        TextField("-", text: $dailyProtein)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
+                        Text("g")
+                    }
+                    if let rec = recommendedProteinValue() {
+                        HStack {
+                            Text("Recommended")
+                            Spacer()
+                            Text("\(rec) g").foregroundColor(.secondary)
+                            Button("Use") { dailyProtein = String(rec) }
+                        }
+                    }
+                }
+                HStack {
+                    Text("Target Days")
+                    Spacer()
+                    TextField("-", text: $targetDays)
+                        .keyboardType(.numberPad)
+                        .multilineTextAlignment(.trailing)
+                }
+                if showTargetDaysError {
+                    Text("Please enter 1-365 days")
+                        .font(.footnote)
+                        .foregroundColor(.red)
+                }
+            }
         }
+        .navigationTitle("Edit Profile")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Save") { saveChanges() }
+            }
+        }
+        .onAppear {
+            hydrateFromProfile()
+            // Prefill suggestions if empty
+            if goalCode == "keep_healthy", dailyCalories.isEmpty, let rec = recommendedCaloriesValue() {
+                dailyCalories = String(rec)
+            }
+            if goalCode == "gain_muscle", dailyProtein.isEmpty, let rec = recommendedProteinValue() {
+                dailyProtein = String(rec)
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .background(
+            Color.white
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                }
+        )
     }
 
     private func hydrateFromProfile() {
@@ -220,7 +264,19 @@ struct EditProfileView: View {
     }
 
     private func saveChanges() {
-        // Validate minimal risky fields
+        // Validate height if provided
+        if !heightValue.isEmpty {
+            showHeightError = !heightValue.isValidHeight(unit: heightUnit)
+            if showHeightError { return }
+        }
+        
+        // Validate weight if provided
+        if !weightValue.isEmpty {
+            showWeightError = !weightValue.isValidWeight(unit: weightUnit)
+            if showWeightError { return }
+        }
+        
+        // Validate target days if provided
         if !targetDays.isEmpty {
             let td = Int(targetDays) ?? 0
             showTargetDaysError = !(1...365).contains(td)
