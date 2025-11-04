@@ -83,9 +83,9 @@ struct ModoApp: App {
     var body: some Scene {
         WindowGroup {
             ZStack {
-                // Show authenticated UI if user is authenticated or if explicitly set
-                // This prevents showing login page when user is already logged in
-                if authService.isAuthenticated || showAuthenticatedUI {
+                // Show authenticated UI only if user is authenticated AND explicitly set
+                // This prevents showing authenticated views during logout transition
+                if authService.isAuthenticated && showAuthenticatedUI {
                     // Use cached verification status if available to prevent flashing
                     if emailVerified {
                         if authService.hasCompletedOnboarding {
@@ -153,10 +153,16 @@ struct ModoApp: App {
                     checkVerificationStatus()
                     
                 } else {
-                    // User logged out
+                    // User logged out - immediately hide authenticated UI to prevent flashing
                     showAuthenticatedUI = false
                     isEmailVerified = false
                     stopVerificationPolling()
+                }
+            }
+            .onChange(of: authService.hasCompletedOnboarding) { _, newValue in
+                // When onboarding status changes to false (during logout), ensure we don't show InfoGatheringView
+                if !newValue && !authService.isAuthenticated {
+                    showAuthenticatedUI = false
                 }
             }
             .task {
