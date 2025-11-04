@@ -177,9 +177,6 @@ struct EditProfileView: View {
             .navigationTitle("Edit Profile")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { saveChanges() }
                 }
@@ -194,6 +191,14 @@ struct EditProfileView: View {
                     dailyProtein = String(rec)
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(
+                Color.white
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                    }
+            )
         }
     }
 

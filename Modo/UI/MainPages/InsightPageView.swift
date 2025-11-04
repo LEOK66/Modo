@@ -53,7 +53,30 @@ struct InsightsPageView: View {
             // MARK: - Bottom Navigation Bar
             BottomBar(selectedTab: $selectedTab)
         }
-        .background(Color.white.ignoresSafeArea())
+        .background(
+            Color.white
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                }
+        )
+        .gesture(
+            DragGesture(minimumDistance: 50)
+                .onEnded { value in
+                    let horizontalAmount = value.translation.width
+                    let verticalAmount = value.translation.height
+                    
+                    // Only handle horizontal swipes (ignore vertical)
+                    // Swipe from left to right: go back to todos tab (main page)
+                    if abs(horizontalAmount) > abs(verticalAmount) && horizontalAmount > 0 {
+                        // Swipe from left to right: go back to todos tab
+                        withAnimation {
+                            selectedTab = .todos
+                        }
+                    }
+                }
+        )
     }
 }
 
