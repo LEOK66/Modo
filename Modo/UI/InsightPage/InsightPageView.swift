@@ -11,6 +11,7 @@ struct InsightsPageView: View {
     @State private var showPhotoPicker = false
     @State private var selectedImage: UIImage?
     @State private var showTaskCreatedToast = false
+    @State private var sentTaskIds: Set<String> = []  // Track sent tasks to prevent duplicates
     @Query private var userProfiles: [UserProfile]
     @Environment(\.modelContext) private var modelContext
     
@@ -85,7 +86,10 @@ struct InsightsPageView: View {
     
     // MARK: - Handle Accept with Unified AI Generator (NEW)
     private func handleAcceptWithAIGenerator(for message: ChatMessage) {
-        print("🎯 Accept button pressed - Using unified AITaskGenerator")
+        print("🎯 ========== ACCEPT BUTTON PRESSED ==========")
+        print("   Message ID: \(message.id)")
+        print("   Message content: \(message.content.prefix(100))")
+        print("   Using unified AITaskGenerator")
         
         let content = message.content.lowercased()
         
@@ -140,7 +144,9 @@ struct InsightsPageView: View {
     
     // MARK: - Handle Workout Generation
     private func handleWorkoutGeneration(for date: Date) {
-        print("🏋️ Generating workout task for \(date)")
+        print("🏋️ ========== GENERATING WORKOUT TASK ==========")
+        print("   Date: \(date)")
+        print("   Called from: \(Thread.callStackSymbols.prefix(5).joined(separator: "\n"))")
         
         aiTaskGenerator.generateWorkoutTask(
             for: date,
@@ -150,10 +156,11 @@ struct InsightsPageView: View {
                 switch result {
                 case .success(let aiTask):
                     print("   ✅ Workout task generated successfully")
+                    print("   Title: \(aiTask.title)")
+                    print("   Exercises: \(aiTask.exercises.count)")
                     self.addAIGeneratedTask(aiTask)
                 case .failure(let error):
                     print("   ❌ Failed to generate workout: \(error.localizedDescription)")
-                    // Fallback to old method if needed
                 }
             }
         }
@@ -161,7 +168,9 @@ struct InsightsPageView: View {
     
     // MARK: - Handle Nutrition Generation
     private func handleNutritionGeneration(for date: Date) {
-        print("🍽️ Generating nutrition tasks for \(date)")
+        print("🍽️ ========== GENERATING NUTRITION TASKS ==========")
+        print("   Date: \(date)")
+        print("   Called from: \(Thread.callStackSymbols.prefix(5).joined(separator: "\n"))")
         
         // Generate all 3 meals
         aiTaskGenerator.generateSpecificNutritionTasks(
@@ -173,7 +182,8 @@ struct InsightsPageView: View {
                 switch result {
                 case .success(let aiTasks):
                     print("   ✅ Generated \(aiTasks.count) nutrition tasks")
-                    for task in aiTasks {
+                    for (index, task) in aiTasks.enumerated() {
+                        print("   Task \(index + 1): \(task.title) - \(task.meals.first?.name ?? "N/A")")
                         self.addAIGeneratedTask(task)
                     }
                 case .failure(let error):
@@ -241,7 +251,20 @@ struct InsightsPageView: View {
     
     // MARK: - Add AI Generated Task (Unified Method)
     private func addAIGeneratedTask(_ aiTask: AIGeneratedTask) {
+        // Create unique ID for this task to prevent duplicates
+        let taskId = "\(aiTask.type)_\(aiTask.title)_\(aiTask.date.timeIntervalSince1970)"
+        
         print("➕ Adding AI generated task: \(aiTask.title) for \(aiTask.date)")
+        print("   Task ID: \(taskId)")
+        
+        // ✅ Check if this task was already sent
+        guard !sentTaskIds.contains(taskId) else {
+            print("   ⚠️ Task already sent, skipping to prevent duplicate: \(taskId)")
+            return
+        }
+        
+        // Mark as sent
+        sentTaskIds.insert(taskId)
         
         let calendar = Calendar.current
         let normalizedDate = calendar.startOfDay(for: aiTask.date)
@@ -484,9 +507,7 @@ struct InsightsPageView: View {
                                 
                                 // ✅ Mark as taken immediately and save to database
                                 msg.actionTaken = true
-                                if let context = modelContext {
-                                    try? context.save()
-                                }
+                                try? modelContext.save()
                                 
                                 handleAcceptWithAIGenerator(for: msg)
                                 
@@ -506,9 +527,7 @@ struct InsightsPageView: View {
                                 
                                 // ✅ Mark as taken and save
                                 msg.actionTaken = true
-                                if let context = modelContext {
-                                    try? context.save()
-                                }
+                                try? modelContext.save()
                                 
                                 coachService.rejectWorkoutPlan(for: msg)
                             }

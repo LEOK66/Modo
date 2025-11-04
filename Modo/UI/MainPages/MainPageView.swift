@@ -138,6 +138,8 @@ struct MainPageView: View {
     @State private var newlyAddedTaskId: UUID? = nil
     // CRITICAL FIX #3: Track if view is actually visible
     @State private var isViewVisible = false
+    // Track notification observer to prevent duplicates
+    @State private var notificationObserver: NSObjectProtocol? = nil
     
     // Date range: past 12 months to future 3 months
     private var dateRange: (min: Date, max: Date) {
@@ -394,19 +396,21 @@ struct MainPageView: View {
         print("🔔 MainPageView: Setting up workout task notification observer")
         
         // Remove existing observer first to prevent duplicates
-        NotificationCenter.default.removeObserver(
-            self,
-            name: NSNotification.Name("CreateWorkoutTask"),
-            object: nil
-        )
+        if let existingObserver = notificationObserver {
+            print("   🗑️ Removing existing observer")
+            NotificationCenter.default.removeObserver(existingObserver)
+            notificationObserver = nil
+        }
         
-        // Add new observer
-        NotificationCenter.default.addObserver(
+        // Add new observer and store the token
+        notificationObserver = NotificationCenter.default.addObserver(
             forName: NSNotification.Name("CreateWorkoutTask"),
             object: nil,
             queue: .main
         ) { notification in
-            print("📬 MainPageView: Received CreateWorkoutTask notification")
+            print("📬 ========== MainPageView: RECEIVED NOTIFICATION ==========")
+            print("   Notification object: \(String(describing: notification.object))")
+            print("   User info keys: \(notification.userInfo?.keys.map { String(describing: $0) } ?? [])")
             
             guard let userInfo = notification.userInfo,
                   let dateString = userInfo["date"] as? String,
@@ -988,12 +992,11 @@ struct MainPageView: View {
             stopCurrentListener()
             
             // Remove notification observer to prevent memory leaks and duplicates
-            print("🔕 MainPageView: Removing workout task notification observer")
-            NotificationCenter.default.removeObserver(
-                self,
-                name: NSNotification.Name("CreateWorkoutTask"),
-                object: nil
-            )
+            if let observer = notificationObserver {
+                print("🔕 MainPageView: Removing workout task notification observer")
+                NotificationCenter.default.removeObserver(observer)
+                notificationObserver = nil
+            }
             
             cancelMidnightSettlement()
         }
