@@ -1065,6 +1065,11 @@ struct MainPageView: View {
         let dateKey = calendar.startOfDay(for: task.timeDate)
         
         print("🗑️ MainPageView: Deleting task - Title: \"\(task.title)\", Date: \(dateKey), ID: \(task.id)")
+        
+        // If this is the daily challenge task, clear its linkage in the service
+        if task.isDailyChallenge {
+            DailyChallengeService.shared.handleChallengeTaskDeleted(taskId: task.id)
+        }
         // Suppress flicker from incoming stale payloads
         pendingDeletedTaskIds.insert(task.id)
         

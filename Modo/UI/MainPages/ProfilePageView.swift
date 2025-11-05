@@ -4,6 +4,8 @@ import FirebaseAuth
 import FirebaseStorage
 import PhotosUI
 import UIKit
+import AVFoundation
+import ImageIO
 
 struct ProfilePageView: View {
     @Binding var isPresented: Bool
@@ -22,6 +24,9 @@ struct ProfilePageView: View {
     @State private var showAvatarSheet = false
     @State private var showDefaultAvatarPicker = false
     @State private var photoPickerItem: PhotosPickerItem? = nil
+    @State private var showAvatarCropper = false
+    @State private var pickedUIImage: UIImage? = nil
+    @State private var showImageTooSmallAlert = false
     
     init(isPresented: Binding<Bool> = .constant(false)) {
         self._isPresented = isPresented
@@ -156,11 +161,28 @@ struct ProfilePageView: View {
                     showDefaultAvatarPicker = false
                 })
             }
+            .sheet(isPresented: $showAvatarCropper) {
+                if let uiImage = pickedUIImage {
+                    AvatarCropView(
+                        sourceImage: uiImage,
+                        onCancel: { showAvatarCropper = false },
+                        onConfirm: { cropped in
+                            showAvatarCropper = false
+                            Task { await uploadCroppedAvatar(cropped) }
+                        }
+                    )
+                }
+            }
             .onChange(of: photoPickerItem) { newItem in
                 guard let item = newItem else { return }
                 // Dismiss the action sheet for a smoother transition
                 showAvatarSheet = false
-                Task { await handlePhotoPicked(item: item) }
+                Task { await preparePickedPhotoForCropping(item: item) }
+            }
+            .alert("Image too small", isPresented: $showImageTooSmallAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("Please choose a higher-resolution image (at least 512×512).")
             }
             .gesture(
                 DragGesture(minimumDistance: 50)
@@ -440,35 +462,65 @@ struct ProfilePageView: View {
         }
     }
 
-    private func handlePhotoPicked(item: PhotosPickerItem) async {
-        guard let profile = userProfileService.currentProfile, let userId = authService.currentUser?.uid else { return }
+    private func preparePickedPhotoForCropping(item: PhotosPickerItem) async {
         do {
-            if let data = try await item.loadTransferable(type: Data.self), let image = UIImage(data: data) {
+            if let data = try await item.loadTransferable(type: Data.self) {
                 print("📸 Loaded photo from picker, size: \(data.count) bytes")
-                AvatarUploadService.shared.uploadProfileImage(userId: userId, image: image) { result in
-                    switch result {
-                    case .success(let url):
-                        DispatchQueue.main.async {
-                            profile.profileImageURL = url
-                            // Clear default avatar when uploading custom photo
-                            profile.avatarName = nil
-                            profile.updatedAt = Date()
-                            // Preserve username when changing avatar
-                            if profile.username == nil || profile.username?.isEmpty == true {
-                                profile.username = self.displayUsername
-                            }
-                            do { try? modelContext.save() }
-                            DatabaseService.shared.saveUserProfile(profile) { _ in }
-                            // Refresh the shared service
-                            userProfileService.setProfile(profile)
-                        }
-                    case .failure(let error):
-                        print("❌ Upload failed: \(error.localizedDescription)")
-                    }
+                // Downsample for performance and normalize orientation
+                let preview = downsampleAndNormalize(data: data, maxDimension: 2048) ?? (UIImage(data: data) ?? UIImage())
+                await MainActor.run {
+                    pickedUIImage = preview
+                    showAvatarCropper = true
                 }
             }
         } catch {
             print("❌ Photo load failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func downsampleAndNormalize(data: Data, maxDimension: CGFloat) -> UIImage? {
+        guard let src = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: Int(maxDimension)
+        ]
+        guard let cgThumb = CGImageSourceCreateThumbnailAtIndex(src, 0, options as CFDictionary) else { return nil }
+        let thumb = UIImage(cgImage: cgThumb)
+        // Normalize to .up by redrawing once
+        let size = thumb.size
+        let renderer = UIGraphicsImageRenderer(size: size)
+        let normalized = renderer.image { _ in
+            thumb.draw(in: CGRect(origin: .zero, size: size))
+        }
+        return normalized
+    }
+
+    private func uploadCroppedAvatar(_ image: UIImage) async {
+        guard let profile = userProfileService.currentProfile, let userId = authService.currentUser?.uid else { return }
+        // Enforce minimum resolution 512×512
+        if Int(image.size.width) < 512 || Int(image.size.height) < 512 {
+            await MainActor.run { showImageTooSmallAlert = true }
+            return
+        }
+        AvatarUploadService.shared.uploadProfileImage(userId: userId, image: image) { result in
+            switch result {
+            case .success(let url):
+                DispatchQueue.main.async {
+                    profile.profileImageURL = url
+                    profile.avatarName = nil
+                    profile.updatedAt = Date()
+                    if profile.username == nil || profile.username?.isEmpty == true {
+                        profile.username = self.displayUsername
+                    }
+                    do { try? modelContext.save() }
+                    DatabaseService.shared.saveUserProfile(profile) { _ in }
+                    userProfileService.setProfile(profile)
+                }
+            case .failure(let error):
+                print("❌ Upload failed: \(error.localizedDescription)")
+            }
         }
     }
     
@@ -668,6 +720,7 @@ private struct ProfileHeaderView: View {
                                         .foregroundStyle(Color.gray.opacity(0.4))
                                 )
                         }
+                        .scaledToFill()
                         .frame(width: 96, height: 96)
                         .clipShape(Circle())
                     } else if let name = avatarName, !name.isEmpty, UIImage(named: name) != nil {
@@ -935,7 +988,7 @@ private struct DailyChallengeCardView: View {
     
     var body: some View {
         ZStack {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 8) {
                 // Header with buttons
                 HStack {
                     Text("Today's Challenge")
@@ -980,7 +1033,7 @@ private struct DailyChallengeCardView: View {
                     }
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 16)
+                .padding(.top, 6)
             
                 // Challenge content with transition
                 HStack(spacing: 12) {
@@ -1034,7 +1087,7 @@ private struct DailyChallengeCardView: View {
                         .foregroundColor(Color(hexString: "9CA3AF"))
                 }
                 .padding(.horizontal, 20)
-                .padding(.bottom, 16)
+                .padding(.bottom, 6)
                 .id(challengeService.currentChallenge?.id)
                 .transition(.asymmetric(
                     insertion: .scale.combined(with: .opacity),
@@ -1051,10 +1104,13 @@ private struct DailyChallengeCardView: View {
             .opacity(challengeService.isGeneratingChallenge ? 0.5 : 1.0)
             .disabled(!challengeService.hasMinimumUserData || challengeService.isGeneratingChallenge)
             .background(
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: 22)
                     .fill(Color.white)
-                    .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 1)
-                    .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+                    .shadow(color: Color.black.opacity(0.04), radius: 2, x: 0, y: 1)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 22)
+                            .stroke(Color(hexString: "E5E7EB"), lineWidth: 1)
+                    )
             )
             
             // Loading overlay with custom animation
@@ -1069,13 +1125,13 @@ private struct DailyChallengeCardView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.white.opacity(0.95))
-                .cornerRadius(16)
+                .cornerRadius(22)
                 .transition(.opacity)
             }
             
             // Overlay for locked state
             if !challengeService.hasMinimumUserData {
-                VStack(spacing: 12) {
+                VStack(spacing: 10) {
                     Image(systemName: "lock.fill")
                         .font(.system(size: 32))
                         .foregroundColor(Color(hexString: "8B5CF6"))
@@ -1102,11 +1158,11 @@ private struct DailyChallengeCardView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.white.opacity(0.95))
-                .cornerRadius(16)
+                .cornerRadius(22)
                 .transition(.opacity)
             }
         }
-        .frame(width: 327, height: 160)
+        .frame(width: 327, height: cardHeight)
         .clipped()
         .animation(.easeInOut(duration: 0.3), value: challengeService.hasMinimumUserData)
         .animation(.easeInOut(duration: 0.3), value: challengeService.isGeneratingChallenge)
@@ -1179,6 +1235,10 @@ private struct DailyChallengeCardView: View {
                 .zIndex(1000)
             }
         }
+    }
+    
+    private var cardHeight: CGFloat {
+        challengeService.hasMinimumUserData ? 120 : 150
     }
     
     /// Add challenge to task list
@@ -1261,7 +1321,7 @@ private struct ProfileContent: View {
     
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 10) {
                 // MARK: - Profile header
                 ProfileHeaderView(
                     username: username,
@@ -1286,6 +1346,7 @@ private struct ProfileContent: View {
 
                 // MARK: - Daily Challenge
                 DailyChallengeCardView()
+                    .padding(.top, -16)
                     .frame(maxWidth: .infinity, alignment: .center)
 
                 // MARK: - Performance & Achievements section
@@ -1303,7 +1364,7 @@ private struct ProfileContent: View {
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.bottom, 24)
             }
-            .padding(.top, 8)
+            .padding(.top, 4)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
@@ -1582,6 +1643,7 @@ private struct TipRow: View {
             .environmentObject(AuthService.shared)
             .environmentObject(UserProgress())
             .environmentObject(DailyCaloriesService())
+            .environmentObject(UserProfileService())
             .modelContainer(for: [UserProfile.self, DailyCompletion.self])
     }
 }

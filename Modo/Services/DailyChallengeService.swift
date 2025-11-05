@@ -331,6 +331,41 @@ final class DailyChallengeService: ObservableObject {
         return taskId == challengeTaskId
     }
     
+    /// Handle deletion of the task associated with today's challenge
+    /// - If the deleted task matches the current challenge task, clear the linkage so user can re-add (when not completed)
+    /// - Preserve locked/completed state so completed challenges cannot be exploited/reset
+    func handleChallengeTaskDeleted(taskId: UUID) {
+        guard taskId == challengeTaskId else { return }
+        DispatchQueue.main.async {
+            // Clear local linkage to allow re-adding if not completed
+            self.isChallengeAddedToTasks = false
+            self.challengeTaskId = nil
+            
+            // Remove taskId in Firebase for today's challenge
+            guard let userId = Auth.auth().currentUser?.uid,
+                  let challenge = self.currentChallenge else { return }
+            
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd"
+            let dateString = dateFormatter.string(from: challenge.date)
+            
+            let challengeRef = self.databaseRef
+                .child("users")
+                .child(userId)
+                .child("dailyChallenges")
+                .child(dateString)
+            
+            // Remove only the taskId field
+            challengeRef.updateChildValues(["taskId": NSNull()]) { error, _ in
+                if let error = error {
+                    print("❌ DailyChallengeService: Failed to remove taskId - \(error.localizedDescription)")
+                } else {
+                    print("✅ DailyChallengeService: Cleared taskId after task deletion")
+                }
+            }
+        }
+    }
+    
     /// Reset all state (call when user logs out)
     func resetState() {
         print("🔄 DailyChallengeService: Resetting all state for user logout")
