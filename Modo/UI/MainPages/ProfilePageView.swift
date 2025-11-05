@@ -927,125 +927,321 @@ private struct LogoutRow: View {
 }
 
 private struct DailyChallengeCardView: View {
-    let onAddToTasks: () -> Void
-    
-    @State private var isAddedToTasks: Bool = false
-    @State private var isCompleted: Bool = false
-    @State private var challengeId: UUID = UUID()
-    
-    // Challenge data
-    let challengeTitle: String = "10,000 steps"
-    let challengeEmoji: String = "👟"
+    @StateObject private var challengeService = DailyChallengeService.shared
+    @EnvironmentObject var userProfileService: UserProfileService
+    @State private var showDetailView = false
+    @State private var showCompletionToast = false
+    @State private var previousCompletionState = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // Header with buttons
-            HStack {
-                Text("Today's Challenge")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(Color(hexString: "6B7280"))
-                
-                Spacer()
-                
-                HStack(spacing: 12) {
-                    // Add to tasks button
-                    Button(action: {
-                        if !isAddedToTasks {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                isAddedToTasks = true
-                            }
-                            onAddToTasks()
-                        }
-                    }) {
-                        Image(systemName: isAddedToTasks ? "checkmark" : "plus")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(isAddedToTasks ? Color(hexString: "22C55E") : Color(hexString: "8B5CF6"))
-                    }
-                    .disabled(isAddedToTasks)
+        ZStack {
+            VStack(alignment: .leading, spacing: 16) {
+                // Header with buttons
+                HStack {
+                    Text("Today's Challenge")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(Color(hexString: "6B7280"))
                     
-                    // Refresh button
-                    Button(action: {
-                        // 刷新挑战，生成新的挑战 ID
-                        withAnimation {
-                            challengeId = UUID()
-                            isAddedToTasks = false
-                            isCompleted = false
+                    Spacer()
+                    
+                    HStack(spacing: 12) {
+                        // Add to tasks button
+                        Button(action: {
+                            if !challengeService.isChallengeAddedToTasks {
+                                addChallengeToTasks()
+                            }
+                        }) {
+                            Image(systemName: challengeService.isChallengeAddedToTasks ? "checkmark" : "plus")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(challengeService.isChallengeAddedToTasks ? Color(hexString: "22C55E") : Color(hexString: "8B5CF6"))
                         }
-                    }) {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(Color(hexString: "8B5CF6"))
+                        .disabled(challengeService.isChallengeAddedToTasks || challengeService.isGeneratingChallenge || challengeService.isChallengeCompleted)
+                        .opacity((challengeService.isChallengeAddedToTasks || challengeService.isGeneratingChallenge || challengeService.isChallengeCompleted) ? 0.5 : 1.0)
+                        
+                        // Refresh button
+                        Button(action: {
+                            Task {
+                                await challengeService.generateAIChallenge(userProfile: userProfileService.currentProfile)
+                            }
+                        }) {
+                            Image(systemName: challengeService.isChallengeCompleted ? "checkmark.circle.fill" : "arrow.clockwise")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(challengeService.isChallengeCompleted ? Color(hexString: "22C55E") : Color(hexString: "8B5CF6"))
+                                .rotationEffect(.degrees(challengeService.isGeneratingChallenge ? 360 : 0))
+                                .animation(
+                                    challengeService.isGeneratingChallenge ?
+                                    Animation.linear(duration: 1).repeatForever(autoreverses: false) :
+                                        .default,
+                                    value: challengeService.isGeneratingChallenge
+                                )
+                        }
+                        .disabled(challengeService.isGeneratingChallenge || challengeService.isChallengeCompleted)
+                        .opacity((challengeService.isGeneratingChallenge || challengeService.isChallengeCompleted) ? 0.5 : 1.0)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+            
+                // Challenge content with transition
+                HStack(spacing: 12) {
+                    // Challenge icon
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(challengeService.isChallengeCompleted ? Color(hexString: "DCFCE7") : Color(hexString: "EDE9FE"))
+                            .frame(width: 48, height: 48)
+                        
+                        if challengeService.isChallengeCompleted {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 24))
+                                .foregroundColor(Color(hexString: "22C55E"))
+                        } else {
+                            Text(challengeService.currentChallenge?.emoji ?? "👟")
+                                .font(.system(size: 24))
+                        }
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(challengeService.currentChallenge?.title ?? "Loading...")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(Color(hexString: "111827"))
+                            .lineLimit(1)
+                        
+                        if challengeService.isChallengeCompleted {
+                            Text("Completed! Great job! 🎉")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(Color(hexString: "22C55E"))
+                        } else if challengeService.isChallengeAddedToTasks {
+                            Text("Added to your tasks")
+                                .font(.system(size: 14))
+                                .foregroundColor(Color(hexString: "6B7280"))
+                        } else if let subtitle = challengeService.currentChallenge?.subtitle {
+                            Text(subtitle)
+                                .font(.system(size: 14))
+                                .foregroundColor(Color(hexString: "6B7280"))
+                                .lineLimit(2)
+                        } else {
+                            Text("Tap + to add to tasks")
+                                .font(.system(size: 14))
+                                .foregroundColor(Color(hexString: "6B7280"))
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    // Chevron indicator for detail view
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(Color(hexString: "9CA3AF"))
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 16)
+                .id(challengeService.currentChallenge?.id)
+                .transition(.asymmetric(
+                    insertion: .scale.combined(with: .opacity),
+                    removal: .scale.combined(with: .opacity)
+                ))
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    if challengeService.hasMinimumUserData && !challengeService.isGeneratingChallenge {
+                        showDetailView = true
                     }
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 16)
+            .blur(radius: challengeService.hasMinimumUserData ? 0 : 8)
+            .opacity(challengeService.isGeneratingChallenge ? 0.5 : 1.0)
+            .disabled(!challengeService.hasMinimumUserData || challengeService.isGeneratingChallenge)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.white)
+                    .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 1)
+                    .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+            )
             
-            // Challenge content
-            HStack(spacing: 12) {
-                // Challenge icon
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(isCompleted ? Color(hexString: "DCFCE7") : Color(hexString: "EDE9FE"))
-                        .frame(width: 48, height: 48)
-                        .animation(.easeInOut(duration: 0.3), value: isCompleted)
+            // Loading overlay with custom animation
+            if challengeService.isGeneratingChallenge {
+                VStack(spacing: 16) {
+                    // Custom loading animation
+                    LoadingDotsView()
                     
-                    if isCompleted {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 24))
-                            .foregroundColor(Color(hexString: "22C55E"))
-                            .transition(.scale.combined(with: .opacity))
-                    } else {
-                        Text(challengeEmoji)
-                            .font(.system(size: 24))
-                            .transition(.scale.combined(with: .opacity))
-                    }
+                    Text("Generating your challenge...")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(Color(hexString: "8B5CF6"))
                 }
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(challengeTitle)
-                        .font(.system(size: 20, weight: .semibold))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.white.opacity(0.95))
+                .cornerRadius(16)
+                .transition(.opacity)
+            }
+            
+            // Overlay for locked state
+            if !challengeService.hasMinimumUserData {
+                VStack(spacing: 12) {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 32))
+                        .foregroundColor(Color(hexString: "8B5CF6"))
+                    
+                    Text("Start Your Challenge")
+                        .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(Color(hexString: "111827"))
                     
-                    if isCompleted {
-                        Text("Completed! Great job! 🎉")
+                    Text("Please add your health data in Progress")
+                        .font(.system(size: 14))
+                        .foregroundColor(Color(hexString: "6B7280"))
+                        .multilineTextAlignment(.center)
+                    
+                    NavigationLink(destination: ProgressView()) {
+                        Text("Go to Setup")
                             .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(Color(hexString: "22C55E"))
-                            .transition(.opacity.combined(with: .move(edge: .leading)))
-                    } else if isAddedToTasks {
-                        Text("Added to your tasks")
-                            .font(.system(size: 14))
-                            .foregroundColor(Color(hexString: "6B7280"))
-                            .transition(.opacity.combined(with: .move(edge: .leading)))
-                    } else {
-                        Text("Tap + to add to tasks")
-                            .font(.system(size: 14))
-                            .foregroundColor(Color(hexString: "6B7280"))
-                            .transition(.opacity.combined(with: .move(edge: .leading)))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 10)
+                            .background(Color(hexString: "8B5CF6"))
+                            .cornerRadius(8)
                     }
+                    .buttonStyle(PlainButtonStyle())
                 }
-                
-                Spacer()
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 16)
-            .onTapGesture {
-                // TODO: 临时用于测试，点击切换完成状态
-                // 后续需要从任务列表同步完成状态
-                if isAddedToTasks {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                        isCompleted.toggle()
-                    }
-                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.white.opacity(0.95))
+                .cornerRadius(16)
+                .transition(.opacity)
             }
         }
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.white)
-                .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 1)
-                .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
-        )
-        .frame(width: 327)
+        .frame(width: 327, height: 160)
+        .clipped()
+        .animation(.easeInOut(duration: 0.3), value: challengeService.hasMinimumUserData)
+        .animation(.easeInOut(duration: 0.3), value: challengeService.isGeneratingChallenge)
+        .animation(.spring(response: 0.5, dampingFraction: 0.7), value: challengeService.currentChallenge?.id)
+        .onAppear {
+            // Update data availability when view appears
+            challengeService.updateUserDataAvailability(profile: userProfileService.currentProfile)
+        }
+        .onChange(of: userProfileService.currentProfile) { _, newProfile in
+            // Update when profile changes
+            challengeService.updateUserDataAvailability(profile: newProfile)
+        }
+        .onChange(of: challengeService.isChallengeCompleted) { oldValue, newValue in
+            // Show toast when challenge is completed
+            if !previousCompletionState && newValue {
+                showCompletionToast = true
+                // Add haptic feedback
+                let generator = UINotificationFeedbackGenerator()
+                generator.notificationOccurred(.success)
+                
+                // Auto hide toast after 3 seconds
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                    showCompletionToast = false
+                }
+            }
+            previousCompletionState = newValue
+        }
+        .sheet(isPresented: $showDetailView) {
+            DailyChallengeDetailView(
+                challenge: challengeService.currentChallenge,
+                isCompleted: challengeService.isChallengeCompleted,
+                isAddedToTasks: challengeService.isChallengeAddedToTasks,
+                onAddToTasks: {
+                    showDetailView = false
+                    addChallengeToTasks()
+                }
+            )
+        }
+        .overlay(alignment: .top) {
+            // Completion Toast
+            if showCompletionToast {
+                VStack(spacing: 12) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "trophy.fill")
+                            .font(.system(size: 28))
+                            .foregroundColor(Color(hexString: "F59E0B"))
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("挑战完成！")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(Color(hexString: "111827"))
+                            
+                            Text("太棒了！你完成了今日挑战！🎉")
+                                .font(.system(size: 13))
+                                .foregroundColor(Color(hexString: "6B7280"))
+                        }
+                    }
+                    .padding(16)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.white)
+                            .shadow(color: Color.black.opacity(0.15), radius: 15, x: 0, y: 5)
+                    )
+                }
+                .padding(.top, -80)
+                .transition(.asymmetric(
+                    insertion: .move(edge: .top).combined(with: .opacity),
+                    removal: .move(edge: .top).combined(with: .opacity)
+                ))
+                .zIndex(1000)
+            }
+        }
+    }
+    
+    /// Add challenge to task list
+    private func addChallengeToTasks() {
+        guard let challenge = challengeService.currentChallenge else {
+            print("⚠️ No challenge to add")
+            return
+        }
+        
+        // Add animation
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            challengeService.addChallengeToTasks { taskId in
+                guard let taskId = taskId else {
+                    print("❌ Failed to add challenge to tasks")
+                    return
+                }
+                
+                // Post notification to MainPageView to create task
+                let userInfo: [String: Any] = [
+                    "taskId": taskId.uuidString,
+                    "title": challenge.title,
+                    "subtitle": challenge.subtitle,
+                    "emoji": challenge.emoji,
+                    "category": "fitness",
+                    "type": challenge.type.rawValue,
+                    "targetValue": challenge.targetValue
+                ]
+                
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("AddDailyChallengeTask"),
+                    object: nil,
+                    userInfo: userInfo
+                )
+                
+                print("✅ Posted notification to add daily challenge task")
+            }
+        }
+    }
+}
+
+// MARK: - Loading Dots Animation
+private struct LoadingDotsView: View {
+    @State private var animationOffset: CGFloat = 0
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(0..<3) { index in
+                Circle()
+                    .fill(Color(hexString: "8B5CF6"))
+                    .frame(width: 12, height: 12)
+                    .offset(y: animationOffset)
+                    .animation(
+                        Animation
+                            .easeInOut(duration: 0.6)
+                            .repeatForever(autoreverses: true)
+                            .delay(Double(index) * 0.2),
+                        value: animationOffset
+                    )
+            }
+        }
+        .onAppear {
+            animationOffset = -10
+        }
     }
 }
 
@@ -1089,13 +1285,8 @@ private struct ProfileContent: View {
                 .buttonStyle(PlainButtonStyle())
 
                 // MARK: - Daily Challenge
-                DailyChallengeCardView(
-                    onAddToTasks: {
-                        // TODO: 实现添加到任务列表的功能
-                        print("Add challenge to tasks")
-                    }
-                )
-                .frame(maxWidth: .infinity, alignment: .center)
+                DailyChallengeCardView()
+                    .frame(maxWidth: .infinity, alignment: .center)
 
                 // MARK: - Performance & Achievements section
                 VStack(spacing: 12) {
@@ -1115,6 +1306,273 @@ private struct ProfileContent: View {
             .padding(.top, 8)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+}
+
+// MARK: - Daily Challenge Detail View
+
+private struct DailyChallengeDetailView: View {
+    let challenge: DailyChallenge?
+    let isCompleted: Bool
+    let isAddedToTasks: Bool
+    let onAddToTasks: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    // Challenge header with icon
+                    HStack(spacing: 16) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(isCompleted ? Color(hexString: "DCFCE7") : Color(hexString: "EDE9FE"))
+                                .frame(width: 80, height: 80)
+                            
+                            if isCompleted {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 40))
+                                    .foregroundColor(Color(hexString: "22C55E"))
+                            } else {
+                                Text(challenge?.emoji ?? "👟")
+                                    .font(.system(size: 40))
+                            }
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Today's Challenge")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(Color(hexString: "6B7280"))
+                            
+                            if isCompleted {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 16))
+                                        .foregroundColor(Color(hexString: "22C55E"))
+                                    Text("Completed")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(Color(hexString: "22C55E"))
+                                }
+                            } else if isAddedToTasks {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "checkmark.circle")
+                                        .font(.system(size: 16))
+                                        .foregroundColor(Color(hexString: "8B5CF6"))
+                                    Text("Added to Tasks")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(Color(hexString: "8B5CF6"))
+                                }
+                            }
+                        }
+                        
+                        Spacer()
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.top, 8)
+                    
+                    Divider()
+                        .padding(.horizontal, 24)
+                    
+                    // Challenge details
+                    VStack(alignment: .leading, spacing: 20) {
+                        // Title
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Challenge")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(Color(hexString: "6B7280"))
+                            
+                            Text(challenge?.title ?? "Loading...")
+                                .font(.system(size: 24, weight: .bold))
+                                .foregroundColor(Color(hexString: "111827"))
+                        }
+                        
+                        // Subtitle/Description
+                        if let subtitle = challenge?.subtitle, !subtitle.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Description")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(Color(hexString: "6B7280"))
+                                
+                                Text(subtitle)
+                                    .font(.system(size: 16))
+                                    .foregroundColor(Color(hexString: "374151"))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        
+                        // Challenge type and target
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Details")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(Color(hexString: "6B7280"))
+                            
+                            HStack(spacing: 16) {
+                                // Type badge
+                                HStack(spacing: 8) {
+                                    Image(systemName: typeIcon)
+                                        .font(.system(size: 14))
+                                        .foregroundColor(typeColor)
+                                    
+                                    Text(typeText)
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundColor(Color(hexString: "374151"))
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(typeColor.opacity(0.1))
+                                )
+                                
+                                // Target value
+                                if let targetValue = challenge?.targetValue, targetValue > 0 {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "target")
+                                            .font(.system(size: 14))
+                                            .foregroundColor(Color(hexString: "8B5CF6"))
+                                        
+                                        Text("\(targetValue) \(targetUnit)")
+                                            .font(.system(size: 14, weight: .medium))
+                                            .foregroundColor(Color(hexString: "374151"))
+                                    }
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .fill(Color(hexString: "8B5CF6").opacity(0.1))
+                                    )
+                                }
+                            }
+                        }
+                        
+                        // Tips section
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "lightbulb.fill")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(Color(hexString: "F59E0B"))
+                                
+                                Text("Tips")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(Color(hexString: "6B7280"))
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 8) {
+                                TipRow(icon: "checkmark.circle", text: "Complete this challenge to earn bonus points")
+                                TipRow(icon: "star.fill", text: "Track your progress in the main tasks view")
+                                TipRow(icon: "trophy.fill", text: "Daily challenges help build healthy habits")
+                            }
+                        }
+                        .padding(16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color(hexString: "FFFBEB"))
+                        )
+                    }
+                    .padding(.horizontal, 24)
+                    
+                    Spacer()
+                }
+                .padding(.vertical, 16)
+            }
+            .background(Color(hexString: "F9FAFB"))
+            .navigationTitle("Challenge Details")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(Color(hexString: "6B7280"))
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    if !isAddedToTasks && !isCompleted {
+                        Button {
+                            onAddToTasks()
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 14, weight: .semibold))
+                                Text("Add")
+                                    .font(.system(size: 14, weight: .semibold))
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(
+                                LinearGradient(
+                                    colors: [Color(hexString: "8B5CF6"), Color(hexString: "6366F1")],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .cornerRadius(8)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    private var typeText: String {
+        switch challenge?.type {
+        case .fitness: return "Fitness"
+        case .diet: return "Nutrition"
+        case .mindfulness: return "Mindfulness"
+        case .other, .none: return "Challenge"
+        }
+    }
+    
+    private var typeIcon: String {
+        switch challenge?.type {
+        case .fitness: return "figure.run"
+        case .diet: return "leaf.fill"
+        case .mindfulness: return "brain.head.profile"
+        case .other, .none: return "star.fill"
+        }
+    }
+    
+    private var typeColor: Color {
+        switch challenge?.type {
+        case .fitness: return Color(hexString: "8B5CF6")
+        case .diet: return Color(hexString: "22C55E")
+        case .mindfulness: return Color(hexString: "3B82F6")
+        case .other, .none: return Color(hexString: "F59E0B")
+        }
+    }
+    
+    private var targetUnit: String {
+        switch challenge?.type {
+        case .fitness: return "steps"
+        case .diet: return "cal"
+        case .mindfulness: return "min"
+        case .other, .none: return ""
+        }
+    }
+}
+
+// MARK: - Tip Row Component
+
+private struct TipRow: View {
+    let icon: String
+    let text: String
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 12))
+                .foregroundColor(Color(hexString: "F59E0B"))
+                .frame(width: 16)
+            
+            Text(text)
+                .font(.system(size: 14))
+                .foregroundColor(Color(hexString: "374151"))
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 }
 

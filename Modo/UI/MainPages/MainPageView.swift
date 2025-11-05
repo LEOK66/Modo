@@ -42,8 +42,9 @@ struct MainPageView: View {
         var createdAt: Date // For sync conflict resolution
         var updatedAt: Date // For sync conflict resolution
         var isAIGenerated: Bool // Mark if task is AI generated
+        var isDailyChallenge: Bool // Mark if task is a daily challenge
         
-        init(id: UUID = UUID(), title: String, subtitle: String, time: String, timeDate: Date, endTime: String? = nil, meta: String, isDone: Bool = false, emphasisHex: String, category: AddTaskView.Category, dietEntries: [AddTaskView.DietEntry], fitnessEntries: [AddTaskView.FitnessEntry], createdAt: Date = Date(), updatedAt: Date = Date(), isAIGenerated: Bool = false) {
+        init(id: UUID = UUID(), title: String, subtitle: String, time: String, timeDate: Date, endTime: String? = nil, meta: String, isDone: Bool = false, emphasisHex: String, category: AddTaskView.Category, dietEntries: [AddTaskView.DietEntry], fitnessEntries: [AddTaskView.FitnessEntry], createdAt: Date = Date(), updatedAt: Date = Date(), isAIGenerated: Bool = false, isDailyChallenge: Bool = false) {
             self.id = id
             self.title = title
             self.subtitle = subtitle
@@ -59,6 +60,7 @@ struct MainPageView: View {
             self.createdAt = createdAt
             self.updatedAt = updatedAt
             self.isAIGenerated = isAIGenerated
+            self.isDailyChallenge = isDailyChallenge
         }
         
         // Calculate total calories for this task
@@ -76,7 +78,7 @@ struct MainPageView: View {
         
         // Custom Codable implementation to handle Date serialization
         private enum CodingKeys: String, CodingKey {
-            case id, title, subtitle, time, timeDate, endTime, meta, isDone, emphasisHex, category, dietEntries, fitnessEntries, createdAt, updatedAt, isAIGenerated
+            case id, title, subtitle, time, timeDate, endTime, meta, isDone, emphasisHex, category, dietEntries, fitnessEntries, createdAt, updatedAt, isAIGenerated, isDailyChallenge
         }
         
         init(from decoder: Decoder) throws {
@@ -103,6 +105,8 @@ struct MainPageView: View {
             updatedAt = Date(timeIntervalSince1970: Double(updatedAtTimestamp) / 1000.0)
             // Decode isAIGenerated (defaults to false for backwards compatibility)
             isAIGenerated = try container.decodeIfPresent(Bool.self, forKey: .isAIGenerated) ?? false
+            // Decode isDailyChallenge (defaults to false for backwards compatibility)
+            isDailyChallenge = try container.decodeIfPresent(Bool.self, forKey: .isDailyChallenge) ?? false
         }
         
         func encode(to encoder: Encoder) throws {
@@ -124,6 +128,7 @@ struct MainPageView: View {
             try container.encode(Int64(createdAt.timeIntervalSince1970 * 1000.0), forKey: .createdAt)
             try container.encode(Int64(updatedAt.timeIntervalSince1970 * 1000.0), forKey: .updatedAt)
             try container.encode(isAIGenerated, forKey: .isAIGenerated)
+            try container.encode(isDailyChallenge, forKey: .isDailyChallenge)
         }
     }
     
@@ -394,6 +399,278 @@ struct MainPageView: View {
     
     // MARK: - Notification Handling
     
+    /// Setup notification observer for daily challenge task creation
+    private func setupDailyChallengeNotification() {
+        print("🔔 MainPageView: Setting up daily challenge notification observer")
+        
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("AddDailyChallengeTask"),
+            object: nil,
+            queue: .main
+        ) { notification in
+            print("📬 MainPageView: Received daily challenge notification")
+            
+            guard let userInfo = notification.userInfo,
+                  let taskIdString = userInfo["taskId"] as? String,
+                  let taskId = UUID(uuidString: taskIdString),
+                  let title = userInfo["title"] as? String,
+                  let subtitle = userInfo["subtitle"] as? String,
+                  let targetValue = userInfo["targetValue"] as? Int else {
+                print("⚠️ MainPageView: Invalid daily challenge notification data")
+                return
+            }
+            
+            // Get challenge type (default to fitness)
+            let typeString = userInfo["type"] as? String ?? "fitness"
+            let emoji = userInfo["emoji"] as? String ?? "💪"
+            
+            // Create daily challenge task
+            let calendar = Calendar.current
+            let now = Date()
+            let startDate = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: now) ?? now
+            let endDate = calendar.date(bySettingHour: 21, minute: 0, second: 0, of: now) ?? now
+            
+            let timeFormatter = DateFormatter()
+            timeFormatter.dateFormat = "hh:mm a"
+            let displayTime = timeFormatter.string(from: startDate)
+            let displayEndTime = timeFormatter.string(from: endDate)
+            
+            // Determine category and create appropriate entries based on challenge type
+            let category: AddTaskView.Category
+            var dietEntries: [AddTaskView.DietEntry] = []
+            var fitnessEntries: [AddTaskView.FitnessEntry] = []
+            var meta: String
+            
+            // Parse title to extract activity info
+            let titleLower = title.lowercased()
+            
+            if typeString == "diet" {
+                // Diet challenge - estimate calories if not provided
+                category = .diet
+                
+                // For diet challenges, targetValue might be servings, glasses, grams, etc.
+                // Estimate calories based on what the challenge is about
+                let estimatedCalories = self.estimateDietCalories(from: title, targetValue: targetValue)
+                let foodName = self.extractFoodName(from: title)
+                
+                let dietEntry = AddTaskView.DietEntry(
+                    customName: foodName,
+                    quantityText: "\(targetValue)",
+                    unit: self.extractServingUnit(from: title),
+                    caloriesText: "\(estimatedCalories)"
+                )
+                dietEntries = [dietEntry]
+                meta = "+\(estimatedCalories)cal"
+                
+            } else {
+                // Fitness challenge - need to convert targetValue to calories
+                category = .fitness
+                
+                // Determine what targetValue represents and calculate calories
+                let (activityName, caloriesBurned, durationMinutes) = self.parseActivityChallenge(
+                    title: title,
+                    targetValue: targetValue
+                )
+                
+                let fitnessEntry = AddTaskView.FitnessEntry(
+                    customName: activityName,
+                    minutesInt: durationMinutes,
+                    caloriesText: "\(caloriesBurned)"
+                )
+                fitnessEntries = [fitnessEntry]
+                meta = "-\(caloriesBurned)cal"
+            }
+            
+            let task = TaskItem(
+                id: taskId,
+                title: title,
+                subtitle: subtitle,
+                time: displayTime,
+                timeDate: startDate,
+                endTime: displayEndTime,
+                meta: meta,
+                isDone: false,
+                emphasisHex: "8B5CF6", // Purple
+                category: category,
+                dietEntries: dietEntries,
+                fitnessEntries: fitnessEntries,
+                isAIGenerated: false,
+                isDailyChallenge: true
+            )
+            
+            // Add task to list
+            self.addTask(task)
+            
+            print("✅ MainPageView: Daily challenge task created - \(title) (\(meta))")
+        }
+    }
+    
+    /// Parse activity challenge and convert to calories
+    /// Returns: (activityName, caloriesBurned, durationMinutes)
+    private func parseActivityChallenge(title: String, targetValue: Int) -> (String, Int, Int) {
+        let titleLower = title.lowercased()
+        
+        // Case 1: Steps challenge (e.g., "Walk 10,000 steps")
+        if titleLower.contains("step") {
+            let activityName = "Walking"
+            // Steps to calories: ~0.04 calories per step (varies by weight, using average)
+            let caloriesBurned = Int(Double(targetValue) * 0.04)
+            // Steps to minutes: ~100 steps per minute
+            let durationMinutes = max(15, min(180, targetValue / 100))
+            return (activityName, caloriesBurned, durationMinutes)
+        }
+        
+        // Case 2: Minutes challenge (e.g., "30 minutes of running")
+        if titleLower.contains("minute") || titleLower.contains("min") {
+            let activityName = extractActivityName(from: title)
+            let durationMinutes = targetValue
+            // Calories per minute varies by activity intensity (using 7 cal/min as average)
+            let caloriesBurned = targetValue * 7
+            return (activityName, caloriesBurned, durationMinutes)
+        }
+        
+        // Case 3: Reps/sets challenge (e.g., "50 push-ups", "3 sets of squats")
+        if titleLower.contains("rep") || titleLower.contains("set") || 
+           titleLower.contains("push") || titleLower.contains("squat") || 
+           titleLower.contains("plank") {
+            let activityName = extractActivityName(from: title)
+            // Estimate 1-2 calories per rep/set
+            let caloriesBurned = max(50, targetValue * 2)
+            let durationMinutes = max(10, min(60, targetValue / 2))
+            return (activityName, caloriesBurned, durationMinutes)
+        }
+        
+        // Case 4: Distance challenge (e.g., "Run 5km")
+        if titleLower.contains("km") || titleLower.contains("mile") {
+            let activityName = extractActivityName(from: title)
+            // Assume ~100 calories per km (or ~60 per mile)
+            let caloriesBurned = titleLower.contains("km") ? targetValue * 100 : targetValue * 160
+            // Assume ~6 min per km (or 10 min per mile) for moderate pace
+            let durationMinutes = titleLower.contains("km") ? targetValue * 6 : targetValue * 10
+            return (activityName, caloriesBurned, durationMinutes)
+        }
+        
+        // Default: Assume targetValue is an intensity metric, use moderate estimates
+        let activityName = extractActivityName(from: title)
+        let caloriesBurned = max(200, min(600, targetValue * 3))
+        let durationMinutes = max(20, min(60, 45))
+        return (activityName, caloriesBurned, durationMinutes)
+    }
+    
+    /// Extract activity name from title
+    private func extractActivityName(from title: String) -> String {
+        // Common activity mappings
+        let titleLower = title.lowercased()
+        
+        if titleLower.contains("walk") || titleLower.contains("step") {
+            return "Walking"
+        } else if titleLower.contains("run") || titleLower.contains("jog") {
+            return "Running"
+        } else if titleLower.contains("swim") {
+            return "Swimming"
+        } else if titleLower.contains("bike") || titleLower.contains("cycl") {
+            return "Cycling"
+        } else if titleLower.contains("yoga") {
+            return "Yoga"
+        } else if titleLower.contains("push") {
+            return "Push-ups"
+        } else if titleLower.contains("squat") {
+            return "Squats"
+        } else if titleLower.contains("plank") {
+            return "Plank"
+        } else if titleLower.contains("strength") || titleLower.contains("weight") {
+            return "Strength Training"
+        } else if titleLower.contains("cardio") {
+            return "Cardio"
+        } else if titleLower.contains("hiit") {
+            return "HIIT"
+        }
+        
+        // If no match, try to extract main noun by removing numbers and units
+        let cleaned = title
+            .replacingOccurrences(of: ",", with: "")
+            .replacingOccurrences(of: "\\d+", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "steps", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "minutes", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "reps", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "sets", with: "", options: .caseInsensitive)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        return cleaned.isEmpty ? "Exercise" : cleaned.capitalized
+    }
+    
+    /// Estimate calories for diet challenges
+    private func estimateDietCalories(from title: String, targetValue: Int) -> Int {
+        let titleLower = title.lowercased()
+        
+        // Water has 0 calories
+        if titleLower.contains("water") || titleLower.contains("glass") {
+            return 0
+        }
+        
+        // Protein (4 cal/g)
+        if titleLower.contains("protein") && titleLower.contains("gram") {
+            return targetValue * 4
+        }
+        
+        // Vegetables (low calorie)
+        if titleLower.contains("vegeta") || titleLower.contains("salad") {
+            return targetValue * 30
+        }
+        
+        // Fruit
+        if titleLower.contains("fruit") {
+            return targetValue * 60
+        }
+        
+        // Default: moderate calorie estimate
+        return targetValue * 50
+    }
+    
+    /// Extract food name from diet challenge title
+    private func extractFoodName(from title: String) -> String {
+        let titleLower = title.lowercased()
+        
+        if titleLower.contains("water") {
+            return "Water"
+        } else if titleLower.contains("protein") {
+            return "Protein"
+        } else if titleLower.contains("vegeta") {
+            return "Vegetables"
+        } else if titleLower.contains("fruit") {
+            return "Fruits"
+        } else if titleLower.contains("fiber") {
+            return "Fiber"
+        }
+        
+        // Clean up title
+        let cleaned = title
+            .replacingOccurrences(of: "\\d+", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "glass", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "serving", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "gram", with: "", options: .caseInsensitive)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        return cleaned.isEmpty ? "Healthy Food" : cleaned.capitalized
+    }
+    
+    /// Extract serving unit from diet challenge title
+    private func extractServingUnit(from title: String) -> String {
+        let titleLower = title.lowercased()
+        
+        if titleLower.contains("glass") {
+            return "glasses"
+        } else if titleLower.contains("gram") {
+            return "grams"
+        } else if titleLower.contains("serving") {
+            return "servings"
+        } else if titleLower.contains("cup") {
+            return "cups"
+        }
+        
+        return "servings"
+    }
+    
     /// Setup notification observer for workout/nutrition task creation from AI
     private func setupWorkoutTaskNotification() {
         print("🔔 MainPageView: Setting up workout task notification observer")
@@ -656,7 +933,17 @@ struct MainPageView: View {
     private func tasks(for date: Date) -> [TaskItem] {
         let calendar = Calendar.current
         let dateKey = calendar.startOfDay(for: date)
-        return tasksByDate[dateKey]?.sorted { $0.timeDate < $1.timeDate } ?? []
+        return tasksByDate[dateKey]?.sorted { task1, task2 in
+            // Daily challenge tasks always go to the end
+            if task1.isDailyChallenge && !task2.isDailyChallenge {
+                return false
+            } else if !task1.isDailyChallenge && task2.isDailyChallenge {
+                return true
+            } else {
+                // Both are daily challenge or both are not, sort by time
+                return task1.timeDate < task2.timeDate
+            }
+        } ?? []
     }
     
     /// Load tasks if needed (check cache window, load from Firebase if outside window)
@@ -811,6 +1098,11 @@ struct MainPageView: View {
         
         // CRITICAL FIX #9: Optimistic update - update UI immediately
         updateTaskInMemory(newTask, oldTask: oldTask, oldDateKey: oldDateKey, newDateKey: newDateKey)
+        
+        // Notify DailyChallengeService to update challenge completion status (if task status changed)
+        if oldTask.isDone != newTask.isDone {
+            DailyChallengeService.shared.updateChallengeCompletion(taskId: newTask.id, isCompleted: newTask.isDone)
+        }
         
         // Update calories service after task update
         let todayTasks = tasks(for: selectedDate)
@@ -1015,6 +1307,7 @@ struct MainPageView: View {
             isViewVisible = true
             setupListenerIfNeeded(for: selectedDate)
             setupWorkoutTaskNotification()
+            setupDailyChallengeNotification()
             // Update calories service on appear
             let todayTasks = tasks(for: selectedDate)
             updateCaloriesServiceIfNeeded(tasks: todayTasks, date: selectedDate)
@@ -1517,11 +1810,12 @@ private struct TaskRowCard: View {
     let emphasis: Color
     let category: AddTaskView.Category
     let isAIGenerated: Bool
+    let isDailyChallenge: Bool
     let isFutureDate: Bool
     @State private var checkboxScale: CGFloat = 1.0
     @State private var strikethroughProgress: CGFloat = 0.0
 
-    init(title: String, subtitle: String, time: String, endTime: String?, meta: String, isDone: Binding<Bool>, emphasis: Color, category: AddTaskView.Category, isAIGenerated: Bool = false, isFutureDate: Bool = false) {
+    init(title: String, subtitle: String, time: String, endTime: String?, meta: String, isDone: Binding<Bool>, emphasis: Color, category: AddTaskView.Category, isAIGenerated: Bool = false, isDailyChallenge: Bool = false, isFutureDate: Bool = false) {
         self.title = title
         self.subtitle = subtitle
         self.time = time
@@ -1531,6 +1825,7 @@ private struct TaskRowCard: View {
         self.emphasis = emphasis
         self.category = category
         self.isAIGenerated = isAIGenerated
+        self.isDailyChallenge = isDailyChallenge
         self.isFutureDate = isFutureDate
     }
 
@@ -1619,27 +1914,49 @@ private struct TaskRowCard: View {
                         .lineLimit(1)
                 }
                 HStack(spacing: 8) {
-                    // Time display
-                    if let endTime = endTime {
-                        HStack(spacing: 4) {
-                            Image(systemName: "clock")
-                                .font(.system(size: 12))
-                            Text("\(time) - \(endTime)")
-                                .font(.system(size: 12))
+                    // Time display - hide for daily challenge tasks
+                    if !isDailyChallenge {
+                        if let endTime = endTime {
+                            HStack(spacing: 4) {
+                                Image(systemName: "clock")
+                                    .font(.system(size: 12))
+                                Text("\(time) - \(endTime)")
+                                    .font(.system(size: 12))
+                            }
+                            .foregroundColor(Color(hexString: "364153"))
+                        } else {
+                            HStack(spacing: 4) {
+                                Image(systemName: "clock")
+                                    .font(.system(size: 12))
+                                Text(time)
+                                    .font(.system(size: 12))
+                            }
+                            .foregroundColor(Color(hexString: "364153"))
                         }
-                        .foregroundColor(Color(hexString: "364153"))
-                    } else {
-                        HStack(spacing: 4) {
-                            Image(systemName: "clock")
-                                .font(.system(size: 12))
-                            Text(time)
-                                .font(.system(size: 12))
-                        }
-                        .foregroundColor(Color(hexString: "364153"))
                     }
                     
-                    // AI badge if task is AI generated
-                    if isAIGenerated {
+                    // Daily Challenge badge if task is a daily challenge
+                    if isDailyChallenge {
+                        HStack(spacing: 3) {
+                            Image(systemName: "trophy.fill")
+                                .font(.system(size: 10, weight: .semibold))
+                            Text("Challenge")
+                                .font(.system(size: 10, weight: .bold))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(
+                            LinearGradient(
+                                colors: [Color(hexString: "F59E0B"), Color(hexString: "EAB308")],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .cornerRadius(8)
+                    }
+                    // AI badge if task is AI generated (and not a daily challenge)
+                    else if isAIGenerated {
                         HStack(spacing: 3) {
                             Image(systemName: "sparkles")
                                 .font(.system(size: 10, weight: .semibold))
@@ -1802,7 +2119,8 @@ private struct TaskListView: View {
                                                 category: task.category,
                                                 dietEntries: task.dietEntries,
                                                 fitnessEntries: task.fitnessEntries,
-                                                isAIGenerated: task.isAIGenerated
+                                                isAIGenerated: task.isAIGenerated,
+                                                isDailyChallenge: task.isDailyChallenge
                                             )
                                             onUpdateTask(updatedTask)
                                         }
@@ -1810,6 +2128,7 @@ private struct TaskListView: View {
                                     emphasis: Color(hexString: task.emphasisHex),
                                     category: task.category,
                                     isAIGenerated: task.isAIGenerated,
+                                    isDailyChallenge: task.isDailyChallenge,
                                     isFutureDate: isFutureDate
                                 )
                                 .scaleEffect(isNewlyAdded ? 1.05 : 1.0)

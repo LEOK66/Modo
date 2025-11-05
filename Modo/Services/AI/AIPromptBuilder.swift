@@ -450,6 +450,58 @@ class AIPromptBuilder {
         return prompt
     }
     
+    // MARK: - Daily Challenge Prompts
+    
+    /// Build a prompt for daily challenge generation
+    func buildDailyChallengePrompt(userProfile: UserProfile?) -> String {
+        var prompt = "Generate a personalized daily challenge. "
+        
+        if let profile = userProfile {
+            if let age = profile.age {
+                prompt += "Age: \(age). "
+            }
+            if let gender = profile.gender {
+                prompt += "Gender: \(gender). "
+            }
+            if let goal = profile.goal {
+                prompt += "Goal: \(goal). "
+            }
+            if let lifestyle = profile.lifestyle {
+                prompt += "Activity level: \(lifestyle). "
+            }
+        }
+        
+        prompt += """
+        
+        Create ONE achievable daily challenge that fits the user's profile.
+        
+        RESPONSE FORMAT (JSON only, no extra text):
+        {
+          "title": "Short title (3-6 words)",
+          "subtitle": "Brief description (10-15 words)",
+          "emoji": "One relevant emoji",
+          "type": "fitness|diet|mindfulness",
+          "targetValue": number
+        }
+        
+        Challenge types:
+        - fitness: steps, workout minutes, exercise sets (targetValue = number)
+        - diet: water glasses, protein grams, vegetables servings (targetValue = number)
+        - mindfulness: meditation minutes, gratitude entries, deep breaths (targetValue = number)
+        
+        Requirements:
+        - Make it achievable based on user's stats
+        - Use specific numbers for targetValue
+        - Keep title concise and motivating
+        - Choose appropriate emoji
+        
+        Example:
+        {"title": "Walk 8,000 steps", "subtitle": "Get moving with a daily walk", "emoji": "👟", "type": "fitness", "targetValue": 8000}
+        """
+        
+        return prompt
+    }
+    
     // MARK: - Helper Methods
     
     /// Determine if user uses metric or imperial units based on their profile

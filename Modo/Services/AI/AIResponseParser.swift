@@ -228,6 +228,68 @@ class AIResponseParser {
                !text.hasSuffix(":") &&
                text.components(separatedBy: " ").count < 15
     }
+    
+    // MARK: - Daily Challenge Response Parsing
+    
+    /// Parse daily challenge from AI response
+    /// - Parameter content: Raw AI response text
+    /// - Returns: DailyChallenge object or nil if parsing fails
+    func parseDailyChallengeResponse(_ content: String) -> DailyChallenge? {
+        print("🔍 AIResponseParser: Parsing daily challenge response...")
+        
+        // Extract JSON from response
+        guard let jsonString = extractJSON(from: content),
+              let jsonData = jsonString.data(using: .utf8) else {
+            print("❌ Failed to extract JSON from response")
+            return nil
+        }
+        
+        do {
+            let decoder = JSONDecoder()
+            let response = try decoder.decode(DailyChallengeResponse.self, from: jsonData)
+            
+            // Convert to DailyChallenge
+            let challenge = DailyChallenge(
+                id: UUID(),
+                title: response.title,
+                subtitle: response.subtitle,
+                emoji: response.emoji,
+                type: DailyChallenge.ChallengeType(rawValue: response.type) ?? .fitness,
+                targetValue: response.targetValue,
+                date: Calendar.current.startOfDay(for: Date())
+            )
+            
+            print("✅ Successfully parsed challenge: \(challenge.title)")
+            return challenge
+            
+        } catch {
+            print("❌ Failed to decode JSON: \(error)")
+            return nil
+        }
+    }
+    
+    /// Extract JSON string from text
+    private func extractJSON(from text: String) -> String? {
+        // Try to find JSON within curly braces
+        if let start = text.firstIndex(of: "{"),
+           let end = text.lastIndex(of: "}") {
+            return String(text[start...end])
+        }
+        return nil
+    }
+    
+    /// Get default challenge as fallback
+    func getDefaultChallenge() -> DailyChallenge {
+        return DailyChallenge(
+            id: UUID(),
+            title: "Walk 10,000 steps",
+            subtitle: "Get moving with a daily walk",
+            emoji: "👟",
+            type: .fitness,
+            targetValue: 10000,
+            date: Calendar.current.startOfDay(for: Date())
+        )
+    }
 }
 
 // MARK: - Data Models
@@ -238,5 +300,14 @@ struct ParsedExercise {
     let reps: String
     let restSec: Int
     let calories: Int
+}
+
+// Daily Challenge Response Model
+private struct DailyChallengeResponse: Codable {
+    let title: String
+    let subtitle: String
+    let emoji: String
+    let type: String
+    let targetValue: Int
 }
 

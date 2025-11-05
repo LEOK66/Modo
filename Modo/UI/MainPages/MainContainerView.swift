@@ -24,10 +24,17 @@ struct MainContainerView: View {
             .onAppear {
                 // Update shared profile service when profiles load
                 userProfileService.updateProfile(from: profiles)
+                
+                // Check for date change when view appears
+                DailyChallengeService.shared.checkAndResetForNewDay()
             }
             .onChange(of: profiles) { _, newProfiles in
                 // Update when profiles change
                 userProfileService.updateProfile(from: newProfiles)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+                // Check for date change when app returns from background
+                DailyChallengeService.shared.checkAndResetForNewDay()
             }
         }
     }
