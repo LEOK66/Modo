@@ -432,7 +432,26 @@ struct ProfilePageView: View {
     }
 
     private func applyDefaultAvatar(name: String) {
-        guard let profile = userProfileService.currentProfile, let userId = authService.currentUser?.uid else { return }
+        guard let userId = authService.currentUser?.uid else { return }
+        
+        // ✅ Ensure profile exists - create if missing (e.g., after database migration)
+        var profile = userProfileService.currentProfile
+        if profile == nil {
+            // Create new profile if it doesn't exist
+            profile = UserProfile(userId: userId)
+            modelContext.insert(profile!)
+            do {
+                try modelContext.save()
+                userProfileService.setProfile(profile)
+                print("✅ Created new profile for default avatar")
+            } catch {
+                print("❌ Failed to create profile: \(error.localizedDescription)")
+                return
+            }
+        }
+        
+        guard let profile = profile else { return }
+        
         profile.avatarName = name
         // Clear uploaded photo URL so default avatar can be displayed
         if profile.profileImageURL != nil {
@@ -498,7 +517,26 @@ struct ProfilePageView: View {
     }
 
     private func uploadCroppedAvatar(_ image: UIImage) async {
-        guard let profile = userProfileService.currentProfile, let userId = authService.currentUser?.uid else { return }
+        guard let userId = authService.currentUser?.uid else { return }
+        
+        // ✅ Ensure profile exists - create if missing (e.g., after database migration)
+        var profile = userProfileService.currentProfile
+        if profile == nil {
+            // Create new profile if it doesn't exist
+            profile = UserProfile(userId: userId)
+            modelContext.insert(profile!)
+            do {
+                try modelContext.save()
+                userProfileService.setProfile(profile)
+                print("✅ Created new profile for avatar upload")
+            } catch {
+                print("❌ Failed to create profile: \(error.localizedDescription)")
+                return
+            }
+        }
+        
+        guard let profile = profile else { return }
+        
         // Enforce minimum resolution 512×512
         if Int(image.size.width) < 512 || Int(image.size.height) < 512 {
             await MainActor.run { showImageTooSmallAlert = true }

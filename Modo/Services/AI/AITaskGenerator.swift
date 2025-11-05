@@ -23,12 +23,14 @@ class AITaskGenerator: ObservableObject {
     ///   - missing: Array of task types to generate (e.g., ["fitness", "breakfast", "lunch", "dinner"])
     ///   - date: Date for the tasks
     ///   - userProfile: User profile for personalization
+    ///   - isReplacement: Whether this is replacing existing tasks (for variety)
     ///   - onEachTask: Called immediately when each task is generated
     ///   - onComplete: Called when all tasks are generated
     func generateMissingTasksSequentially(
         missing: [String],
         for date: Date,
         userProfile: UserProfile?,
+        isReplacement: Bool = false,
         onEachTask: @escaping (AIGeneratedTask) -> Void,
         onComplete: @escaping () -> Void
     ) {
@@ -48,7 +50,7 @@ class AITaskGenerator: ObservableObject {
             
             if taskType == "fitness" {
                 // Generate fitness task
-                generateWorkoutTask(for: date, userProfile: userProfile) { result in
+                generateWorkoutTask(for: date, userProfile: userProfile, isReplacement: isReplacement) { result in
                     switch result {
                     case .success(let task):
                         print("  ✅ Successfully generated fitness task")
@@ -62,7 +64,7 @@ class AITaskGenerator: ObservableObject {
             } else if ["breakfast", "lunch", "dinner", "snack"].contains(taskType) {
                 // Generate nutrition task
                 print("  🍽️ Requesting nutrition task for: \(taskType)")
-                generateSpecificNutritionTasks([taskType], for: date, userProfile: userProfile) { result in
+                generateSpecificNutritionTasks([taskType], for: date, userProfile: userProfile, isReplacement: isReplacement) { result in
                     switch result {
                     case .success(let tasks):
                         print("  ✅ Successfully generated \(tasks.count) nutrition task(s) for \(taskType)")
@@ -178,14 +180,15 @@ class AITaskGenerator: ObservableObject {
     /// - Parameters:
     ///   - date: Target date for the workout
     ///   - userProfile: User profile for personalization
+    ///   - isReplacement: Whether this is replacing an existing workout (for variety)
     ///   - completion: Completion handler with generated task
-    func generateWorkoutTask(for date: Date, userProfile: UserProfile?, completion: @escaping (Result<AIGeneratedTask, Error>) -> Void) {
+    func generateWorkoutTask(for date: Date, userProfile: UserProfile?, isReplacement: Bool = false, completion: @escaping (Result<AIGeneratedTask, Error>) -> Void) {
         isGenerating = true
-        print("🏋️ AITaskGenerator: Generating workout task...")
+        print("🏋️ AITaskGenerator: Generating workout task... (replacement: \(isReplacement))")
         
         // ✅ Use AIPromptBuilder for prompt construction
         let systemPrompt = promptBuilder.buildSystemPrompt(userProfile: userProfile)
-        let userPrompt = promptBuilder.buildWorkoutPrompt(userProfile: userProfile)
+        let userPrompt = promptBuilder.buildWorkoutPrompt(userProfile: userProfile, isReplacement: isReplacement)
         
         Task {
             do {
@@ -267,14 +270,15 @@ class AITaskGenerator: ObservableObject {
     ///   - meals: Array of meal types (e.g., ["breakfast", "lunch"])
     ///   - date: Date for the tasks
     ///   - userProfile: User profile for personalization
+    ///   - isReplacement: Whether this is replacing existing meals (for variety)
     ///   - completion: Completion handler with generated tasks
-    func generateSpecificNutritionTasks(_ meals: [String], for date: Date, userProfile: UserProfile?, completion: @escaping (Result<[AIGeneratedTask], Error>) -> Void) {
+    func generateSpecificNutritionTasks(_ meals: [String], for date: Date, userProfile: UserProfile?, isReplacement: Bool = false, completion: @escaping (Result<[AIGeneratedTask], Error>) -> Void) {
         isGenerating = true
-        print("🍽️ AITaskGenerator: Generating nutrition tasks for \(meals.joined(separator: ", "))...")
+        print("🍽️ AITaskGenerator: Generating nutrition tasks for \(meals.joined(separator: ", "))... (replacement: \(isReplacement))")
         
         // ✅ Use AIPromptBuilder for prompt construction
         let systemPrompt = promptBuilder.buildSystemPrompt(userProfile: userProfile)
-        let userPrompt = promptBuilder.buildNutritionPrompt(meals: meals, userProfile: userProfile)
+        let userPrompt = promptBuilder.buildNutritionPrompt(meals: meals, userProfile: userProfile, isReplacement: isReplacement)
         
         Task {
             do {

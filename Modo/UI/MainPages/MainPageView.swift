@@ -152,6 +152,8 @@ struct MainPageView: View {
     @State private var notificationObserver: NSObjectProtocol? = nil
     // Track recently deleted task IDs to suppress flicker from stale cache/listener payloads
     @State private var pendingDeletedTaskIds: Set<UUID> = []
+    // Track AI tasks being replaced for smooth animation
+    @State private var replacingAITaskIds: Set<UUID> = []
     
     // Date range: past 12 months to future 3 months
     private var dateRange: (min: Date, max: Date) {
@@ -171,7 +173,68 @@ struct MainPageView: View {
     
     /// Generate AI Tasks based on what's missing for the day
     private func generateAITask() {
+        // Prevent duplicate clicks: if already generating, ignore
+        if showAITaskLoading {
+            print("⚠️ AI task generation already in progress, ignoring duplicate click")
+            return
+        }
+        
         print("🎲 Smart AI Task Generation for \(selectedDate)")
+        
+        // Get existing tasks for the selected date
+        let existingTasks = tasks(for: selectedDate)
+        
+        // Check if there are already AI-generated tasks
+        let existingAITasks = existingTasks.filter { $0.isAIGenerated }
+        
+        // If there are AI-generated tasks, delete them first (replace mode)
+        // If no AI tasks exist, check if there are any tasks at all
+        let hasAnyTasks = !existingTasks.isEmpty
+        let hasAITasks = !existingAITasks.isEmpty
+        
+        if hasAITasks {
+            // Replace mode: animate deletion of existing AI tasks, then generate all 4 tasks
+            print("🔄 Replacing existing AI tasks: \(existingAITasks.count) tasks to delete")
+            
+            // Mark tasks as being replaced for animation
+            replacingAITaskIds = Set(existingAITasks.map { $0.id })
+            
+            // Animate fade out with scale
+            withAnimation(.easeInOut(duration: 0.4)) {
+                // Animation will be handled by TaskListView
+            }
+            
+            // Wait for animation to complete, then delete and generate new ones
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                // Delete tasks after animation
+                for aiTask in existingAITasks {
+                    self.removeTask(aiTask)
+                }
+                // Clear replacing state
+                self.replacingAITaskIds.removeAll()
+                
+                // Generate new tasks after a short delay
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    self.startAITaskGeneration(replaceMode: true)
+                }
+            }
+        } else if hasAnyTasks {
+            // There are tasks but no AI tasks - analyze and generate missing ones
+            print("📝 Found existing non-AI tasks, will generate missing ones")
+            startAITaskGeneration(replaceMode: false)
+        } else {
+            // No tasks at all - generate all 4 tasks (first time generation)
+            print("✨ First time generation: no tasks exist, generating all 4 tasks")
+            startAITaskGeneration(replaceMode: true)
+        }
+    }
+    
+    private func startAITaskGeneration(replaceMode: Bool = false) {
+        // Prevent duplicate calls
+        if showAITaskLoading {
+            return
+        }
+        
         showAITaskLoading = true
         
         // Get current user profile
@@ -182,20 +245,40 @@ struct MainPageView: View {
         
         // Analyze existing tasks for the selected date
         let existingTasks = tasks(for: selectedDate)
-        let analysis = analyzeExistingTasks(existingTasks)
         
-        print("📊 Task Analysis:")
-        print("   - Fitness: \(analysis.hasFitness ? "✅" : "❌")")
-        print("   - Breakfast: \(analysis.hasBreakfast ? "✅" : "❌")")
-        print("   - Lunch: \(analysis.hasLunch ? "✅" : "❌")")
-        print("   - Dinner: \(analysis.hasDinner ? "✅" : "❌")")
-        print("💡 Will generate: \(analysis.missingTasks.joined(separator: ", "))")
+        // Determine what tasks to generate
+        let tasksToGenerate: [String]
+        if replaceMode {
+            // Replace mode: always generate all 4 tasks regardless of existing tasks
+            tasksToGenerate = ["fitness", "breakfast", "lunch", "dinner"]
+            print("🔄 Replace mode: generating all 4 tasks (fitness, breakfast, lunch, dinner)")
+        } else {
+            // Normal mode: analyze and generate only missing tasks
+            let analysis = analyzeExistingTasks(existingTasks)
+            tasksToGenerate = analysis.missingTasks
+            print("📊 Task Analysis:")
+            print("   - Fitness: \(analysis.hasFitness ? "✅" : "❌")")
+            print("   - Breakfast: \(analysis.hasBreakfast ? "✅" : "❌")")
+            print("   - Lunch: \(analysis.hasLunch ? "✅" : "❌")")
+            print("   - Dinner: \(analysis.hasDinner ? "✅" : "❌")")
+            print("💡 Will generate: \(tasksToGenerate.joined(separator: ", "))")
+        }
+        
+        // If no tasks to generate, just finish
+        guard !tasksToGenerate.isEmpty else {
+            DispatchQueue.main.async {
+                self.showAITaskLoading = false
+                print("ℹ️ No tasks to generate")
+            }
+            return
+        }
         
         // Generate tasks one by one
         aiTaskGenerator.generateMissingTasksSequentially(
-            missing: analysis.missingTasks,
+            missing: tasksToGenerate,
             for: selectedDate,
             userProfile: userProfile,
+            isReplacement: replaceMode,
             onEachTask: { aiTask in
                 // Create task immediately as each one is generated
                 DispatchQueue.main.async {
@@ -1257,6 +1340,7 @@ struct MainPageView: View {
                             selectedDate: selectedDate,
                             navigationPath: $navigationPath,
                             newlyAddedTaskId: $newlyAddedTaskId,
+                            replacingAITaskIds: $replacingAITaskIds,
                             showChallengeDetail: $showDailyChallengeDetail,
                             onDeleteTask: { task in
                                 removeTask(task)
@@ -2165,10 +2249,12 @@ private struct TaskListView: View {
     let selectedDate: Date
     @Binding var navigationPath: NavigationPath
     @Binding var newlyAddedTaskId: UUID?
+    @Binding var replacingAITaskIds: Set<UUID>
     @Binding var showChallengeDetail: Bool
     let onDeleteTask: (MainPageView.TaskItem) -> Void
     let onUpdateTask: (MainPageView.TaskItem) -> Void
     @State private var deletingTaskIds: Set<UUID> = []
+    @State private var animatingInTaskIds: Set<UUID> = []
     
     // Check if selected date is in the future
     private var isFutureDate: Bool {
@@ -2190,6 +2276,7 @@ private struct TaskListView: View {
                         List {
                             ForEach(tasks, id: \.id) { task in
                                 let isNewlyAdded = newlyAddedTaskId == task.id
+                                let isAnimatingIn = animatingInTaskIds.contains(task.id)
                                 
                                 TaskRowCard(
                                     title: task.title,
@@ -2236,18 +2323,28 @@ private struct TaskListView: View {
                                     x: 0,
                                     y: 0
                                 )
-                                .animation(.spring(response: 0.4, dampingFraction: 0.7), value: isNewlyAdded)
                                 .id(task.id)
                                 .offset(x: deletingTaskIds.contains(task.id) ? geometry.size.width : 0)
-                                .opacity(deletingTaskIds.contains(task.id) ? 0 : 1)
+                                .offset(y: isAnimatingIn ? 0 : (isNewlyAdded ? 30 : 0))
+                                .opacity(deletingTaskIds.contains(task.id) ? 0 : (replacingAITaskIds.contains(task.id) ? 0 : (isAnimatingIn ? 1 : (isNewlyAdded ? 0 : 1))))
+                                .scaleEffect(replacingAITaskIds.contains(task.id) ? 0.8 : (isAnimatingIn ? 1.0 : (isNewlyAdded ? 0.9 : 1.0)))
+                                .animation(.spring(response: 0.5, dampingFraction: 0.75), value: isNewlyAdded)
+                                .animation(.easeInOut(duration: 0.4), value: replacingAITaskIds.contains(task.id))
                                 .onAppear {
-                                    if isNewlyAdded {
-                                        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                                    if isNewlyAdded && !isAnimatingIn {
+                                        // Start animation in
+                                        animatingInTaskIds.insert(task.id)
+                                        // Animate in with fade and slide up
+                                        withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
+                                            // Animation triggered by state change
+                                        }
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                                             if newlyAddedTaskId == task.id {
                                                 withAnimation(.easeOut(duration: 0.3)) {
                                                     newlyAddedTaskId = nil
                                                 }
                                             }
+                                            animatingInTaskIds.remove(task.id)
                                         }
                                     }
                                 }

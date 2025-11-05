@@ -98,7 +98,7 @@ struct InfoGatheringView: View {
                             recommendedProtein: recommendedProtein(),
                             targetWeightLoss: $targetWeightLoss, lossUnit: $lossUnit, targetDays: $targetDays,
                             showWeightError: $showTargetWeightError, showDaysError: $showTargetDaysError,
-                            onDone: validateAndComplete, onSkip: completeOnboarding, onBack: lastStep)
+                            onDone: completeOnboarding, onSkip: completeOnboarding, onBack: lastStep)
                             .id(currentStep)
                     default:
                         EmptyView().id(currentStep)
@@ -137,10 +137,6 @@ struct InfoGatheringView: View {
     }
     
     
-    
-    private func validateAndComplete() {
-        completeOnboarding()
-    }
     
     private func completeOnboarding() {
         saveUserData()

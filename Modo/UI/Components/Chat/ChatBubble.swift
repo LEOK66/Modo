@@ -224,18 +224,19 @@ struct ChatBubble: View {
                                    lowercaseContent.contains("monday") && lowercaseContent.contains("tuesday")
         
         // Second check: Must end with plan confirmation question
-        let confirmationPhrases = [
-            "what do you think of this plan?",
-            "what do you think?",
-            "does this work for you?",
-            "how does this look?",
-            "ready to start?",
-            "shall we go with this?",
-            "你觉得这个计划如何",
-            "你觉得怎么样",
-            "可以开始了吗"
+        // Use flexible pattern matching instead of hardcoded phrases to support any language
+        // Check if message ends with a question mark and contains confirmation-related keywords
+        let hasQuestionMark = content.hasSuffix("?") || content.hasSuffix("？")
+        let confirmationKeywords = [
+            // English
+            "think", "plan", "work", "look", "ready", "start", "go",
+            // Chinese
+            "觉得", "如何", "怎么样", "可以", "开始", "计划"
         ]
-        let endsWithQuestion = confirmationPhrases.contains { lowercaseContent.contains($0) }
+        let hasConfirmationKeyword = confirmationKeywords.contains { keyword in
+            lowercaseContent.contains(keyword)
+        }
+        let endsWithQuestion = hasQuestionMark && hasConfirmationKeyword
         
         // Only show buttons if:
         // 1. Has clear structured plan (multiple exercises OR multiple meals OR multi-day structure) AND

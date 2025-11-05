@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import FirebaseAuth
 
 // MARK: - Chat Message Model
 @Model
@@ -13,8 +14,9 @@ final class FirebaseChatMessage {
     var nutritionPlan: NutritionPlanData?
     var multiDayPlan: MultiDayPlanData?
     var actionTaken: Bool // Track if user has clicked Accept/Reject
+    var userId: String = "" // ✅ Add userId to isolate messages by user
     
-    init(content: String, isFromUser: Bool, messageType: String = "text", workoutPlan: WorkoutPlanData? = nil, nutritionPlan: NutritionPlanData? = nil, multiDayPlan: MultiDayPlanData? = nil) {
+    init(content: String, isFromUser: Bool, messageType: String = "text", workoutPlan: WorkoutPlanData? = nil, nutritionPlan: NutritionPlanData? = nil, multiDayPlan: MultiDayPlanData? = nil, userId: String? = nil) {
         self.id = UUID()
         self.content = content
         self.isFromUser = isFromUser
@@ -24,6 +26,14 @@ final class FirebaseChatMessage {
         self.nutritionPlan = nutritionPlan
         self.multiDayPlan = multiDayPlan
         self.actionTaken = false
+        // ✅ Get userId from Auth if not provided, or use empty string as fallback
+        if let userId = userId {
+            self.userId = userId
+        } else if let currentUserId = Auth.auth().currentUser?.uid {
+            self.userId = currentUserId
+        } else {
+            self.userId = "" // Fallback for old messages or preview
+        }
     }
 }
 

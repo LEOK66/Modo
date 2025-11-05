@@ -9,9 +9,14 @@ class AIPromptBuilder {
     /// - Parameters:
     ///   - userProfile: User profile for personalization
     ///   - date: Target date for the workout
+    ///   - isReplacement: Whether this is replacing an existing workout (for variety)
     /// - Returns: Complete prompt string
-    func buildWorkoutPrompt(userProfile: UserProfile?) -> String {
+    func buildWorkoutPrompt(userProfile: UserProfile?, isReplacement: Bool = false) -> String {
         var prompt = "Generate a workout plan with a SHORT, CONCISE title (2-4 words max, like 'Upper Body Strength' or 'Full Body HIIT'). "
+        
+        if isReplacement {
+            prompt += "IMPORTANT: This is REPLACING a previous workout. You MUST create a DIFFERENT workout with VARIED exercises, different training style, and unique theme. Do NOT repeat the same exercises or similar structure. "
+        }
         
         if let profile = userProfile {
             if let goal = profile.goal {
@@ -56,8 +61,23 @@ class AIPromptBuilder {
         - Mix compound and isolation movements
         - Include rest periods (30-90 seconds)
         - Calculate calories based on exercise intensity
+        - VARY training styles: strength (4-6 reps), hypertrophy (8-12 reps), endurance (15-20 reps), HIIT/circuits, functional fitness, sports-specific
+        - VARY exercise types: free weights, bodyweight, machines, cables, resistance bands, kettlebells
+        - VARY movement patterns: push, pull, squat, hinge, carry, rotate, unilateral movements
         - Use units matching the user's preference: \(getUserUnitSystem(userProfile: userProfile).isMetric ? "Metric (kg, cm)" : "Imperial/US (lbs, inches)")
         """
+        
+        if isReplacement {
+            prompt += """
+            
+            VARIETY REQUIREMENTS FOR REPLACEMENT:
+            - Choose a DIFFERENT workout theme/focus (if previous was "Upper Body", try "Lower Body", "Full Body", "Core", "HIIT", "Cardio", "Functional", etc.)
+            - Use DIFFERENT exercises (avoid repeating exercises from previous workout)
+            - Vary rep ranges (if previous used 8-12 reps, try 4-6 for strength or 15-20 for endurance)
+            - Vary training methods (if previous was straight sets, try supersets, circuits, or EMOM)
+            - Make it feel fresh and exciting!
+            """
+        }
         
         return prompt
     }
@@ -68,10 +88,15 @@ class AIPromptBuilder {
     /// - Parameters:
     ///   - meals: Array of meal types (e.g., ["breakfast", "lunch", "dinner"])
     ///   - userProfile: User profile for personalization
+    ///   - isReplacement: Whether this is replacing existing meals (for variety)
     /// - Returns: Complete prompt string
-    func buildNutritionPrompt(meals: [String], userProfile: UserProfile?) -> String {
+    func buildNutritionPrompt(meals: [String], userProfile: UserProfile?, isReplacement: Bool = false) -> String {
         let mealsList = meals.joined(separator: ", ")
         var prompt = "Generate a meal plan for ONE PERSON with these meals only: \(mealsList). "
+        
+        if isReplacement {
+            prompt += "IMPORTANT: This is REPLACING previous meals. You MUST create DIFFERENT dishes with VARIED ingredients, cooking methods, and cuisines. Do NOT repeat similar dishes. "
+        }
         
         if let profile = userProfile {
             if let goal = profile.goal {
@@ -108,7 +133,24 @@ class AIPromptBuilder {
         - Single servings for ONE PERSON
         - Provide accurate calorie estimates for typical portions
         - Use your nutrition knowledge to estimate calories
+        - VARY protein sources: chicken, fish, beef, pork, tofu, eggs, legumes, dairy
+        - VARY carb sources: rice, quinoa, oats, sweet potato, pasta, bread, potatoes
+        - VARY vegetables and preparation methods: steamed, roasted, grilled, raw, sautéed
+        - VARY cuisines: Mediterranean, Asian, Mexican, American, Italian, etc.
         """
+        
+        if isReplacement {
+            prompt += """
+            
+            VARIETY REQUIREMENTS FOR REPLACEMENT:
+            - Choose DIFFERENT dishes (avoid repeating similar meals from previous generation)
+            - Vary protein sources (if previous had chicken, try fish, beef, or plant-based)
+            - Vary cooking methods (if previous had grilled, try baked, steamed, or sautéed)
+            - Vary cuisines and flavors (if previous was Mediterranean, try Asian, Mexican, or American)
+            - Include different vegetables and sides
+            - Make each meal feel fresh and exciting!
+            """
+        }
         
         return prompt
     }

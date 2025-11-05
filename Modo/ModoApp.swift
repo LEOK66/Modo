@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import FirebaseCore
+import FirebaseDatabase
 import GoogleSignIn
 import FirebaseAuth
 
@@ -13,9 +14,19 @@ struct ModoApp: App {
     @State private var isEmailVerified = false
     @State private var verificationTimer: Timer?
     @State private var showAuthenticatedUI = false
+    @State private var hasCheckedInitialAuth = false
     
     init() {
         FirebaseApp.configure()
+        
+        // CRITICAL: Enable Firebase Database persistence BEFORE any other database usage
+        // This must be done immediately after FirebaseApp.configure() and before any
+        // service accesses Database.database() or DatabaseService.shared
+        Database.database().isPersistenceEnabled = true
+        
+        // Configure AuthService after Firebase is configured
+        // This ensures Auth.auth() is available when AuthService initializes
+        AuthService.shared.configure()
         
         // Configure URLCache for image caching
         // Memory cache: 50MB, Disk cache: 100MB
@@ -84,9 +95,14 @@ struct ModoApp: App {
     var body: some Scene {
         WindowGroup {
             ZStack {
-                // Show authenticated UI only if user is authenticated AND explicitly set
-                // This prevents showing authenticated views during logout transition
-                if authService.isAuthenticated && showAuthenticatedUI {
+                // Determine if we should show authenticated UI
+                // Since AuthService.configure() is called in init(), authService.isAuthenticated
+                // should already be correct when the view first renders
+                // If user is authenticated, show authenticated UI immediately to prevent login screen flash
+                // showAuthenticatedUI is used to prevent showing authenticated views during logout transition
+                let shouldShowAuthenticated = authService.isAuthenticated && (showAuthenticatedUI || !hasCheckedInitialAuth)
+                
+                if shouldShowAuthenticated {
                     // Use cached verification status if available to prevent flashing
                     if emailVerified {
                         if authService.hasCompletedOnboarding {
@@ -170,29 +186,67 @@ struct ModoApp: App {
                     showAuthenticatedUI = false
                 }
             }
-            .task {
-                // Check authentication status when view appears
-                // This runs asynchronously but immediately when view loads
-                if authService.isAuthenticated {
-                    // If user is authenticated, use cached verification status immediately
-                    // This prevents showing email verification page if already verified
-                    if let user = authService.currentUser {
-                        // Use cached verification status immediately to avoid flashing
-                        isEmailVerified = user.isEmailVerified
-                        showAuthenticatedUI = true
-                        
-                        // Only verify in background if we need to refresh the status
-                        // For Google Sign-In users, email is usually pre-verified
-                        if !user.isEmailVerified {
-                            // Only check if cached status shows unverified
+            .onAppear {
+                // Check authentication status immediately when view appears
+                // This runs synchronously after Firebase is configured
+                // This prevents showing login screen briefly when app reopens
+                if !hasCheckedInitialAuth {
+                    hasCheckedInitialAuth = true
+                    
+                    // Since AuthService.configure() was called in init(),
+                    // authService.isAuthenticated should already be set correctly
+                    if authService.isAuthenticated {
+                        // If user is authenticated, use cached verification status immediately
+                        // This prevents showing email verification page if already verified
+                        if let user = authService.currentUser {
+                            // Use cached verification status immediately to avoid flashing
+                            // Check if user is Apple/Google user (always verified)
+                            let isAppleOrGoogleUser = user.providerData.contains { provider in
+                                provider.providerID == "apple.com" || provider.providerID == "google.com"
+                            }
+                            
+                            if isAppleOrGoogleUser {
+                                // Apple/Google users are automatically verified
+                                isEmailVerified = true
+                            } else {
+                                isEmailVerified = user.isEmailVerified
+                            }
+                            
+                            // Set showAuthenticatedUI immediately to prevent login screen flash
+                            showAuthenticatedUI = true
+                            
+                            // Only verify in background if we need to refresh the status
+                            // For Google Sign-In users, email is usually pre-verified
+                            if !isEmailVerified {
+                                // Only check if cached status shows unverified
+                                checkVerificationStatus()
+                            }
+                        } else {
+                            showAuthenticatedUI = true
                             checkVerificationStatus()
                         }
                     } else {
-                        showAuthenticatedUI = true
-                        checkVerificationStatus()
+                        showAuthenticatedUI = false
                     }
-                } else {
-                    showAuthenticatedUI = false
+                }
+            }
+            .task {
+                // Additional async check after initial sync check
+                // This ensures we catch any auth state changes that might occur
+                if hasCheckedInitialAuth && authService.isAuthenticated && !showAuthenticatedUI {
+                    // If auth state changed after initial check, update UI
+                    if let user = authService.currentUser {
+                        let isAppleOrGoogleUser = user.providerData.contains { provider in
+                            provider.providerID == "apple.com" || provider.providerID == "google.com"
+                        }
+                        
+                        if isAppleOrGoogleUser {
+                            isEmailVerified = true
+                        } else {
+                            isEmailVerified = user.isEmailVerified
+                        }
+                        showAuthenticatedUI = true
+                    }
                 }
             }
             .onOpenURL { url in

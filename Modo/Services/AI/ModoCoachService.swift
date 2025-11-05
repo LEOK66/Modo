@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import Combine
+import FirebaseAuth
 
 class ModoCoachService: ObservableObject {
     
@@ -9,6 +10,7 @@ class ModoCoachService: ObservableObject {
     
     private var modelContext: ModelContext?
     private var hasLoadedHistory = false
+    private var lastLoadedUserId: String? = nil // ✅ Track which user's history was loaded
     private let firebaseAIService = FirebaseAIService.shared
     
     // ✅ Use AIPromptBuilder for unified prompt construction
@@ -18,13 +20,40 @@ class ModoCoachService: ObservableObject {
         // Welcome message will be added after loading history
     }
     
+    // ✅ Reset state when user changes
+    func resetForNewUser() {
+        hasLoadedHistory = false
+        lastLoadedUserId = nil
+        messages.removeAll()
+        modelContext = nil
+    }
+    
     // MARK: - Load History from SwiftData
     func loadHistory(from context: ModelContext, userProfile: UserProfile? = nil) {
+        // ✅ Get current user ID
+        guard let currentUserId = Auth.auth().currentUser?.uid else {
+            print("⚠️ No current user, cannot load chat history")
+            messages.removeAll()
+            return
+        }
+        
+        // ✅ Check if this is a different user - if so, reset the flag
+        if lastLoadedUserId != currentUserId {
+            hasLoadedHistory = false
+            messages.removeAll()
+        }
+        
         guard !hasLoadedHistory else { return }
         
         self.modelContext = context
+        self.lastLoadedUserId = currentUserId
         
+        // ✅ Filter messages by current user ID
+        let predicate = #Predicate<FirebaseChatMessage> { message in
+            message.userId == currentUserId
+        }
         let descriptor = FetchDescriptor<FirebaseChatMessage>(
+            predicate: predicate,
             sortBy: [SortDescriptor(\.timestamp, order: .forward)]
         )
         
@@ -45,6 +74,7 @@ class ModoCoachService: ObservableObject {
         } catch {
             print("Failed to load chat history: \(error)")
             addWelcomeMessage()
+            hasLoadedHistory = true
         }
     }
     
@@ -126,14 +156,21 @@ class ModoCoachService: ObservableObject {
     
     // MARK: - Clear Chat History
     func clearHistory() {
-        guard let context = modelContext else { return }
+        guard let context = modelContext,
+              let currentUserId = Auth.auth().currentUser?.uid else {
+            print("⚠️ No current user or context, cannot clear chat history")
+            return
+        }
         
-        // Delete all messages from database
+        // ✅ Only delete messages belonging to current user
         do {
-            let descriptor = FetchDescriptor<FirebaseChatMessage>()
-            let allMessages = try context.fetch(descriptor)
+            let predicate = #Predicate<FirebaseChatMessage> { message in
+                message.userId == currentUserId
+            }
+            let descriptor = FetchDescriptor<FirebaseChatMessage>(predicate: predicate)
+            let userMessages = try context.fetch(descriptor)
             
-            for message in allMessages {
+            for message in userMessages {
                 context.delete(message)
             }
             
@@ -405,38 +442,6 @@ class ModoCoachService: ObservableObject {
         }
     }
     
-    // MARK: - Handle OpenAI Response
-    private func handleOpenAIResponse(_ response: ChatCompletionResponse, userProfile: UserProfile?) {
-        guard let choice = response.choices.first else { return }
-        
-        // Check if it's a function call
-        if let functionCall = choice.message.functionCall {
-            handleFunctionCall(functionCall, userProfile: userProfile)
-        } else if let content = choice.message.content {
-            // Regular text response
-            let aiMessage = FirebaseChatMessage(
-                content: content,
-                isFromUser: false
-            )
-            messages.append(aiMessage)
-            saveMessage(aiMessage)
-        }
-    }
-    
-    // MARK: - Handle Function Call
-    private func handleFunctionCall(_ functionCall: ChatCompletionResponse.Choice.Message.FunctionCall, userProfile: UserProfile?) {
-        switch functionCall.name {
-        case "generate_workout_plan":
-            handleWorkoutPlanFunction(arguments: functionCall.arguments, userProfile: userProfile)
-            
-        case "lookup_food_calorie":
-            handleFoodCalorieFunction(arguments: functionCall.arguments)
-            
-        default:
-            print("Unknown function: \(functionCall.name)")
-        }
-    }
-    
     // MARK: - Handle Workout Plan Function
     private func handleWorkoutPlanFunction(arguments: String, userProfile: UserProfile?) {
         guard let jsonData = arguments.data(using: .utf8) else { return }
@@ -540,15 +545,6 @@ class ModoCoachService: ObservableObject {
         } catch {
             print("Failed to decode food info: \(error)")
         }
-    }
-    
-    // MARK: - Process User Intent
-    // NOTE: This function is kept for potential future use, but currently
-    // all messages go through processWithOpenAI which handles them via AI
-    private func processUserIntent(_ text: String, userProfile: UserProfile?) {
-        // This function is not currently used in the main flow
-        // All messages are sent directly to AI via processWithOpenAI
-        // Keeping it here for potential future quick responses or shortcuts
     }
     
     // MARK: - Generate Workout Plan

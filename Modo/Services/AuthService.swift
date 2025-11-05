@@ -11,7 +11,18 @@ import CryptoKit
 final class AuthService: ObservableObject {
     static let shared = AuthService()
     private var authStateListener: AuthStateDidChangeListenerHandle?
+    private var isInitialized = false
+    
     private init() {
+        // Don't initialize Firebase Auth here - wait until configure() is called
+        // This prevents crashes if AuthService is accessed before FirebaseApp.configure()
+    }
+    
+    // Call this method after FirebaseApp.configure() to initialize auth state
+    func configure() {
+        guard !isInitialized else { return }
+        isInitialized = true
+        
         // Immediately check current user state synchronously
         let currentUser = Auth.auth().currentUser
         self.currentUser = currentUser

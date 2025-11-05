@@ -38,10 +38,22 @@ struct AddTaskView: View {
     @State private var lastClearedFitness: [FitnessEntry]? = nil
     
     // Focus and scroll
+    @FocusState private var titleFocused: Bool
+    @FocusState private var descriptionFocused: Bool
     @FocusState private var dietNameFocusIndex: Int?
     @FocusState private var fitnessNameFocusIndex: Int?
     @FocusState private var searchFieldFocused: Bool
     @State private var pendingScrollId: String? = nil
+    
+    // Helper function to dismiss keyboard
+    private func dismissKeyboard() {
+        titleFocused = false
+        descriptionFocused = false
+        dietNameFocusIndex = nil
+        fitnessNameFocusIndex = nil
+        searchFieldFocused = false
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
     
     // AI UI placeholders
     @State private var isAIGenerateSheetPresented: Bool = false
@@ -176,18 +188,50 @@ struct AddTaskView: View {
                 .padding(.horizontal, 24)
                 ScrollViewReader { proxy in
                     ScrollView {
-                        VStack(spacing: 16) {
-                        titleCard
-                        descriptionCard
-                        timeCard
-                        categoryCard
-                        if selectedCategory == .diet {
-                            caloriesCard
-                        }
-                        if selectedCategory == .fitness {
-                            fitnessEntriesCard
-                        }
-                        Spacer(minLength: 0)
+                        VStack(spacing: 0) {
+                            titleCard
+                                .id("title")
+                            Color.clear
+                                .frame(height: 16)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    dismissKeyboard()
+                                }
+                            descriptionCard
+                                .id("description")
+                            Color.clear
+                                .frame(height: 16)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    dismissKeyboard()
+                                }
+                            timeCard
+                            Color.clear
+                                .frame(height: 16)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    dismissKeyboard()
+                                }
+                            categoryCard
+                            if selectedCategory == .diet {
+                                Color.clear
+                                    .frame(height: 16)
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        dismissKeyboard()
+                                    }
+                                caloriesCard
+                            }
+                            if selectedCategory == .fitness {
+                                Color.clear
+                                    .frame(height: 16)
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        dismissKeyboard()
+                                    }
+                                fitnessEntriesCard
+                            }
+                            Spacer(minLength: 0)
                         }
                         .padding(.horizontal, 24)
                         .padding(.vertical, 16)
@@ -196,6 +240,38 @@ struct AddTaskView: View {
                         guard let id = newValue else { return }
                         withAnimation { proxy.scrollTo(id, anchor: .center) }
                         pendingScrollId = nil
+                    }
+                    .onChange(of: titleFocused) { _, isFocused in
+                        if isFocused {
+                            // Wait for keyboard to appear, then scroll
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                withAnimation { proxy.scrollTo("title", anchor: .center) }
+                            }
+                        }
+                    }
+                    .onChange(of: descriptionFocused) { _, isFocused in
+                        if isFocused {
+                            // Wait for keyboard to appear, then scroll
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                withAnimation { proxy.scrollTo("description", anchor: .center) }
+                            }
+                        }
+                    }
+                    .onChange(of: dietNameFocusIndex) { _, index in
+                        if let index = index {
+                            // Wait for keyboard to appear, then scroll
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                withAnimation { proxy.scrollTo("diet-\(index)", anchor: .center) }
+                            }
+                        }
+                    }
+                    .onChange(of: fitnessNameFocusIndex) { _, index in
+                        if let index = index {
+                            // Wait for keyboard to appear, then scroll
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                withAnimation { proxy.scrollTo("fit-\(index)", anchor: .center) }
+                            }
+                        }
                     }
                 }
                 .background(Color(hexString: "F3F4F6"))
@@ -243,7 +319,10 @@ struct AddTaskView: View {
         .sheet(isPresented: $isAskAISheetPresented) {
             AskAIChatView(messages: $askAIMessages)
         }
-        .sheet(isPresented: $isDurationSheetPresented) {
+        .sheet(isPresented: $isDurationSheetPresented, onDismiss: {
+            // Ensure focus stays cleared after sheet dismisses
+            dismissKeyboard()
+        }) {
             VStack(spacing: 8) {
                 HStack {
                     VStack {
@@ -347,6 +426,7 @@ struct AddTaskView: View {
                 HStack(spacing: 8) {
                     TextField("e.g., Morning Run", text: $titleText)
                         .textInputAutocapitalization(.words)
+                        .focused($titleFocused)
                         .onChange(of: titleText) { _, newValue in
                             if newValue.count > 40 { titleText = String(newValue.prefix(40)) }
                         }
@@ -405,6 +485,7 @@ struct AddTaskView: View {
                         .textInputAutocapitalization(.sentences)
                         .lineLimit(3...6)
                         .textFieldStyle(.plain)
+                        .focused($descriptionFocused)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
                     if !descriptionText.isEmpty {
@@ -427,7 +508,11 @@ struct AddTaskView: View {
         card {
             VStack(alignment: .leading, spacing: 12) {
                 label("Time")
-                Button(action: { isTimeSheetPresented = true }) {
+                Button(action: {
+                    // Clear focus immediately when opening time sheet
+                    dismissKeyboard()
+                    isTimeSheetPresented = true
+                }) {
                     HStack {
                         Text(formattedTime)
                             .foregroundColor(Color(hexString: "0A0A0A"))
@@ -441,13 +526,18 @@ struct AddTaskView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                .sheet(isPresented: $isTimeSheetPresented) {
+                .sheet(isPresented: $isTimeSheetPresented, onDismiss: {
+                    // Ensure focus stays cleared after sheet dismisses
+                    dismissKeyboard()
+                }) {
                     VStack(spacing: 12) {
                         DatePicker("", selection: $timeDate, displayedComponents: .hourAndMinute)
                             .datePickerStyle(.wheel)
                             .labelsHidden()
                             .frame(maxWidth: .infinity)
-                        Button("Done") { isTimeSheetPresented = false }
+                        Button("Done") {
+                            isTimeSheetPresented = false
+                        }
                             .font(.system(size: 16, weight: .semibold))
                             .frame(maxWidth: .infinity, minHeight: 44)
                     }
@@ -899,6 +989,8 @@ struct AddTaskView: View {
                         let total = max(0, entry.minutesInt)
                         durationHoursInt = total / 60
                         durationMinutesInt = total % 60
+                        // Clear focus immediately when opening duration sheet
+                        dismissKeyboard()
                         isDurationSheetPresented = true
                         // tie the wheel to this entry index via editingFitnessEntryIndex
                         editingFitnessEntryIndex = index

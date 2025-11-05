@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import FirebaseAuth
 
 struct InsightsPageView: View {
     @Binding var selectedTab: Tab
@@ -18,6 +19,7 @@ struct InsightsPageView: View {
     @State private var keyboardShowObserver: NSObjectProtocol?
     @State private var keyboardHideObserver: NSObjectProtocol?
     @EnvironmentObject var userProfileService: UserProfileService
+    @EnvironmentObject var authService: AuthService  // ✅ Add AuthService to monitor user changes
     @Environment(\.modelContext) private var modelContext
     
     // Callback to notify MainPageView about task creation
@@ -54,6 +56,13 @@ struct InsightsPageView: View {
         }
         .onDisappear {
             removeKeyboardObservers()
+        }
+        .onChange(of: authService.currentUser?.uid) { oldValue, newValue in
+            // ✅ Reload chat history when user changes
+            if oldValue != newValue {
+                coachService.resetForNewUser()
+                coachService.loadHistory(from: modelContext, userProfile: userProfileService.currentProfile)
+            }
         }
         .sheet(isPresented: $showPhotoPicker) {
             PhotoPicker(selectedImage: $selectedImage)
