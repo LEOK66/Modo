@@ -12,6 +12,8 @@ struct MainPageView: View {
     @State private var navigationPath = NavigationPath()
     @State private var midnightTimer: Timer? = nil
     @State private var isShowingProfile = false
+    @State private var showDailyChallengeDetail = false
+    @StateObject private var challengeService = DailyChallengeService.shared
     
     // Cache and database services
     private let cacheService = TaskCacheService.shared
@@ -1255,6 +1257,7 @@ struct MainPageView: View {
                             selectedDate: selectedDate,
                             navigationPath: $navigationPath,
                             newlyAddedTaskId: $newlyAddedTaskId,
+                            showChallengeDetail: $showDailyChallengeDetail,
                             onDeleteTask: { task in
                                 removeTask(task)
                             },
@@ -1300,6 +1303,36 @@ struct MainPageView: View {
                         .transition(.opacity)
                         .zIndex(1)
                 }
+            }
+            // Challenge detail sheet from main page
+            .sheet(isPresented: $showDailyChallengeDetail) {
+                DailyChallengeDetailView(
+                    challenge: challengeService.currentChallenge,
+                    isCompleted: challengeService.isChallengeCompleted,
+                    isAddedToTasks: challengeService.isChallengeAddedToTasks,
+                    onAddToTasks: {
+                        guard let challenge = challengeService.currentChallenge else { return }
+                        // Reuse same notification flow used in ProfilePageView
+                        challengeService.addChallengeToTasks { taskId in
+                            guard let taskId = taskId else { return }
+                            let userInfo: [String: Any] = [
+                                "taskId": taskId.uuidString,
+                                "title": challenge.title,
+                                "subtitle": challenge.subtitle,
+                                "emoji": challenge.emoji,
+                                "category": "fitness",
+                                "type": challenge.type.rawValue,
+                                "targetValue": challenge.targetValue
+                            ]
+                            NotificationCenter.default.post(
+                                name: NSNotification.Name("AddDailyChallengeTask"),
+                                object: nil,
+                                userInfo: userInfo
+                            )
+                            showDailyChallengeDetail = false
+                        }
+                    }
+                )
             }
             .animation(.easeInOut(duration: 0.2), value: isShowingProfile)
             .navigationDestination(for: AddTaskDestination.self) { _ in
@@ -2132,6 +2165,7 @@ private struct TaskListView: View {
     let selectedDate: Date
     @Binding var navigationPath: NavigationPath
     @Binding var newlyAddedTaskId: UUID?
+    @Binding var showChallengeDetail: Bool
     let onDeleteTask: (MainPageView.TaskItem) -> Void
     let onUpdateTask: (MainPageView.TaskItem) -> Void
     @State private var deletingTaskIds: Set<UUID> = []
@@ -2236,7 +2270,11 @@ private struct TaskListView: View {
                                 }
                                 .contentShape(Rectangle())
                                 .onTapGesture {
-                                    navigationPath.append(TaskDetailDestination.detail(taskId: task.id))
+                                    if task.isDailyChallenge {
+                                        showChallengeDetail = true
+                                    } else {
+                                        navigationPath.append(TaskDetailDestination.detail(taskId: task.id))
+                                    }
                                 }
                             }
                         }
