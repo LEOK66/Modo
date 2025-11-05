@@ -799,6 +799,129 @@ private struct LogoutRow: View {
     }
 }
 
+private struct DailyChallengeCardView: View {
+    let onAddToTasks: () -> Void
+    
+    @State private var isAddedToTasks: Bool = false
+    @State private var isCompleted: Bool = false
+    @State private var challengeId: UUID = UUID()
+    
+    // Challenge data
+    let challengeTitle: String = "10,000 steps"
+    let challengeEmoji: String = "👟"
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Header with buttons
+            HStack {
+                Text("Today's Challenge")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(Color(hexString: "6B7280"))
+                
+                Spacer()
+                
+                HStack(spacing: 12) {
+                    // Add to tasks button
+                    Button(action: {
+                        if !isAddedToTasks {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                isAddedToTasks = true
+                            }
+                            onAddToTasks()
+                        }
+                    }) {
+                        Image(systemName: isAddedToTasks ? "checkmark" : "plus")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(isAddedToTasks ? Color(hexString: "22C55E") : Color(hexString: "8B5CF6"))
+                    }
+                    .disabled(isAddedToTasks)
+                    
+                    // Refresh button
+                    Button(action: {
+                        // 刷新挑战，生成新的挑战 ID
+                        withAnimation {
+                            challengeId = UUID()
+                            isAddedToTasks = false
+                            isCompleted = false
+                        }
+                    }) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(Color(hexString: "8B5CF6"))
+                    }
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            
+            // Challenge content
+            HStack(spacing: 12) {
+                // Challenge icon
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(isCompleted ? Color(hexString: "DCFCE7") : Color(hexString: "EDE9FE"))
+                        .frame(width: 48, height: 48)
+                        .animation(.easeInOut(duration: 0.3), value: isCompleted)
+                    
+                    if isCompleted {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 24))
+                            .foregroundColor(Color(hexString: "22C55E"))
+                            .transition(.scale.combined(with: .opacity))
+                    } else {
+                        Text(challengeEmoji)
+                            .font(.system(size: 24))
+                            .transition(.scale.combined(with: .opacity))
+                    }
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(challengeTitle)
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(Color(hexString: "111827"))
+                    
+                    if isCompleted {
+                        Text("Completed! Great job! 🎉")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(Color(hexString: "22C55E"))
+                            .transition(.opacity.combined(with: .move(edge: .leading)))
+                    } else if isAddedToTasks {
+                        Text("Added to your tasks")
+                            .font(.system(size: 14))
+                            .foregroundColor(Color(hexString: "6B7280"))
+                            .transition(.opacity.combined(with: .move(edge: .leading)))
+                    } else {
+                        Text("Tap + to add to tasks")
+                            .font(.system(size: 14))
+                            .foregroundColor(Color(hexString: "6B7280"))
+                            .transition(.opacity.combined(with: .move(edge: .leading)))
+                    }
+                }
+                
+                Spacer()
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 16)
+            .onTapGesture {
+                // TODO: 临时用于测试，点击切换完成状态
+                // 后续需要从任务列表同步完成状态
+                if isAddedToTasks {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                        isCompleted.toggle()
+                    }
+                }
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.white)
+                .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 1)
+                .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+        )
+        .frame(width: 327)
+    }
+}
+
 // Extracted content to reduce type-checking pressure in main body
 private struct ProfileContent: View {
     let username: String
@@ -837,6 +960,15 @@ private struct ProfileContent: View {
                     )
                 }
                 .buttonStyle(PlainButtonStyle())
+
+                // MARK: - Daily Challenge
+                DailyChallengeCardView(
+                    onAddToTasks: {
+                        // TODO: 实现添加到任务列表的功能
+                        print("Add challenge to tasks")
+                    }
+                )
+                .frame(maxWidth: .infinity, alignment: .center)
 
                 // MARK: - Performance & Achievements section
                 VStack(spacing: 12) {
