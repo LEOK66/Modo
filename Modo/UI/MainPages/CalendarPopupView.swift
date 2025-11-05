@@ -418,10 +418,12 @@ private struct ActionButtonsView: View {
             return
         }
         
-        // Update selectedDate
-        selectedDate = normalizedDate
-        selectedDay = nil
-        withAnimation { showCalendar = false }
+        // Update selectedDate with animation
+        withAnimation(.easeInOut(duration: 0.3)) {
+            selectedDate = normalizedDate
+            selectedDay = nil
+            showCalendar = false
+        }
     }
 }
 

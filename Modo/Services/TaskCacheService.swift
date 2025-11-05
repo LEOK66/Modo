@@ -258,7 +258,7 @@ final class TaskCacheService {
     }
     
     /// Save multiple tasks for a specific date (batch save, more efficient)
-    /// This method reads cache once, updates all tasks, and writes once
+    /// REPLACES the cached list for that date to ensure deletions are respected
     func saveTasksForDate(_ tasks: [MainPageView.TaskItem], date: Date, userId: String? = nil) {
         let userId = userId ?? getCurrentUserId() ?? ""
         guard !userId.isEmpty else { return }
@@ -268,24 +268,8 @@ final class TaskCacheService {
         let calendar = Calendar.current
         let dateKey = calendar.startOfDay(for: date)
         
-        // Create a dictionary for efficient lookup (by task ID)
-        var tasksDict: [UUID: MainPageView.TaskItem] = [:]
-        
-        // Add existing tasks to dictionary
-        if let existingTasks = cachedTasks[dateKey] {
-            for task in existingTasks {
-                tasksDict[task.id] = task
-            }
-        }
-        
-        // Update dictionary with new tasks (newer tasks override older ones)
-        for task in tasks {
-            tasksDict[task.id] = task
-        }
-        
-        // Convert dictionary back to sorted array
-        var updatedTasks = Array(tasksDict.values)
-        updatedTasks.sort { $0.timeDate < $1.timeDate }
+        // Replace with provided tasks (sorted). This ensures deletions are persisted.
+        var updatedTasks = tasks.sorted { $0.timeDate < $1.timeDate }
         
         // Update cache
         if updatedTasks.isEmpty {

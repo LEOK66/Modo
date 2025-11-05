@@ -148,6 +148,8 @@ struct MainPageView: View {
     @State private var isViewVisible = false
     // Track notification observer to prevent duplicates
     @State private var notificationObserver: NSObjectProtocol? = nil
+    // Track recently deleted task IDs to suppress flicker from stale cache/listener payloads
+    @State private var pendingDeletedTaskIds: Set<UUID> = []
     
     // Date range: past 12 months to future 3 months
     private var dateRange: (min: Date, max: Date) {
@@ -996,6 +998,23 @@ struct MainPageView: View {
         }
     }
     
+    /// Load all cached tasks within the current cache window into memory
+    private func loadAllCachedTasksIntoMemory(centerDate: Date) {
+        guard let userId = Auth.auth().currentUser?.uid else { return }
+        let (_, cached) = cacheService.getCurrentCacheWindow(centerDate: centerDate)
+        // Merge cached tasks into in-memory map (overwrite with cache snapshot),
+        // but filter out tasks recently deleted locally to avoid flicker.
+        let filteredCached = cached.mapValues { tasks in
+            tasks.filter { !pendingDeletedTaskIds.contains($0.id) }
+        }
+        DispatchQueue.main.async {
+            self.tasksByDate = filteredCached
+        }
+        print("🗂️ MainPageView: Loaded \(cached.count) dates from local cache into memory")
+        // Keep cache window tidy
+        cacheService.updateCacheWindow(centerDate: centerDate, for: userId)
+    }
+    
     /// Add a task to the Map structure and save to cache + Firebase
     private func addTask(_ task: TaskItem) {
         guard let userId = Auth.auth().currentUser?.uid else {
@@ -1046,6 +1065,8 @@ struct MainPageView: View {
         let dateKey = calendar.startOfDay(for: task.timeDate)
         
         print("🗑️ MainPageView: Deleting task - Title: \"\(task.title)\", Date: \(dateKey), ID: \(task.id)")
+        // Suppress flicker from incoming stale payloads
+        pendingDeletedTaskIds.insert(task.id)
         
         // Update in-memory state immediately (for UI responsiveness)
         for (key, tasks) in tasksByDate {
@@ -1071,9 +1092,21 @@ struct MainPageView: View {
                     switch result {
                     case .success:
                         print("✅ MainPageView: Task deleted from Firebase - Title: \"\(task.title)\", ID: \(task.id)")
+                        // Confirm deletion, stop suppressing
+                        DispatchQueue.main.async {
+                            self.pendingDeletedTaskIds.remove(task.id)
+                        }
                     case .failure(let error):
                         print("❌ MainPageView: Failed to delete task from Firebase - Title: \"\(task.title)\", Error: \(error.localizedDescription)")
+                        // On failure, also stop suppressing so task can be restored by listener
+                        DispatchQueue.main.async {
+                            self.pendingDeletedTaskIds.remove(task.id)
+                        }
                     }
+                }
+                // Failsafe: clear suppression after timeout to avoid stuck state if callback never arrives
+                DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+                    self.pendingDeletedTaskIds.remove(task.id)
                 }
                 
                 return
@@ -1228,6 +1261,12 @@ struct MainPageView: View {
                         )
                     }
                     .padding(.top, 12)
+                    .id("content-\(selectedDate)")
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .move(edge: .top)),
+                        removal: .opacity.combined(with: .move(edge: .bottom))
+                    ))
+                    .animation(.easeInOut(duration: 0.3), value: selectedDate)
                     
                     // MARK: - Bottom Bar with navigation
                     BottomBar(selectedTab: $selectedTab)
@@ -1305,6 +1344,8 @@ struct MainPageView: View {
         .onAppear {
             print("📍 MainPageView: onAppear called")
             isViewVisible = true
+            // Load cached tasks for current user into memory so calendar dots persist
+            loadAllCachedTasksIntoMemory(centerDate: selectedDate)
             setupListenerIfNeeded(for: selectedDate)
             setupWorkoutTaskNotification()
             setupDailyChallengeNotification()
@@ -1339,6 +1380,12 @@ struct MainPageView: View {
             // Update calories service when date changes
             let todayTasks = tasks(for: newValue)
             updateCaloriesServiceIfNeeded(tasks: todayTasks, date: newValue)
+        }
+        // Refresh in-memory tasks from cache when opening the calendar so day dots show up
+        .onChange(of: isShowingCalendar) { _, newValue in
+            if newValue == true {
+                loadAllCachedTasksIntoMemory(centerDate: selectedDate)
+            }
         }
     }
     
@@ -1417,15 +1464,18 @@ struct MainPageView: View {
            
            print("🔄 MainPageView: Real-time update received for \(date) - \(tasks.count) tasks")
            
+           // Filter out any tasks that are in local pending-deletion to avoid flicker
+           let filteredTasks = tasks.filter { !pendingDeletedTaskIds.contains($0.id) }
+
            // CRITICAL FIX #8: Update cache without triggering additional Firebase operations
            // Use a flag or separate method that doesn't trigger listeners
            Task.detached(priority: .background) {
-               self.cacheService.saveTasksForDate(tasks, date: normalizedDate, userId: userId)
+               self.cacheService.saveTasksForDate(filteredTasks, date: normalizedDate, userId: userId)
            }
            
            // Update in-memory state on main thread
            DispatchQueue.main.async {
-               self.tasksByDate[normalizedDate] = tasks
+               self.tasksByDate[normalizedDate] = filteredTasks
                // Update calories service after listener update
                let todayTasks = self.tasks(for: normalizedDate)
                self.updateCaloriesServiceIfNeeded(tasks: todayTasks, date: normalizedDate)
@@ -1720,6 +1770,7 @@ private struct CombinedStatsCard: View {
                 Text(value)
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundColor(tint)
+                    .contentTransition(.numericText())
                 Text(label)
                     .font(.system(size: 12))
                     .foregroundColor(Color(hexString: "6A7282"))
