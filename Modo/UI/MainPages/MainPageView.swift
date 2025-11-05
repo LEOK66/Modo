@@ -922,6 +922,7 @@ struct MainPageView: View {
                         
                         TaskListView(
                             tasks: filteredTasks,
+                            selectedDate: selectedDate,
                             navigationPath: $navigationPath,
                             newlyAddedTaskId: $newlyAddedTaskId,
                             onDeleteTask: { task in
@@ -1516,10 +1517,11 @@ private struct TaskRowCard: View {
     let emphasis: Color
     let category: AddTaskView.Category
     let isAIGenerated: Bool
+    let isFutureDate: Bool
     @State private var checkboxScale: CGFloat = 1.0
     @State private var strikethroughProgress: CGFloat = 0.0
 
-    init(title: String, subtitle: String, time: String, endTime: String?, meta: String, isDone: Binding<Bool>, emphasis: Color, category: AddTaskView.Category, isAIGenerated: Bool = false) {
+    init(title: String, subtitle: String, time: String, endTime: String?, meta: String, isDone: Binding<Bool>, emphasis: Color, category: AddTaskView.Category, isAIGenerated: Bool = false, isFutureDate: Bool = false) {
         self.title = title
         self.subtitle = subtitle
         self.time = time
@@ -1529,53 +1531,56 @@ private struct TaskRowCard: View {
         self.emphasis = emphasis
         self.category = category
         self.isAIGenerated = isAIGenerated
+        self.isFutureDate = isFutureDate
     }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            // Checkbox button
-            Button {
-                let willBeDone = !isDone
-                
-                withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
-                    isDone.toggle()
-                    triggerCompletionHaptic()
-                }
-                // Checkbox bounce animation
-                withAnimation(.easeOut(duration: 0.15)) {
-                    checkboxScale = 1.3
-                }
-                withAnimation(.easeIn(duration: 0.15).delay(0.15)) {
-                    checkboxScale = 1.0
-                }
-                // Strikethrough animation
-                if willBeDone {
-                    withAnimation(.easeInOut(duration: 0.4).delay(0.1)) {
-                        strikethroughProgress = 1.0
+            // Checkbox button - only show for non-future dates
+            if !isFutureDate {
+                Button {
+                    let willBeDone = !isDone
+                    
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
+                        isDone.toggle()
+                        triggerCompletionHaptic()
                     }
-                } else {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        strikethroughProgress = 0.0
+                    // Checkbox bounce animation
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        checkboxScale = 1.3
                     }
-                }
-            } label: {
-                ZStack {
-                    Circle()
-                        .fill(isDone ? emphasis : Color.white)
-                        .frame(width: 22, height: 22)
-                        .overlay(
-                            Circle().stroke(Color(hexString: "E5E7EB"), lineWidth: isDone ? 0 : 1)
-                        )
-                        .scaleEffect(checkboxScale)
-                    if isDone {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(.white)
+                    withAnimation(.easeIn(duration: 0.15).delay(0.15)) {
+                        checkboxScale = 1.0
+                    }
+                    // Strikethrough animation
+                    if willBeDone {
+                        withAnimation(.easeInOut(duration: 0.4).delay(0.1)) {
+                            strikethroughProgress = 1.0
+                        }
+                    } else {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            strikethroughProgress = 0.0
+                        }
+                    }
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(isDone ? emphasis : Color.white)
+                            .frame(width: 22, height: 22)
+                            .overlay(
+                                Circle().stroke(Color(hexString: "E5E7EB"), lineWidth: isDone ? 0 : 1)
+                            )
                             .scaleEffect(checkboxScale)
+                        if isDone {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(.white)
+                                .scaleEffect(checkboxScale)
+                        }
                     }
                 }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
             
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -1743,11 +1748,20 @@ private struct TaskDetailDestinationView: View {
 
 private struct TaskListView: View {
     let tasks: [MainPageView.TaskItem]
+    let selectedDate: Date
     @Binding var navigationPath: NavigationPath
     @Binding var newlyAddedTaskId: UUID?
     let onDeleteTask: (MainPageView.TaskItem) -> Void
     let onUpdateTask: (MainPageView.TaskItem) -> Void
     @State private var deletingTaskIds: Set<UUID> = []
+    
+    // Check if selected date is in the future
+    private var isFutureDate: Bool {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let selected = calendar.startOfDay(for: selectedDate)
+        return selected > today
+    }
 
     var body: some View {
         Group {
@@ -1771,6 +1785,9 @@ private struct TaskListView: View {
                                     isDone: Binding(
                                         get: { task.isDone },
                                         set: { newValue in
+                                            // Disable check for future dates
+                                            guard !isFutureDate else { return }
+                                            
                                             // Create a new TaskItem with updated isDone
                                             let updatedTask = MainPageView.TaskItem(
                                                 id: task.id,
@@ -1792,7 +1809,8 @@ private struct TaskListView: View {
                                     ),
                                     emphasis: Color(hexString: task.emphasisHex),
                                     category: task.category,
-                                    isAIGenerated: task.isAIGenerated
+                                    isAIGenerated: task.isAIGenerated,
+                                    isFutureDate: isFutureDate
                                 )
                                 .scaleEffect(isNewlyAdded ? 1.05 : 1.0)
                                 .shadow(

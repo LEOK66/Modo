@@ -27,6 +27,29 @@ struct ProfilePageView: View {
         self._isPresented = isPresented
     }
     
+    // Computed property to get display username - this is evaluated during view rendering
+    // so it will use the latest value from userProfileService immediately
+    private var displayUsername: String {
+        // First priority: use profile service username if available
+        // We check the profile exists first, then use its username (even if "Modor")
+        // This ensures we use the profile's actual value rather than defaulting
+        if let profile = userProfileService.currentProfile {
+            // If profile exists, use its username (could be "Modor" if user hasn't changed it)
+            if let profileUsername = profile.username, !profileUsername.isEmpty {
+                return profileUsername
+            }
+        }
+        
+        // Second priority: use local state if it's been set and not default
+        // This handles the case where we've loaded from Firebase but profile isn't set yet
+        if !username.isEmpty && username != "Modor" {
+            return username
+        }
+        
+        // Default fallback - only use if profile doesn't exist or is truly empty
+        return "Modor"
+    }
+    
     
     private let databaseService = DatabaseService.shared
     private let progressService = ProgressCalculationService.shared
@@ -102,6 +125,23 @@ struct ProfilePageView: View {
             .modifier(usernameAlertModifier)
             .onReceive(NotificationCenter.default.publisher(for: .dayCompletionDidChange)) { _ in
                 loadProgressData()
+            }
+            .onChange(of: userProfileService.currentProfile?.username) { oldValue, newValue in
+                // Sync username when profile username changes
+                // This ensures local state stays in sync for smooth animations
+                syncUsernameFromProfile()
+            }
+            .onChange(of: userProfileService.currentProfile) { oldValue, newValue in
+                // When profile loads (e.g., from SwiftData Query), sync username immediately
+                // This handles the case where profile loads asynchronously
+                // We update immediately without animation to prevent flash
+                if let profile = newValue {
+                    if let profileUsername = profile.username, !profileUsername.isEmpty {
+                        // Update username immediately to prevent flash
+                        username = profileUsername
+                        tempUsername = profileUsername
+                    }
+                }
             }
             .sheet(isPresented: $showAvatarSheet) {
                 AvatarActionSheet(
@@ -181,7 +221,7 @@ struct ProfilePageView: View {
                 Spacer().frame(height: 12)
                 
                 ProfileContent(
-                    username: username,
+                    username: displayUsername,
                     email: authService.currentUser?.email ?? "email@example.com",
                     progressPercent: progressData.percent,
                     daysCompletedText: daysCompletedText,
@@ -190,7 +230,7 @@ struct ProfilePageView: View {
                     avatarName: userProfileService.avatarName,
                     profileImageURL: userProfileService.profileImageURL,
                     onEditUsername: {
-                        tempUsername = username
+                        tempUsername = displayUsername
                         showEditUsernameAlert = true
                     },
                     onLogoutTap: {
@@ -206,11 +246,17 @@ struct ProfilePageView: View {
     private var profileDataChangeModifier: some ViewModifier {
         ProfileDataChangeModifier(
             onAppear: {
+                // Initialize username from profile service first (synchronous access)
+                // This ensures we have the username ready before first render
+                initializeUsername()
                 ensureDefaultAvatarIfNeeded()
                 loadUserProfile()
                 loadProgressData()
             },
             onDataChange: {
+                // Update local username when profile changes
+                // This keeps local state in sync for animations
+                syncUsernameFromProfile()
                 loadProgressData()
             }
         )
@@ -224,6 +270,47 @@ struct ProfilePageView: View {
         UsernameAlertModifier(isPresented: $showEditUsernameAlert, username: $tempUsername, onSave: saveUsername)
     }
     
+    /// Initialize username from profile service (synchronous, for immediate display)
+    private func initializeUsername() {
+        // Prioritize profile service username if available
+        if let profileUsername = userProfileService.currentProfile?.username,
+           !profileUsername.isEmpty,
+           profileUsername != "Modor" {
+            // Only update if different to avoid unnecessary state updates
+            if username != profileUsername {
+                username = profileUsername
+            }
+            if tempUsername != profileUsername {
+                tempUsername = profileUsername
+            }
+        } else {
+            // If profile doesn't have a custom username, keep current username
+            // Don't reset to "Modor" if we already have a custom username
+            if username.isEmpty {
+                username = "Modor"
+            }
+        }
+    }
+    
+    /// Sync username from profile service when profile changes
+    private func syncUsernameFromProfile() {
+        // Always sync with profile if it exists - this keeps local state for animations
+        if let profile = userProfileService.currentProfile {
+            if let profileUsername = profile.username, !profileUsername.isEmpty {
+                // Update local state to match profile (for smooth animations)
+                if username != profileUsername {
+                    username = profileUsername
+                }
+            } else {
+                // Profile exists but username is nil/empty - use "Modor"
+                if username != "Modor" {
+                    username = "Modor"
+                }
+            }
+        }
+        // If profile doesn't exist yet, keep current username state
+    }
+    
     private func loadUserProfile() {
         guard let userId = authService.currentUser?.uid else {
             print("⚠️ ProfilePageView: No user logged in")
@@ -234,43 +321,73 @@ struct ProfilePageView: View {
             switch result {
             case .success(let fetchedUsername):
                 DispatchQueue.main.async {
+                    // Update local state if we got a username from Firebase
                     if let fetchedUsername = fetchedUsername, !fetchedUsername.isEmpty {
                         self.username = fetchedUsername
+                        // Also sync with profile if it exists
+                        if let profile = self.userProfileService.currentProfile {
+                            profile.username = fetchedUsername
+                            do {
+                                try? self.modelContext.save()
+                            }
+                            self.userProfileService.setProfile(profile)
+                        }
+                    } else {
+                        // If no username in Firebase, check if we have one in local profile
+                        self.syncUsernameFromProfile()
                     }
                 }
                 print("✅ ProfilePageView: Loaded username")
             case .failure(let error):
                 print("❌ ProfilePageView: Failed to load username - \(error.localizedDescription)")
+                // On failure, still try to sync from local profile
+                DispatchQueue.main.async {
+                    self.syncUsernameFromProfile()
+                }
             }
         }
     }
     
     private func saveUsername() {
-        guard let userId = authService.currentUser?.uid else {
-            print("⚠️ ProfilePageView: No user logged in")
+        guard let userId = authService.currentUser?.uid,
+              let profile = userProfileService.currentProfile else {
+            print("⚠️ ProfilePageView: No user logged in or no profile")
             return
         }
         
         // Store previous value for rollback
-        let previousUsername = username
+        let previousUsername = displayUsername
         
-        // Update local state with animation
-        withAnimation(.easeInOut(duration: 0.3)) {
-            username = tempUsername
+        // Update local state and profile immediately
+        username = tempUsername
+        profile.username = tempUsername
+        profile.updatedAt = Date()
+        
+        // Save to SwiftData
+        do {
+            try modelContext.save()
+        } catch {
+            print("❌ ProfilePageView: Failed to save username to SwiftData - \(error.localizedDescription)")
         }
         
-        // Save to database
+        // Update the shared service
+        userProfileService.setProfile(profile)
+        
+        // Save to Firebase
         databaseService.updateUsername(userId: userId, username: tempUsername) { result in
             switch result {
             case .success:
                 print("✅ ProfilePageView: Username saved successfully")
             case .failure(let error):
-                print("❌ ProfilePageView: Failed to save username - \(error.localizedDescription)")
+                print("❌ ProfilePageView: Failed to save username to Firebase - \(error.localizedDescription)")
                 // Revert on failure
                 DispatchQueue.main.async {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        self.username = previousUsername
+                    self.username = previousUsername
+                    profile.username = previousUsername
+                    do {
+                        try? self.modelContext.save()
                     }
+                    self.userProfileService.setProfile(profile)
                 }
             }
         }
@@ -302,6 +419,10 @@ struct ProfilePageView: View {
             deleteOldProfileImage(userId: userId)
         }
         profile.updatedAt = Date()
+        // Preserve username when changing avatar
+        if profile.username == nil || profile.username?.isEmpty == true {
+            profile.username = displayUsername
+        }
         do { try modelContext.save() } catch { print("Save error: \(error.localizedDescription)") }
         DatabaseService.shared.saveUserProfile(profile) { _ in }
         // Refresh the shared service
@@ -329,7 +450,13 @@ struct ProfilePageView: View {
                     case .success(let url):
                         DispatchQueue.main.async {
                             profile.profileImageURL = url
+                            // Clear default avatar when uploading custom photo
+                            profile.avatarName = nil
                             profile.updatedAt = Date()
+                            // Preserve username when changing avatar
+                            if profile.username == nil || profile.username?.isEmpty == true {
+                                profile.username = self.displayUsername
+                            }
                             do { try? modelContext.save() }
                             DatabaseService.shared.saveUserProfile(profile) { _ in }
                             // Refresh the shared service

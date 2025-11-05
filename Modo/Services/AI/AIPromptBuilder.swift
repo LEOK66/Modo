@@ -56,7 +56,7 @@ class AIPromptBuilder {
         - Mix compound and isolation movements
         - Include rest periods (30-90 seconds)
         - Calculate calories based on exercise intensity
-        - Use US units (lbs, inches)
+        - Use units matching the user's preference: \(getUserUnitSystem(userProfile: userProfile).isMetric ? "Metric (kg, cm)" : "Imperial/US (lbs, inches)")
         """
         
         return prompt
@@ -84,29 +84,30 @@ class AIPromptBuilder {
         
         prompt += """
         
-        CRITICAL FORMAT - COMPLETE DISH NAMES ONLY:
-        - For each meal, list 2-4 COMPLETE DISH NAMES
-        - Examples: "Scrambled Eggs with Spinach", "Grilled Chicken Salad", "Oatmeal with Berries"
+        CRITICAL FORMAT - DISH NAME WITH CALORIES:
+        - For each meal, list 2-4 COMPLETE DISH NAMES with estimated calories
+        - Format: "Dish Name (~XXX calories)"
+        - Examples: "Scrambled Eggs with Spinach (~250 calories)", "Grilled Chicken Salad (~350 calories)"
         - Use COMPLETE dish names, NOT individual ingredients
+        - Provide reasonable calorie estimates for typical single servings
         - NO markdown formatting (no **, __, ##)
         - NO bullet points or numbers
         - NO descriptions or explanatory text
-        - Just plain dish names, one per line
-        - I will look up calories using a food database
+        - Just dish names with calories, one per line
         
         Example format:
         Breakfast:
-        Scrambled Eggs with Spinach
-        Whole Wheat Toast with Avocado
+        Scrambled Eggs with Spinach (~250 calories)
+        Whole Wheat Toast with Avocado (~300 calories)
         
         Lunch:
-        Grilled Chicken Caesar Salad
-        Brown Rice Bowl
+        Grilled Chicken Caesar Salad (~400 calories)
+        Brown Rice Bowl (~350 calories)
         
         IMPORTANT:
         - Single servings for ONE PERSON
-        - Complete dish names for accurate database lookup
-        - NO portion sizes (will be determined by database)
+        - Provide accurate calorie estimates for typical portions
+        - Use your nutrition knowledge to estimate calories
         """
         
         return prompt
@@ -298,13 +299,8 @@ class AIPromptBuilder {
         - Only ask "what do you think of this plan?" when you've actually created a specific workout or meal plan that the user requested
         
         Units and measurements:
-        - ALWAYS use Imperial/US units by default:
-          * Weight: lbs (pounds)
-          * Height: feet and inches (e.g., 5'10")
-          * Distance: miles, yards, feet
-          * Temperature: Fahrenheit
-          * Food portions: oz, cups, tablespoons
-        - Convert metric to imperial automatically
+        \(getUserUnitSystem(userProfile: userProfile).unitDescription)
+        - CRITICAL: Use the SAME unit system as the user's profile. Match their preferred units exactly.
         
         CRITICAL RULES for workout/diet plans:
         - When user asks to create a WORKOUT plan, FIRST ask: "What time would you like to do this workout?"
@@ -332,24 +328,13 @@ class AIPromptBuilder {
         if let profile = userProfile {
             prompt += "\n\nUser Profile:"
             
+            // Keep user's original units - don't convert
             if let heightValue = profile.heightValue, let heightUnit = profile.heightUnit {
-                if heightUnit.lowercased() == "cm" {
-                    let totalInches = heightValue / 2.54
-                    let feet = Int(totalInches / 12)
-                    let inches = Int(totalInches.truncatingRemainder(dividingBy: 12))
-                    prompt += "\n- Height: \(feet)'\(inches)\""
-                } else {
-                    prompt += "\n- Height: \(heightValue) \(heightUnit)"
-                }
+                prompt += "\n- Height: \(heightValue) \(heightUnit)"
             }
             
             if let weightValue = profile.weightValue, let weightUnit = profile.weightUnit {
-                if weightUnit.lowercased() == "kg" {
-                    let lbs = Int(weightValue * 2.20462)
-                    prompt += "\n- Weight: \(lbs)lbs"
-                } else {
-                    prompt += "\n- Weight: \(weightValue) \(weightUnit)"
-                }
+                prompt += "\n- Weight: \(weightValue) \(weightUnit)"
             }
             
             if let age = profile.age {
@@ -417,31 +402,21 @@ class AIPromptBuilder {
         
         Context: It's \(timeOfDay) on a \(isWeekend ? "weekend" : "weekday") (\(dayOfWeek))
         
-        Units: Always use US customary units (lbs, feet/inches, oz, cups)
+        Units: \(getUserUnitSystem(userProfile: userProfile).unitDescription)
+        - CRITICAL: Use the SAME unit system as the user's profile. Match their preferred units exactly.
         """
         
         // Add user profile information
         if let profile = userProfile {
             prompt += "\n\nUser Profile:"
             
+            // Keep user's original units - don't convert
             if let heightValue = profile.heightValue, let heightUnit = profile.heightUnit {
-                if heightUnit.lowercased() == "cm" {
-                    let totalInches = heightValue / 2.54
-                    let feet = Int(totalInches / 12)
-                    let inches = Int(totalInches.truncatingRemainder(dividingBy: 12))
-                    prompt += "\n- Height: \(feet)'\(inches)\""
-                } else {
-                    prompt += "\n- Height: \(heightValue) \(heightUnit)"
-                }
+                prompt += "\n- Height: \(heightValue) \(heightUnit)"
             }
             
             if let weightValue = profile.weightValue, let weightUnit = profile.weightUnit {
-                if weightUnit.lowercased() == "kg" {
-                    let lbs = Int(weightValue * 2.20462)
-                    prompt += "\n- Weight: \(lbs)lbs"
-                } else {
-                    prompt += "\n- Weight: \(weightValue) \(weightUnit)"
-                }
+                prompt += "\n- Weight: \(weightValue) \(weightUnit)"
             }
             
             if let age = profile.age {
@@ -476,6 +451,48 @@ class AIPromptBuilder {
     }
     
     // MARK: - Helper Methods
+    
+    /// Determine if user uses metric or imperial units based on their profile
+    private func getUserUnitSystem(userProfile: UserProfile?) -> (isMetric: Bool, unitDescription: String) {
+        guard let profile = userProfile else {
+            // Default to imperial if no profile
+            return (false, """
+            - ALWAYS use Imperial/US units:
+              * Weight: lbs (pounds)
+              * Height: feet and inches (e.g., 5'10")
+              * Distance: miles, yards, feet
+              * Temperature: Fahrenheit
+              * Food portions: oz, cups, tablespoons
+            """)
+        }
+        
+        // Check user's actual units
+        let heightIsMetric = profile.heightUnit?.lowercased() == "cm"
+        let weightIsMetric = profile.weightUnit?.lowercased() == "kg"
+        
+        // If both are metric, user prefers metric; otherwise imperial
+        let isMetric = heightIsMetric && weightIsMetric
+        
+        if isMetric {
+            return (true, """
+            - ALWAYS use Metric units (matching the user's preference):
+              * Weight: kg (kilograms)
+              * Height: cm (centimeters)
+              * Distance: km (kilometers), meters
+              * Temperature: Celsius
+              * Food portions: grams, milliliters
+            """)
+        } else {
+            return (false, """
+            - ALWAYS use Imperial/US units:
+              * Weight: lbs (pounds)
+              * Height: feet and inches (e.g., 5'10")
+              * Distance: miles, yards, feet
+              * Temperature: Fahrenheit
+              * Food portions: oz, cups, tablespoons
+            """)
+        }
+    }
     
     private func getCurrentTimeOfDay() -> String {
         let hour = Calendar.current.component(.hour, from: Date())

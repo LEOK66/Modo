@@ -104,14 +104,14 @@ class AIResponseParser {
     
     /// Parse nutrition plan from AI response
     /// - Parameter content: Raw AI response text
-    /// - Returns: Dictionary of meals with food items
-    func parseNutritionResponse(_ content: String) -> [String: [String]] {
+    /// - Returns: Dictionary of meals with food items and their calories
+    func parseNutritionResponse(_ content: String) -> [String: [(name: String, calories: Int)]] {
         print("🔍 AIResponseParser: Parsing nutrition response...")
         
         let lines = content.components(separatedBy: .newlines)
-        var mealsDict: [String: [String]] = [:]
+        var mealsDict: [String: [(name: String, calories: Int)]] = [:]
         var currentMeal: String?
-        var currentFoods: [String] = []
+        var currentFoods: [(name: String, calories: Int)] = []
         
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -134,12 +134,13 @@ class AIResponseParser {
                 currentFoods = []
                 print("   📍 Found \(meal)")
             } else if currentMeal != nil {
-                // It's a food item - clean up formatting
-                let cleaned = cleanFoodItem(trimmed)
+                // It's a food item - parse name and calories
+                let (foodName, calories) = parseFoodItemWithCalories(trimmed)
                 
-                if !cleaned.isEmpty && isValidFoodItem(cleaned) {
-                    currentFoods.append(cleaned)
-                    print("    🥘 Added: \(cleaned)")
+                if !foodName.isEmpty && isValidFoodItem(foodName) {
+                    // Use AI-provided calories, or 0 if not provided (will use fallback)
+                    currentFoods.append((name: foodName, calories: calories))
+                    print("    🥘 Added: \(foodName)\(calories > 0 ? " (~\(calories) cal)" : " (calories to be looked up)")")
                 }
             }
         }
@@ -168,8 +169,10 @@ class AIResponseParser {
         return nil
     }
     
-    /// Clean food item text
-    private func cleanFoodItem(_ text: String) -> String {
+    /// Parse food item with calories from text
+    /// Format: "Dish Name (~XXX calories)" or "Dish Name"
+    /// Returns: (foodName, calories)
+    private func parseFoodItemWithCalories(_ text: String) -> (String, Int) {
         var cleaned = text
         
         // Remove markdown formatting
@@ -180,7 +183,22 @@ class AIResponseParser {
         // Remove bullet points, numbers, dashes
         cleaned = cleaned.replacingOccurrences(of: "^[•\\-\\*\\d\\.\\)\\]]+\\s*", with: "", options: .regularExpression)
         
-        return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Extract calories if present (format: "~XXX calories" or "~XXX cal")
+        var calories = 0
+        if let caloriesRegex = try? NSRegularExpression(pattern: #"~?\s*(\d+)\s*(?:calories?|cal|kcal)"#, options: .caseInsensitive) {
+            if let match = caloriesRegex.firstMatch(in: cleaned, range: NSRange(cleaned.startIndex..., in: cleaned)),
+               let range = Range(match.range(at: 1), in: cleaned) {
+                calories = Int(cleaned[range]) ?? 0
+                // Remove calories part from food name
+                cleaned = caloriesRegex.stringByReplacingMatches(in: cleaned, options: [], range: NSRange(cleaned.startIndex..., in: cleaned), withTemplate: "")
+            }
+        }
+        
+        // Clean up parentheses and extra spaces
+        cleaned = cleaned.replacingOccurrences(of: "\\(.*\\)", with: "", options: .regularExpression)
+        cleaned = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        return (cleaned, calories)
     }
     
     /// Validate if text is a valid food item

@@ -94,24 +94,13 @@ class ModoCoachService: ObservableObject {
             userInfoText += "Gender: \(genderText)\n"
         }
         
+        // Keep user's original units - don't convert
         if let weightValue = profile.weightValue, let weightUnit = profile.weightUnit {
-            if weightUnit.lowercased() == "kg" {
-                let lbs = Int(weightValue * 2.20462)
-                userInfoText += "Weight: \(lbs)lbs\n"
-            } else {
-                userInfoText += "Weight: \(Int(weightValue))\(weightUnit)\n"
-            }
+            userInfoText += "Weight: \(weightValue) \(weightUnit)\n"
         }
         
         if let heightValue = profile.heightValue, let heightUnit = profile.heightUnit {
-            if heightUnit.lowercased() == "cm" {
-                let totalInches = heightValue / 2.54
-                let feet = Int(totalInches / 12)
-                let inches = Int(totalInches.truncatingRemainder(dividingBy: 12))
-                userInfoText += "Height: \(feet)'\(inches)\"\n"
-            } else {
-                userInfoText += "Height: \(heightValue) \(heightUnit)\n"
-            }
+            userInfoText += "Height: \(heightValue) \(heightUnit)\n"
         }
         
         if let goal = profile.goal {
