@@ -2067,6 +2067,14 @@ private struct TaskRowCard: View {
         )
         .shadow(color: Color.black.opacity(0.04), radius: 2, x: 0, y: 1)
         .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        // Ensure strikethrough reflects current isDone when view (re)appears or external updates arrive
+        .onAppear {
+            strikethroughProgress = isDone ? 1.0 : 0.0
+        }
+        .onChange(of: isDone) { _, newValue in
+            // Keep progress in sync if completion state changes from outside (e.g., listener)
+            strikethroughProgress = newValue ? 1.0 : 0.0
+        }
     }
     
     private func triggerCompletionHaptic() {
