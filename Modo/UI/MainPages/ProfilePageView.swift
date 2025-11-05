@@ -975,8 +975,8 @@ private struct DailyChallengeCardView: View {
                                     value: challengeService.isGeneratingChallenge
                                 )
                         }
-                        .disabled(challengeService.isGeneratingChallenge || challengeService.isChallengeCompleted)
-                        .opacity((challengeService.isGeneratingChallenge || challengeService.isChallengeCompleted) ? 0.5 : 1.0)
+                        .disabled(challengeService.isGeneratingChallenge || challengeService.isChallengeCompleted || challengeService.isChallengeAddedToTasks)
+                        .opacity((challengeService.isGeneratingChallenge || challengeService.isChallengeCompleted || challengeService.isChallengeAddedToTasks) ? 0.5 : 1.0)
                     }
                 }
                 .padding(.horizontal, 20)

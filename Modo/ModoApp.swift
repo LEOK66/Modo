@@ -154,6 +154,9 @@ struct ModoApp: App {
                     }
                     checkVerificationStatus()
                     
+                    // Load challenge data for the newly logged in user
+                    DailyChallengeService.shared.loadTodayChallenge()
+                    
                 } else {
                     // User logged out - immediately hide authenticated UI to prevent flashing
                     showAuthenticatedUI = false

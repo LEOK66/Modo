@@ -54,6 +54,9 @@ final class AuthService: ObservableObject {
 
     // MARK: - Sign Out
     func signOut() throws {
+        // Reset DailyChallengeService state before signing out
+        DailyChallengeService.shared.resetState()
+        
         try Auth.auth().signOut()
     }
 

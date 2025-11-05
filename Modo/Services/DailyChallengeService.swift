@@ -331,6 +331,27 @@ final class DailyChallengeService: ObservableObject {
         return taskId == challengeTaskId
     }
     
+    /// Reset all state (call when user logs out)
+    func resetState() {
+        print("🔄 DailyChallengeService: Resetting all state for user logout")
+        
+        // Remove Firebase observer
+        removeCompletionObserver()
+        
+        // Clear all state
+        currentChallenge = nil
+        isChallengeCompleted = false
+        isChallengeAddedToTasks = false
+        completedAt = nil
+        isLocked = false
+        hasMinimumUserData = false
+        isGeneratingChallenge = false
+        challengeGenerationError = nil
+        challengeTaskId = nil
+        
+        print("✅ DailyChallengeService: State reset complete")
+    }
+    
     /// Check if it's a new day and reset challenge if needed
     func checkAndResetForNewDay() {
         guard let challenge = currentChallenge else {

@@ -753,7 +753,7 @@ private struct FinalStepView: View {
                 }
                 .onChange(of: actualCalories) {
                     let value = Int(actualCalories) ?? 0
-                    let valid = value > 600
+                    let valid = value > 250
                     showCaloriesError = !valid && !actualCalories.isEmpty
                 }
                 errorView
