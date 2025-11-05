@@ -52,6 +52,8 @@ struct AddTaskView: View {
     // AI Generation state
     @State private var isAIGenerating: Bool = false
     @State private var aiGenerateError: String? = nil
+    @State private var isTitleGenerating: Bool = false
+    @State private var isDescriptionGenerating: Bool = false
     private let firebaseAIService = FirebaseAIService.shared
     
     // ✅ Use AIPromptBuilder for unified prompt construction
@@ -321,17 +323,26 @@ struct AddTaskView: View {
                     label("Task Title")
                     Spacer()
                     Button(action: {
-                        aiPromptText = titleText.isEmpty ? "Generate a concise, clear task title" : "Improve this title: \(titleText)"
-                        isAskAISheetPresented = true
+                        generateOrRefineTitle()
                     }) {
-                        Image(systemName: "wand.and.stars")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(.white)
-                            .padding(6)
-                            .background(Color(hexString: "9810FA"))
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        Group {
+                            if isTitleGenerating {
+                                SwiftUI.ProgressView()
+                                    .scaleEffect(0.8)
+                                    .tint(.white)
+                                    .padding(6)
+                            } else {
+                                Image(systemName: "wand.and.stars")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .padding(6)
+                            }
+                        }
+                        .background(Color(hexString: "9810FA"))
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     }
                     .buttonStyle(.plain)
+                    .disabled(isTitleGenerating)
                 }
                 HStack(spacing: 8) {
                     TextField("e.g., Morning Run", text: $titleText)
@@ -368,17 +379,26 @@ struct AddTaskView: View {
                     label("Description")
                     Spacer()
                     Button(action: {
-                        aiPromptText = descriptionText.isEmpty ? "Write a brief, helpful task description" : "Improve this description: \(descriptionText)"
-                        isAskAISheetPresented = true
+                        generateDescription()
                     }) {
-                        Image(systemName: "wand.and.stars")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(.white)
-                            .padding(6)
-                            .background(Color(hexString: "9810FA"))
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        Group {
+                            if isDescriptionGenerating {
+                                SwiftUI.ProgressView()
+                                    .scaleEffect(0.8)
+                                    .tint(.white)
+                                    .padding(6)
+                            } else {
+                                Image(systemName: "wand.and.stars")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .padding(6)
+                            }
+                        }
+                        .background(Color(hexString: "9810FA"))
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     }
                     .buttonStyle(.plain)
+                    .disabled(isDescriptionGenerating)
                 }
                 ZStack(alignment: .topTrailing) {
                     TextField("e.g., 5km jog in the park", text: $descriptionText, axis: .vertical)
@@ -2191,6 +2211,217 @@ struct AddTaskView: View {
             unit: unit,
             caloriesText: String(calories)
         )
+    }
+    
+    // MARK: - Title & Description AI Generation
+    
+    /// Animate text appearing character by character (typing effect)
+    private func animateTextAppearance(
+        finalText: String,
+        target: Binding<String>,
+        delayPerChar: TimeInterval = 0.03
+    ) async {
+        let characters = Array(finalText)
+        var currentText = ""
+        
+        for char in characters {
+            currentText.append(char)
+            await MainActor.run {
+                target.wrappedValue = currentText
+            }
+            try? await Task.sleep(nanoseconds: UInt64(delayPerChar * 1_000_000_000))
+        }
+    }
+    
+    /// Generate or refine task title based on user profile
+    private func generateOrRefineTitle() {
+        guard !isTitleGenerating else { return }
+        
+        isTitleGenerating = true
+        
+        // Get user profile
+        let userProfile: UserProfile? = {
+            let fetchDescriptor = FetchDescriptor<UserProfile>()
+            return try? modelContext.fetch(fetchDescriptor).first
+        }()
+        
+        // Build system prompt
+        let systemPrompt = promptBuilder.buildSystemPrompt(userProfile: userProfile)
+        
+        // Build user message based on whether title is empty or not
+        let userMessage: String
+        if titleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            // Generate new title based on user profile
+            userMessage = """
+            Generate a concise, clear task title (2-4 words max) for a fitness or nutrition task based on the user's profile.
+            The title should be relevant to their goals and lifestyle.
+            Examples: "Morning Run", "Upper Body Strength", "Healthy Breakfast", "Evening Yoga"
+            
+            Respond with ONLY the title, no additional text or explanation.
+            """
+        } else {
+            // Refine existing title (improve grammar, clarity)
+            userMessage = """
+            Improve and refine this task title for clarity and grammar: "\(titleText)"
+            
+            Keep it concise (2-4 words max), maintain the same meaning, but make it clearer and more professional.
+            Respond with ONLY the improved title, no additional text or explanation.
+            """
+        }
+        
+        Task {
+            do {
+                let messages = [
+                    FirebaseFirebaseChatMessage(role: "system", content: systemPrompt),
+                    FirebaseFirebaseChatMessage(role: "user", content: userMessage)
+                ]
+                
+                let response = try await firebaseAIService.sendChatRequest(messages: messages)
+                
+                await MainActor.run {
+                    if let content = response.choices.first?.message.content {
+                        // Clean up the response - remove quotes, extra whitespace, etc.
+                        let cleanedTitle = content
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                            .replacingOccurrences(of: "\"", with: "")
+                            .replacingOccurrences(of: "'", with: "")
+                        
+                        // Limit to 40 characters (same as TextField limit)
+                        let finalTitle = String(cleanedTitle.prefix(40))
+                        
+                        // Animate text appearance
+                        isTitleGenerating = false
+                        Task {
+                            await animateTextAppearance(finalText: finalTitle, target: $titleText)
+                        }
+                    } else {
+                        isTitleGenerating = false
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    print("❌ Title generation error: \(error)")
+                    isTitleGenerating = false
+                }
+            }
+        }
+    }
+    
+    /// Generate description based on existing title, or generate both title and description if title is empty
+    private func generateDescription() {
+        guard !isDescriptionGenerating else { return }
+        
+        isDescriptionGenerating = true
+        
+        // Get user profile
+        let userProfile: UserProfile? = {
+            let fetchDescriptor = FetchDescriptor<UserProfile>()
+            return try? modelContext.fetch(fetchDescriptor).first
+        }()
+        
+        // Build system prompt
+        let systemPrompt = promptBuilder.buildSystemPrompt(userProfile: userProfile)
+        
+        // Build user message based on whether title exists
+        let userMessage: String
+        if titleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            // Generate a task suggestion (both title and description) that the user should do
+            userMessage = """
+            Suggest a fitness or nutrition task that would be beneficial for the user based on their profile, goals, and lifestyle.
+            This should be something they would want to do or should do.
+            
+            Provide:
+            1. A concise task title (2-4 words max) - something they should do
+            2. A brief, helpful description (1-2 sentences) explaining what the task involves
+            
+            Format your response EXACTLY as:
+            TITLE: [title here]
+            DESCRIPTION: [description here]
+            
+            Make it relevant, actionable, and aligned with their fitness goals.
+            Examples:
+            - TITLE: Morning Run
+              DESCRIPTION: 5km jog in the park to start the day with energy and boost metabolism
+            - TITLE: Healthy Breakfast
+              DESCRIPTION: Balanced meal with protein, carbs, and healthy fats to fuel your day
+            - TITLE: Upper Body Strength
+              DESCRIPTION: 30-minute workout focusing on chest, back, and arms to build muscle
+            """
+        } else {
+            // Generate description based on existing title
+            userMessage = """
+            Generate a brief, helpful description (1-2 sentences) that fits well with this task title: "\(titleText)"
+            
+            The description should explain what the task involves, provide context, and make it clear what the user needs to do.
+            Keep it concise, actionable, and relevant to the title.
+            
+            Respond with ONLY the description text, no additional labels or formatting.
+            """
+        }
+        
+        Task {
+            do {
+                let messages = [
+                    FirebaseFirebaseChatMessage(role: "system", content: systemPrompt),
+                    FirebaseFirebaseChatMessage(role: "user", content: userMessage)
+                ]
+                
+                let response = try await firebaseAIService.sendChatRequest(messages: messages)
+                
+                await MainActor.run {
+                    if let content = response.choices.first?.message.content {
+                        isDescriptionGenerating = false
+                        
+                        if titleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            // Parse both title and description
+                            var finalTitle = ""
+                            var finalDescription = ""
+                            
+                            let lines = content.components(separatedBy: .newlines)
+                            for line in lines {
+                                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                                if trimmed.hasPrefix("TITLE:") {
+                                    let title = trimmed.replacingOccurrences(of: "TITLE:", with: "")
+                                        .trimmingCharacters(in: .whitespaces)
+                                        .replacingOccurrences(of: "\"", with: "")
+                                        .replacingOccurrences(of: "'", with: "")
+                                    finalTitle = String(title.prefix(40))
+                                } else if trimmed.hasPrefix("DESCRIPTION:") {
+                                    finalDescription = trimmed.replacingOccurrences(of: "DESCRIPTION:", with: "")
+                                        .trimmingCharacters(in: .whitespaces)
+                                }
+                            }
+                            
+                            // Animate both title and description
+                            Task {
+                                // Animate title first
+                                await animateTextAppearance(finalText: finalTitle, target: $titleText)
+                                // Then animate description
+                                await animateTextAppearance(finalText: finalDescription, target: $descriptionText)
+                            }
+                        } else {
+                            // Just set description
+                            let cleanedDesc = content
+                                .trimmingCharacters(in: .whitespacesAndNewlines)
+                                .replacingOccurrences(of: "DESCRIPTION:", with: "")
+                                .trimmingCharacters(in: .whitespaces)
+                            
+                            // Animate description appearance
+                            Task {
+                                await animateTextAppearance(finalText: cleanedDesc, target: $descriptionText)
+                            }
+                        }
+                    } else {
+                        isDescriptionGenerating = false
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    print("❌ Description generation error: \(error)")
+                    isDescriptionGenerating = false
+                }
+            }
+        }
     }
 }
 
