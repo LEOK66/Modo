@@ -11,13 +11,8 @@ final class DatabaseService {
     private let operationsQueue = DispatchQueue(label: "com.app.database.operations")
     
     private init() {
-        // Enable offline persistence BEFORE creating any database reference
-        // When enabled, Firebase Realtime Database will:
-        // 1. Store data locally on disk
-        // 2. Queue write operations when offline
-        // 3. Automatically sync when network is restored
-        // 4. Maintain local cache for read operations
-        Database.database().isPersistenceEnabled = true
+        // Note: Persistence is enabled in ModoApp.init() before any services are initialized
+        // This ensures persistence is configured before any database access occurs
         self.db = Database.database().reference()
         
         // Monitor connection status for debugging
@@ -194,7 +189,6 @@ final class DatabaseService {
     ///   - taskId: UUID of task to delete
     ///   - date: Date the task belongs to
     ///   - completion: Completion handler with result
-    /// Delete a task from Firebase
     func deleteTask(userId: String, taskId: UUID, date: Date, completion: ((Result<Void, Error>) -> Void)? = nil) {
         let dateKey = dateToKey(date)
         let taskPath = db.child("users").child(userId).child("tasks").child(dateKey).child(taskId.uuidString)

@@ -84,5 +84,14 @@ final class UserProfile {
         return heightValue != nil && weightValue != nil &&
                age != nil && gender != nil && lifestyle != nil
     }
+    
+    // MARK: - Daily Challenge Data Validation
+    
+    /// Check if user has minimum data for Daily Challenge feature
+    func hasMinimumDataForDailyChallenge() -> Bool {
+        // Check if user has basic health information
+        return heightValue != nil && weightValue != nil &&
+               age != nil && gender != nil
+    }
 }
 

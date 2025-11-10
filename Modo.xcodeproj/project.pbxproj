@@ -12,6 +12,7 @@
 		77C160302EAF3CFC00F6E552 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 77C1602F2EAF3CFC00F6E552 /* GoogleSignIn */; };
 		77C160322EAF3CFC00F6E552 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 77C160312EAF3CFC00F6E552 /* GoogleSignInSwift */; };
 		77C160342EAF3D4A00F6E552 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 77C160332EAF3D4A00F6E552 /* FirebaseCore */; };
+		9EBDDAA02EBA75A200CAE91B /* FirebaseFunctions in Frameworks */ = {isa = PBXBuildFile; productRef = 9EBDDA9F2EBA75A200CAE91B /* FirebaseFunctions */; };
 		9ED5B9D52EB339BB003351A1 /* FirebaseDatabase in Frameworks */ = {isa = PBXBuildFile; productRef = 9ED5B9D42EB339BB003351A1 /* FirebaseDatabase */; };
 /* End PBXBuildFile section */
 
@@ -75,6 +76,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				9ED5B9D52EB339BB003351A1 /* FirebaseDatabase in Frameworks */,
+				9EBDDAA02EBA75A200CAE91B /* FirebaseFunctions in Frameworks */,
 				4236422C2EA35C9500D25C09 /* FirebaseStorageCombine-Community in Frameworks */,
 				77C160342EAF3D4A00F6E552 /* FirebaseCore in Frameworks */,
 				4236422A2EA35C9500D25C09 /* FirebaseAuth in Frameworks */,
@@ -154,6 +156,7 @@
 				77C160312EAF3CFC00F6E552 /* GoogleSignInSwift */,
 				77C160332EAF3D4A00F6E552 /* FirebaseCore */,
 				9ED5B9D42EB339BB003351A1 /* FirebaseDatabase */,
+				9EBDDA9F2EBA75A200CAE91B /* FirebaseFunctions */,
 			);
 			productName = Modo;
 			productReference = 99F7495B2E9EEDFD006319FF /* Modo.app */;
@@ -367,7 +370,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
@@ -424,7 +427,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
@@ -441,7 +444,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Modo/Modo.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 1.0.5;
 				DEVELOPMENT_TEAM = XMK5JJT2W5;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -453,11 +456,12 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.5;
 				OTHER_LDFLAGS = "-ObjC";
 				"OTHER_LDFLAGS[arch=*]" = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.modo.mobile;
@@ -479,7 +483,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Modo/Modo.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 1.0.5;
 				DEVELOPMENT_TEAM = XMK5JJT2W5;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -491,11 +495,12 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.5;
 				OTHER_LDFLAGS = "-ObjC";
 				"OTHER_LDFLAGS[arch=*]" = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.modo.mobile;
@@ -517,7 +522,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ModoTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -538,7 +543,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ModoTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -675,6 +680,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 423642282EA35C9500D25C09 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseCore;
+		};
+		9EBDDA9F2EBA75A200CAE91B /* FirebaseFunctions */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 423642282EA35C9500D25C09 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFunctions;
 		};
 		9ED5B9D42EB339BB003351A1 /* FirebaseDatabase */ = {
 			isa = XCSwiftPackageProductDependency;

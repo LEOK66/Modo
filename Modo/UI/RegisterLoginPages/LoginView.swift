@@ -71,6 +71,8 @@ private struct LoginCard: View {
                         placeholder: "Password",
                         text: $password,
                         isSecure: true,
+                        keyboardType: .emailAddress,
+                        textContentType: .emailAddress,
                         showPasswordToggle: true
                     )
                     
