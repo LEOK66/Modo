@@ -1,7 +1,9 @@
 import SwiftUI
+import SwiftData
 
 struct AddTaskView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
     let selectedDate: Date
     @Binding var newlyAddedTaskId: UUID?
     let onTaskCreated: (MainPageView.TaskItem) -> Void
@@ -36,15 +38,38 @@ struct AddTaskView: View {
     @State private var lastClearedFitness: [FitnessEntry]? = nil
     
     // Focus and scroll
+    @FocusState private var titleFocused: Bool
+    @FocusState private var descriptionFocused: Bool
     @FocusState private var dietNameFocusIndex: Int?
     @FocusState private var fitnessNameFocusIndex: Int?
     @FocusState private var searchFieldFocused: Bool
     @State private var pendingScrollId: String? = nil
     
+    // Helper function to dismiss keyboard
+    private func dismissKeyboard() {
+        titleFocused = false
+        descriptionFocused = false
+        dietNameFocusIndex = nil
+        fitnessNameFocusIndex = nil
+        searchFieldFocused = false
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+    
     // AI UI placeholders
     @State private var isAIGenerateSheetPresented: Bool = false
     @State private var isAskAISheetPresented: Bool = false
     @State private var aiPromptText: String = ""
+    @State private var askAIMessages: [AskAIChatView.SimpleMessage] = [] // Persist Ask AI chat history
+    
+    // AI Generation state
+    @State private var isAIGenerating: Bool = false
+    @State private var aiGenerateError: String? = nil
+    @State private var isTitleGenerating: Bool = false
+    @State private var isDescriptionGenerating: Bool = false
+    private let firebaseAIService = FirebaseAIService.shared
+    
+    // ✅ Use AIPromptBuilder for unified prompt construction
+    private let promptBuilder = AIPromptBuilder()
 
     struct DietEntry: Identifiable, Equatable, Codable {
         let id: UUID
@@ -127,7 +152,6 @@ struct AddTaskView: View {
                 Spacer().frame(height: 12)
                 // AI Toolbar
                 HStack(spacing: 12) {
-                    Spacer()
                     Button(action: { isAskAISheetPresented = true }) {
                         HStack(spacing: 6) {
                             Image(systemName: "questionmark.circle")
@@ -142,36 +166,72 @@ struct AddTaskView: View {
                         .background(Color(hexString: "9810FA"))
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }
-                    Button(action: { isAIGenerateSheetPresented = true }) {
+                    Spacer()
+                    Button(action: {
+                        generateTaskAutomatically()
+                    }) {
                         HStack(spacing: 6) {
                             Image(systemName: "wand.and.stars")
                                 .foregroundColor(.white)
-                            Text("AI Generate")
+                            Text(isAIGenerating ? "..." : "AI Generate")
                                 .foregroundColor(.white)
                                 .lineLimit(1)
                         }
                         .font(.system(size: 14, weight: .medium))
                         .frame(height: 32)
                         .padding(.horizontal, 10)
-                        .background(Color.black)
+                        .background(isAIGenerating ? Color.gray : Color.black)
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }
+                    .disabled(isAIGenerating)
                 }
                 .padding(.horizontal, 24)
                 ScrollViewReader { proxy in
                     ScrollView {
-                        VStack(spacing: 16) {
-                        titleCard
-                        descriptionCard
-                        timeCard
-                        categoryCard
-                        if selectedCategory == .diet {
-                            caloriesCard
-                        }
-                        if selectedCategory == .fitness {
-                            fitnessEntriesCard
-                        }
-                        Spacer(minLength: 0)
+                        VStack(spacing: 0) {
+                            titleCard
+                                .id("title")
+                            Color.clear
+                                .frame(height: 16)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    dismissKeyboard()
+                                }
+                            descriptionCard
+                                .id("description")
+                            Color.clear
+                                .frame(height: 16)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    dismissKeyboard()
+                                }
+                            timeCard
+                            Color.clear
+                                .frame(height: 16)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    dismissKeyboard()
+                                }
+                            categoryCard
+                            if selectedCategory == .diet {
+                                Color.clear
+                                    .frame(height: 16)
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        dismissKeyboard()
+                                    }
+                                caloriesCard
+                            }
+                            if selectedCategory == .fitness {
+                                Color.clear
+                                    .frame(height: 16)
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        dismissKeyboard()
+                                    }
+                                fitnessEntriesCard
+                            }
+                            Spacer(minLength: 0)
                         }
                         .padding(.horizontal, 24)
                         .padding(.vertical, 16)
@@ -180,6 +240,38 @@ struct AddTaskView: View {
                         guard let id = newValue else { return }
                         withAnimation { proxy.scrollTo(id, anchor: .center) }
                         pendingScrollId = nil
+                    }
+                    .onChange(of: titleFocused) { _, isFocused in
+                        if isFocused {
+                            // Wait for keyboard to appear, then scroll
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                withAnimation { proxy.scrollTo("title", anchor: .center) }
+                            }
+                        }
+                    }
+                    .onChange(of: descriptionFocused) { _, isFocused in
+                        if isFocused {
+                            // Wait for keyboard to appear, then scroll
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                withAnimation { proxy.scrollTo("description", anchor: .center) }
+                            }
+                        }
+                    }
+                    .onChange(of: dietNameFocusIndex) { _, index in
+                        if let index = index {
+                            // Wait for keyboard to appear, then scroll
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                withAnimation { proxy.scrollTo("diet-\(index)", anchor: .center) }
+                            }
+                        }
+                    }
+                    .onChange(of: fitnessNameFocusIndex) { _, index in
+                        if let index = index {
+                            // Wait for keyboard to appear, then scroll
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                withAnimation { proxy.scrollTo("fit-\(index)", anchor: .center) }
+                            }
+                        }
                     }
                 }
                 .background(Color(hexString: "F3F4F6"))
@@ -224,13 +316,13 @@ struct AddTaskView: View {
         .sheet(isPresented: $isQuickPickPresented) {
             quickPickSheet
         }
-        .sheet(isPresented: $isAIGenerateSheetPresented) {
-            aiSheetView(title: "Describe your plan", buttonText: "Generate (coming soon)")
-        }
         .sheet(isPresented: $isAskAISheetPresented) {
-            aiSheetView(title: "Ask AI about this task", buttonText: "Send (coming soon)")
+            AskAIChatView(messages: $askAIMessages)
         }
-        .sheet(isPresented: $isDurationSheetPresented) {
+        .sheet(isPresented: $isDurationSheetPresented, onDismiss: {
+            // Ensure focus stays cleared after sheet dismisses
+            dismissKeyboard()
+        }) {
             VStack(spacing: 8) {
                 HStack {
                     VStack {
@@ -310,21 +402,31 @@ struct AddTaskView: View {
                     label("Task Title")
                     Spacer()
                     Button(action: {
-                        aiPromptText = titleText.isEmpty ? "Generate a concise, clear task title" : "Improve this title: \(titleText)"
-                        isAskAISheetPresented = true
+                        generateOrRefineTitle()
                     }) {
-                        Image(systemName: "wand.and.stars")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(.white)
-                            .padding(6)
-                            .background(Color(hexString: "9810FA"))
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        Group {
+                            if isTitleGenerating {
+                                SwiftUI.ProgressView()
+                                    .scaleEffect(0.8)
+                                    .tint(.white)
+                                    .padding(6)
+                            } else {
+                                Image(systemName: "wand.and.stars")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .padding(6)
+                            }
+                        }
+                        .background(Color(hexString: "9810FA"))
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     }
                     .buttonStyle(.plain)
+                    .disabled(isTitleGenerating)
                 }
                 HStack(spacing: 8) {
                     TextField("e.g., Morning Run", text: $titleText)
                         .textInputAutocapitalization(.words)
+                        .focused($titleFocused)
                         .onChange(of: titleText) { _, newValue in
                             if newValue.count > 40 { titleText = String(newValue.prefix(40)) }
                         }
@@ -357,23 +459,33 @@ struct AddTaskView: View {
                     label("Description")
                     Spacer()
                     Button(action: {
-                        aiPromptText = descriptionText.isEmpty ? "Write a brief, helpful task description" : "Improve this description: \(descriptionText)"
-                        isAskAISheetPresented = true
+                        generateDescription()
                     }) {
-                        Image(systemName: "wand.and.stars")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(.white)
-                            .padding(6)
-                            .background(Color(hexString: "9810FA"))
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        Group {
+                            if isDescriptionGenerating {
+                                SwiftUI.ProgressView()
+                                    .scaleEffect(0.8)
+                                    .tint(.white)
+                                    .padding(6)
+                            } else {
+                                Image(systemName: "wand.and.stars")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .padding(6)
+                            }
+                        }
+                        .background(Color(hexString: "9810FA"))
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     }
                     .buttonStyle(.plain)
+                    .disabled(isDescriptionGenerating)
                 }
                 ZStack(alignment: .topTrailing) {
                     TextField("e.g., 5km jog in the park", text: $descriptionText, axis: .vertical)
                         .textInputAutocapitalization(.sentences)
                         .lineLimit(3...6)
                         .textFieldStyle(.plain)
+                        .focused($descriptionFocused)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
                     if !descriptionText.isEmpty {
@@ -396,7 +508,11 @@ struct AddTaskView: View {
         card {
             VStack(alignment: .leading, spacing: 12) {
                 label("Time")
-                Button(action: { isTimeSheetPresented = true }) {
+                Button(action: {
+                    // Clear focus immediately when opening time sheet
+                    dismissKeyboard()
+                    isTimeSheetPresented = true
+                }) {
                     HStack {
                         Text(formattedTime)
                             .foregroundColor(Color(hexString: "0A0A0A"))
@@ -410,13 +526,18 @@ struct AddTaskView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                .sheet(isPresented: $isTimeSheetPresented) {
+                .sheet(isPresented: $isTimeSheetPresented, onDismiss: {
+                    // Ensure focus stays cleared after sheet dismisses
+                    dismissKeyboard()
+                }) {
                     VStack(spacing: 12) {
                         DatePicker("", selection: $timeDate, displayedComponents: .hourAndMinute)
                             .datePickerStyle(.wheel)
                             .labelsHidden()
                             .frame(maxWidth: .infinity)
-                        Button("Done") { isTimeSheetPresented = false }
+                        Button("Done") {
+                            isTimeSheetPresented = false
+                        }
                             .font(.system(size: 16, weight: .semibold))
                             .frame(maxWidth: .infinity, minHeight: 44)
                     }
@@ -445,7 +566,7 @@ struct AddTaskView: View {
                 // AI suggestions row (placeholder)
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        aiSuggestionChip("Low-fat lunch â€¢ 600 cal")
+                        aiSuggestionChip("Low-fat lunch 600 cal")
                         aiSuggestionChip("30m run after 7pm")
                         aiSuggestionChip("High-protein dinner")
                     }
@@ -868,6 +989,8 @@ struct AddTaskView: View {
                         let total = max(0, entry.minutesInt)
                         durationHoursInt = total / 60
                         durationMinutesInt = total % 60
+                        // Clear focus immediately when opening duration sheet
+                        dismissKeyboard()
                         isDurationSheetPresented = true
                         // tie the wheel to this entry index via editingFitnessEntryIndex
                         editingFitnessEntryIndex = index
@@ -1009,20 +1132,46 @@ struct AddTaskView: View {
     }
 
     private func aiSheetView(title: String, buttonText: String) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let isGenerateMode = buttonText.contains("Generate")
+        
+        return VStack(alignment: .leading, spacing: 12) {
             Text(title)
                 .font(.system(size: 16, weight: .semibold))
+            
             TextEditor(text: $aiPromptText)
                 .frame(minHeight: 120)
                 .padding(8)
                 .background(Color(hexString: "F9FAFB"))
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            Button(buttonText) {
-                isAIGenerateSheetPresented = false
-                isAskAISheetPresented = false
+            
+            // Error message
+            if let error = aiGenerateError {
+                Text(error)
+                    .font(.system(size: 14))
+                    .foregroundColor(.red)
+                    .padding(.horizontal, 4)
+            }
+            
+            // Generate button
+            Button(action: {
+                print("🔘 Button tapped - buttonText: \(buttonText), isGenerateMode: \(isGenerateMode)")
+                if isGenerateMode {
+                    print("🚀 Calling generateTaskWithAI()")
+                    generateTaskWithAI()
+                } else {
+                    print("ℹ️ Ask AI (coming soon)")
+                    // "Ask AI" functionality (coming soon)
+                    isAskAISheetPresented = false
+                }
+            }) {
+                Text(isAIGenerating ? "Generating..." : buttonText)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity, minHeight: 44)
             }
             .font(.system(size: 16, weight: .semibold))
-            .frame(maxWidth: .infinity, minHeight: 44)
+            .background(isAIGenerating ? Color.gray : Color.black)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .disabled(isAIGenerating)
         }
         .padding(16)
         .presentationDetents([.fraction(0.45), .medium])
@@ -1314,11 +1463,16 @@ struct AddTaskView: View {
         .presentationDetents([.fraction(0.6)])
         .presentationDragIndicator(.visible)
         .onChange(of: quickPickSearch) { _, newValue in
-            guard quickPickMode == .food else { return }
+            guard quickPickMode == .food else {
+                return
+            }
             searchDebounceWork?.cancel()
             let work = DispatchWorkItem { [newValue] in
                 let q = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard q.count >= 2 else { onlineFoods = []; return }
+                guard q.count >= 2 else {
+                    onlineFoods = []
+                    return
+                }
                 isOnlineLoading = true
                 OffClient.searchFoodsCached(query: q, limit: 50) { results in
                     isOnlineLoading = false
@@ -1573,6 +1727,792 @@ struct AddTaskView: View {
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
             .background(Color.white)
+        }
+    }
+    
+    // MARK: - AI Generation
+    
+    /// Automatically generate a task based on existing tasks for the day
+    private func generateTaskAutomatically() {
+        print("🎬 Automatic AI Generation started...")
+        
+        isAIGenerating = true
+        aiGenerateError = nil
+        
+        // Get user profile
+        let userProfile: UserProfile? = {
+            let fetchDescriptor = FetchDescriptor<UserProfile>()
+            return try? modelContext.fetch(fetchDescriptor).first
+        }()
+        
+        // Analyze existing tasks for the selected date
+        let existingTasks = getExistingTasksForDate(selectedDate)
+        let taskAnalysis = analyzeExistingTasks(existingTasks)
+        
+        print("📊 Task analysis: \(taskAnalysis)")
+        
+        // ✅ Build AI prompt using AIPromptBuilder
+        let systemPrompt = promptBuilder.buildSystemPrompt(userProfile: userProfile)
+        let userMessage = buildSmartPrompt(based: taskAnalysis, userProfile: userProfile)
+        
+        print("📝 Auto-generated prompt: \(userMessage.prefix(200))...")
+        
+        // Call OpenAI
+        Task {
+            do {
+                print("📡 Sending request to OpenAI...")
+                let FirebaseChatMessages = [
+                    FirebaseFirebaseChatMessage(role: "system", content: systemPrompt),
+                    FirebaseFirebaseChatMessage(role: "user", content: userMessage)
+                ]
+
+                let response = try await firebaseAIService.sendChatRequest(
+                    messages: FirebaseChatMessages
+                )
+                
+                print("✅ Received response from OpenAI")
+                
+                // Extract content from response
+                let content = response.choices.first?.message.content ?? ""
+                print("📄 Response content: \(content.prefix(200))...")
+                
+                await MainActor.run {
+                    self.isAIGenerating = false
+                    print("🔄 Parsing and filling content...")
+                    self.parseAndFillTaskContent(content)
+                    print("✅ Generation completed!")
+                }
+            } catch {
+                print("❌ AI generation error: \(error)")
+                print("❌ Error details: \(error.localizedDescription)")
+                await MainActor.run {
+                    self.isAIGenerating = false
+                    self.aiGenerateError = "Failed to generate: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+    
+    /// Get existing tasks for the selected date from cache
+    private func getExistingTasksForDate(_ date: Date) -> [TaskInfo] {
+        // Get tasks from cache service
+        let cacheService = TaskCacheService.shared
+        let tasks = cacheService.getTasks(for: date)
+        
+        print("📊 Found \(tasks.count) existing tasks for \(date)")
+        
+        // Convert TaskItem to TaskInfo
+        return tasks.map { task in
+            let categoryString: String
+            switch task.category {
+            case .fitness:
+                categoryString = "fitness"
+            case .diet:
+                categoryString = "diet"
+            case .others:
+                categoryString = "others"
+            }
+            
+            return TaskInfo(
+                category: categoryString,
+                time: task.time,
+                title: task.title
+            )
+        }
+    }
+    
+    struct TaskInfo {
+        let category: String // "fitness", "diet", "others"
+        let time: String
+        let title: String
+    }
+    
+    struct TaskAnalysis {
+        let hasFitness: Bool
+        let hasBreakfast: Bool
+        let hasLunch: Bool
+        let hasDinner: Bool
+        let totalTasks: Int
+        let suggestion: String // What to generate
+    }
+    
+    /// Analyze existing tasks to determine what's missing
+    private func analyzeExistingTasks(_ tasks: [TaskInfo]) -> TaskAnalysis {
+        print("🔍 Analyzing \(tasks.count) existing tasks:")
+        for (index, task) in tasks.enumerated() {
+            print("   \(index + 1). [\(task.category)] \(task.title) at \(task.time)")
+        }
+        
+        let hasFitness = tasks.contains { $0.category == "fitness" }
+        
+        // Check for meals by time or keywords
+        let hasBreakfast = tasks.contains { task in
+            task.category == "diet" && (
+                task.time.contains("AM") && !task.time.contains("12:") ||
+                task.title.lowercased().contains("breakfast")
+            )
+        }
+        
+        let hasLunch = tasks.contains { task in
+            task.category == "diet" && (
+                (task.time.contains("12:") || task.time.contains("01:") || task.time.contains("02:")) ||
+                task.title.lowercased().contains("lunch")
+            )
+        }
+        
+        let hasDinner = tasks.contains { task in
+            task.category == "diet" && (
+                task.time.contains("PM") && !task.time.contains("12:") && !task.time.contains("01:") && !task.time.contains("02:") ||
+                task.title.lowercased().contains("dinner")
+            )
+        }
+        
+        print("📋 Task coverage:")
+        print("   - Fitness: \(hasFitness ? "✅" : "❌")")
+        print("   - Breakfast: \(hasBreakfast ? "✅" : "❌")")
+        print("   - Lunch: \(hasLunch ? "✅" : "❌")")
+        print("   - Dinner: \(hasDinner ? "✅" : "❌")")
+        
+        // Determine what to suggest
+        var suggestion = ""
+        if !hasFitness {
+            suggestion = "fitness"
+        } else if !hasBreakfast {
+            suggestion = "breakfast"
+        } else if !hasLunch {
+            suggestion = "lunch"
+        } else if !hasDinner {
+            suggestion = "dinner"
+        } else {
+            // All basic tasks covered, generate a random healthy snack or workout
+            suggestion = Bool.random() ? "fitness" : "snack"
+        }
+        
+        print("💡 Suggestion: Generate \(suggestion)")
+        
+        return TaskAnalysis(
+            hasFitness: hasFitness,
+            hasBreakfast: hasBreakfast,
+            hasLunch: hasLunch,
+            hasDinner: hasDinner,
+            totalTasks: tasks.count,
+            suggestion: suggestion
+        )
+    }
+    
+    /// Build smart prompt based on task analysis
+    private func buildSmartPrompt(based analysis: TaskAnalysis, userProfile: UserProfile?) -> String {
+        let calendar = Calendar.current
+        let hour = calendar.component(.hour, from: Date())
+        let timeOfDay = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening"
+        
+        var prompt = "It's \(timeOfDay). "
+        
+        switch analysis.suggestion {
+        case "fitness":
+            prompt += """
+            Create a workout task with a SHORT, CONCISE title (2-4 words max, like 'Upper Body Strength' or 'Full Body HIIT').
+            Consider the user's current fitness level and goals. Suggest an appropriate workout for \(timeOfDay).
+            """
+            
+        case "breakfast":
+            prompt += """
+            Create a healthy breakfast task for ONE PERSON. The user hasn't logged breakfast yet.
+            Provide nutritious breakfast options with specific portion sizes (e.g., '2 eggs', '1 cup oatmeal', '6oz yogurt').
+            Use single servings appropriate for one person.
+            """
+            
+        case "lunch":
+            prompt += """
+            Create a healthy lunch task for ONE PERSON. The user hasn't logged lunch yet.
+            Provide balanced lunch options with specific portion sizes (e.g., '6oz chicken', '1 cup rice', '1 cup vegetables').
+            Use single servings appropriate for one person.
+            """
+            
+        case "dinner":
+            prompt += """
+            Create a healthy dinner task for ONE PERSON. The user hasn't logged dinner yet.
+            Provide nutritious dinner options with specific portion sizes (e.g., '8oz salmon', '1.5 cups quinoa', '2 cups salad').
+            Use single servings appropriate for one person.
+            """
+            
+        case "snack":
+            prompt += """
+            Create a healthy snack task for ONE PERSON. Suggest a nutritious snack between meals.
+            Keep it light and balanced with specific portions (e.g., '1 apple', '1oz almonds', '1 protein bar').
+            Use single servings appropriate for one person.
+            """
+            
+        default:
+            prompt += "Create a helpful fitness or nutrition task for today."
+        }
+        
+        prompt += """
+        
+        
+        Please provide:
+        1. A clear, concise task title (max 50 characters)
+        2. A detailed description
+        3. Task category (fitness or diet)
+        4. If fitness: List specific exercises with sets, reps, rest periods, duration (minutes), and calories
+        5. If diet: List specific foods/meals with portion sizes and calories
+        6. Suggested time of day (format: "HH:MM AM/PM")
+        
+        Format your response as:
+        TITLE: [title here]
+        DESCRIPTION: [description here]
+        CATEGORY: [fitness or diet]
+        TIME: [time here]
+        
+        For fitness tasks:
+        EXERCISES:
+        - [Exercise name]: [sets] sets x [reps] reps, [rest]s rest, [duration]min, [calories]cal
+        
+        For diet tasks:
+        FOODS:
+        - [Food name]: [quantity] [unit], [calories]cal
+        
+        Examples of valid units: serving, oz, g, kg, lbs, cups, tbsp, etc.
+        Example: "Chicken Breast: 6 oz, 280cal"
+        Example: "Oatmeal: 1 serving, 150cal"
+        Example: "Banana: 100 g, 89cal"
+        """
+        
+        return prompt
+    }
+    
+    /// Generate task content using AI based on user's profile and prompt (Legacy - for Ask AI feature)
+    private func generateTaskWithAI() {
+        print("🎬 AI Generation started...")
+        print("📝 Prompt: \(aiPromptText)")
+        
+        guard !aiPromptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            aiGenerateError = "Please describe what task you'd like to create"
+            print("❌ Empty prompt")
+            return
+        }
+        
+        isAIGenerating = true
+        aiGenerateError = nil
+        print("⏳ Calling OpenAI API...")
+        
+        // Get user profile
+        let userProfile: UserProfile? = {
+            let fetchDescriptor = FetchDescriptor<UserProfile>()
+            return try? modelContext.fetch(fetchDescriptor).first
+        }()
+        
+        // ✅ Build system prompt using AIPromptBuilder
+        let systemPrompt = promptBuilder.buildSystemPrompt(userProfile: userProfile)
+        
+        // User's request
+        let userMessage = """
+        Create a task based on this description: "\(aiPromptText)"
+        
+        Please provide:
+        1. A clear, concise task title (max 50 characters)
+        2. A detailed description
+        3. Task category (fitness or diet)
+        4. If fitness: List specific exercises with sets, reps, rest periods, duration (minutes), and calories
+        5. If diet: List specific foods/meals with portion sizes and calories
+        6. Suggested time of day (format: "HH:MM AM/PM")
+        
+        Format your response as:
+        TITLE: [title here]
+        DESCRIPTION: [description here]
+        CATEGORY: [fitness or diet]
+        TIME: [time here]
+        
+        For fitness tasks:
+        EXERCISES:
+        - [Exercise name]: [sets] sets x [reps] reps, [rest]s rest, [duration]min, [calories]cal
+        
+        For diet tasks:
+        FOODS:
+        - [Food name]: [quantity] [unit], [calories]cal
+        
+        Examples of valid units: serving, oz, g, kg, lbs, cups, tbsp, etc.
+        Example: "Chicken Breast: 6 oz, 280cal"
+        Example: "Oatmeal: 1 serving, 150cal"
+        Example: "Banana: 100 g, 89cal"
+        """
+        
+        // Call OpenAI
+        Task {
+            do {
+                print("📡 Sending request to OpenAI...")
+                let FirebaseChatMessages = [
+                    FirebaseFirebaseChatMessage(role: "system", content: systemPrompt),
+                    FirebaseFirebaseChatMessage(role: "user", content: userMessage)
+                ]
+
+                let response = try await firebaseAIService.sendChatRequest(
+                    messages: FirebaseChatMessages
+                )
+                print("✅ Received response from OpenAI")
+                
+                // Extract content from response
+                let content = response.choices.first?.message.content ?? ""
+                print("📄 Response content: \(content.prefix(200))...")
+                
+                await MainActor.run {
+                    self.isAIGenerating = false
+                    print("🔄 Parsing and filling content...")
+                    self.parseAndFillTaskContent(content)
+                    self.isAIGenerateSheetPresented = false
+                    self.aiPromptText = "" // Clear prompt for next use
+                    print("✅ Generation completed!")
+                }
+            } catch {
+                print("❌ AI generation error: \(error)")
+                print("❌ Error details: \(error.localizedDescription)")
+                await MainActor.run {
+                    self.isAIGenerating = false
+                    self.aiGenerateError = "Failed to generate: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+    
+    // ✅ buildAISystemPrompt() removed - now using AIPromptBuilder.buildSystemPrompt()
+    
+    /// Parse AI response and fill form fields
+    private func parseAndFillTaskContent(_ content: String) {
+        print("🤖 Parsing AI generated content...")
+        
+        let lines = content.components(separatedBy: .newlines)
+        var currentSection = ""
+        var exercises: [FitnessEntry] = []
+        var foods: [DietEntry] = []
+        
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            
+            // Parse title
+            if trimmed.hasPrefix("TITLE:") {
+                let title = trimmed.replacingOccurrences(of: "TITLE:", with: "").trimmingCharacters(in: .whitespaces)
+                // No prefix for AI generated titles, use as is
+                titleText = String(title.prefix(50))
+            }
+            
+            // Parse description
+            else if trimmed.hasPrefix("DESCRIPTION:") {
+                descriptionText = trimmed.replacingOccurrences(of: "DESCRIPTION:", with: "").trimmingCharacters(in: .whitespaces)
+            }
+            
+            // Parse category
+            else if trimmed.hasPrefix("CATEGORY:") {
+                let category = trimmed.replacingOccurrences(of: "CATEGORY:", with: "").trimmingCharacters(in: .whitespaces).lowercased()
+                if category.contains("fitness") || category.contains("workout") {
+                    selectedCategory = .fitness
+                } else if category.contains("diet") || category.contains("nutrition") || category.contains("meal") {
+                    selectedCategory = .diet
+                }
+            }
+            
+            // Parse time
+            else if trimmed.hasPrefix("TIME:") {
+                let timeString = trimmed.replacingOccurrences(of: "TIME:", with: "").trimmingCharacters(in: .whitespaces)
+                if let parsedTime = parseTimeString(timeString) {
+                    timeDate = parsedTime
+                }
+            }
+            
+            // Track sections
+            else if trimmed == "EXERCISES:" {
+                currentSection = "exercises"
+            }
+            else if trimmed == "FOODS:" {
+                currentSection = "foods"
+            }
+            
+            // Parse exercise line
+            else if currentSection == "exercises" && trimmed.hasPrefix("-") {
+                if let exercise = parseExerciseLine(trimmed) {
+                    exercises.append(exercise)
+                }
+            }
+            
+            // Parse food line
+            else if currentSection == "foods" && trimmed.hasPrefix("-") {
+                if let food = parseFoodLine(trimmed) {
+                    foods.append(food)
+                }
+            }
+        }
+        
+        // Fill entries
+        if selectedCategory == .fitness {
+            fitnessEntries = exercises
+            print("✅ Added \(exercises.count) fitness entries")
+        } else if selectedCategory == .diet {
+            dietEntries = foods
+            print("✅ Added \(foods.count) diet entries")
+        }
+        
+        print("✅ Task content filled successfully!")
+    }
+    
+    /// Parse time string like "09:00 AM" to Date
+    private func parseTimeString(_ timeString: String) -> Date? {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "hh:mm a"
+        return formatter.date(from: timeString)
+    }
+    
+    /// Parse exercise line like "- Push-ups: 3 sets x 15 reps, 60s rest, 5min, 40cal"
+    private func parseExerciseLine(_ line: String) -> FitnessEntry? {
+        // Remove leading dash and whitespace
+        var text = line.trimmingCharacters(in: .whitespaces)
+        if text.hasPrefix("-") {
+            text = String(text.dropFirst()).trimmingCharacters(in: .whitespaces)
+        }
+        
+        // Split by colon to get name and details
+        let parts = text.components(separatedBy: ":")
+        guard parts.count >= 2 else { return nil }
+        
+        let name = parts[0].trimmingCharacters(in: .whitespaces)
+        let details = parts[1].trimmingCharacters(in: .whitespaces)
+        
+        // Extract duration (e.g., "5min")
+        var duration = 5 // default
+        if let durationRegex = try? NSRegularExpression(pattern: #"(\d+)\s*min"#, options: .caseInsensitive) {
+            let nsDetails = details as NSString
+            if let match = durationRegex.firstMatch(in: details, range: NSRange(location: 0, length: nsDetails.length)) {
+                if let durationRange = Range(match.range(at: 1), in: details) {
+                    duration = Int(details[durationRange]) ?? 5
+                }
+            }
+        }
+        
+        // Extract calories (e.g., "40cal")
+        var calories = duration * 7 // default fallback
+        if let caloriesRegex = try? NSRegularExpression(pattern: #"(\d+)\s*cal"#, options: .caseInsensitive) {
+            let nsDetails = details as NSString
+            if let match = caloriesRegex.firstMatch(in: details, range: NSRange(location: 0, length: nsDetails.length)) {
+                if let caloriesRange = Range(match.range(at: 1), in: details) {
+                    calories = Int(details[caloriesRange]) ?? calories
+                }
+            }
+        }
+        
+        return FitnessEntry(
+            exercise: nil,
+            customName: name,
+            minutesInt: duration,
+            caloriesText: String(calories)
+        )
+    }
+    
+    /// Parse food line like "- Grilled Chicken: 6oz, 280cal" or "- Oatmeal: 1 serving, 150cal"
+    private func parseFoodLine(_ line: String) -> DietEntry? {
+        print("🍽️ Parsing food line: \(line)")
+        
+        // Remove leading dash and whitespace
+        var text = line.trimmingCharacters(in: .whitespaces)
+        if text.hasPrefix("-") {
+            text = String(text.dropFirst()).trimmingCharacters(in: .whitespaces)
+        }
+        
+        // Split by colon to get name and details
+        let parts = text.components(separatedBy: ":")
+        guard parts.count >= 2 else {
+            print("❌ Failed to parse: no colon found")
+            return nil
+        }
+        
+        let name = parts[0].trimmingCharacters(in: .whitespaces)
+        let details = parts[1].trimmingCharacters(in: .whitespaces)
+        
+        print("   Name: \(name)")
+        print("   Details: \(details)")
+        
+        // Extract portion and unit (e.g., "6oz" -> quantity: "6", unit: "oz")
+        var quantity = "1"
+        var unit = "serving"
+        
+        let portionComponents = details.components(separatedBy: ",")
+        if !portionComponents.isEmpty {
+            let portionText = portionComponents[0].trimmingCharacters(in: .whitespaces)
+            print("   Portion text: '\(portionText)'")
+            
+            // Try multiple regex patterns to match different formats
+            var matched = false
+            
+            // Pattern 1: Number + unit with optional space (e.g., "6oz", "6 oz", "150g", "150 g")
+            if let regex = try? NSRegularExpression(pattern: #"^(\d+\.?\d*)\s*([a-zA-Z]+)$"#, options: []) {
+                let nsPortionText = portionText as NSString
+                if let match = regex.firstMatch(in: portionText, range: NSRange(location: 0, length: nsPortionText.length)) {
+                    if let qtyRange = Range(match.range(at: 1), in: portionText) {
+                        quantity = String(portionText[qtyRange])
+                    }
+                    if let unitRange = Range(match.range(at: 2), in: portionText) {
+                        unit = String(portionText[unitRange])
+                    }
+                    matched = true
+                    print("   ✅ Matched pattern 1: qty=\(quantity), unit=\(unit)")
+                }
+            }
+            
+            // Pattern 2: Number + space + word unit (e.g., "1 serving", "2 cups")
+            if !matched, let regex = try? NSRegularExpression(pattern: #"^(\d+\.?\d*)\s+([a-zA-Z\s]+)$"#, options: []) {
+                let nsPortionText = portionText as NSString
+                if let match = regex.firstMatch(in: portionText, range: NSRange(location: 0, length: nsPortionText.length)) {
+                    if let qtyRange = Range(match.range(at: 1), in: portionText) {
+                        quantity = String(portionText[qtyRange])
+                    }
+                    if let unitRange = Range(match.range(at: 2), in: portionText) {
+                        unit = String(portionText[unitRange]).trimmingCharacters(in: .whitespaces)
+                    }
+                    matched = true
+                    print("   ✅ Matched pattern 2: qty=\(quantity), unit=\(unit)")
+                }
+            }
+            
+            // Pattern 3: Just a unit word (e.g., "serving")
+            if !matched && portionText.range(of: #"^[a-zA-Z\s]+$"#, options: .regularExpression) != nil {
+                unit = portionText
+                quantity = "1"
+                matched = true
+                print("   ✅ Matched pattern 3 (unit only): qty=\(quantity), unit=\(unit)")
+            }
+            
+            if !matched {
+                print("   ⚠️ No pattern matched, using defaults")
+            }
+        }
+        
+        // Extract calories (e.g., "280cal")
+        var calories = 100 // default fallback
+        if let caloriesRegex = try? NSRegularExpression(pattern: #"(\d+)\s*cal"#, options: .caseInsensitive) {
+            let nsDetails = details as NSString
+            if let match = caloriesRegex.firstMatch(in: details, range: NSRange(location: 0, length: nsDetails.length)) {
+                if let caloriesRange = Range(match.range(at: 1), in: details) {
+                    calories = Int(details[caloriesRange]) ?? calories
+                }
+            }
+        }
+        
+        print("   📊 Final parsed: qty=\(quantity), unit=\(unit), cal=\(calories)")
+        
+        return DietEntry(
+            food: nil,
+            customName: name,
+            quantityText: quantity,
+            unit: unit,
+            caloriesText: String(calories)
+        )
+    }
+    
+    // MARK: - Title & Description AI Generation
+    
+    /// Animate text appearing character by character (typing effect)
+    private func animateTextAppearance(
+        finalText: String,
+        target: Binding<String>,
+        delayPerChar: TimeInterval = 0.03
+    ) async {
+        let characters = Array(finalText)
+        var currentText = ""
+        
+        for char in characters {
+            currentText.append(char)
+            await MainActor.run {
+                target.wrappedValue = currentText
+            }
+            try? await Task.sleep(nanoseconds: UInt64(delayPerChar * 1_000_000_000))
+        }
+    }
+    
+    /// Generate or refine task title based on user profile
+    private func generateOrRefineTitle() {
+        guard !isTitleGenerating else { return }
+        
+        isTitleGenerating = true
+        
+        // Get user profile
+        let userProfile: UserProfile? = {
+            let fetchDescriptor = FetchDescriptor<UserProfile>()
+            return try? modelContext.fetch(fetchDescriptor).first
+        }()
+        
+        // Build system prompt
+        let systemPrompt = promptBuilder.buildSystemPrompt(userProfile: userProfile)
+        
+        // Build user message based on whether title is empty or not
+        let userMessage: String
+        if titleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            // Generate new title based on user profile
+            userMessage = """
+            Generate a concise, clear task title (2-4 words max) for a fitness or nutrition task based on the user's profile.
+            The title should be relevant to their goals and lifestyle.
+            Examples: "Morning Run", "Upper Body Strength", "Healthy Breakfast", "Evening Yoga"
+            
+            Respond with ONLY the title, no additional text or explanation.
+            """
+        } else {
+            // Refine existing title (improve grammar, clarity)
+            userMessage = """
+            Improve and refine this task title for clarity and grammar: "\(titleText)"
+            
+            Keep it concise (2-4 words max), maintain the same meaning, but make it clearer and more professional.
+            Respond with ONLY the improved title, no additional text or explanation.
+            """
+        }
+        
+        Task {
+            do {
+                let messages = [
+                    FirebaseFirebaseChatMessage(role: "system", content: systemPrompt),
+                    FirebaseFirebaseChatMessage(role: "user", content: userMessage)
+                ]
+                
+                let response = try await firebaseAIService.sendChatRequest(messages: messages)
+                
+                await MainActor.run {
+                    if let content = response.choices.first?.message.content {
+                        // Clean up the response - remove quotes, extra whitespace, etc.
+                        let cleanedTitle = content
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                            .replacingOccurrences(of: "\"", with: "")
+                            .replacingOccurrences(of: "'", with: "")
+                        
+                        // Limit to 40 characters (same as TextField limit)
+                        let finalTitle = String(cleanedTitle.prefix(40))
+                        
+                        // Animate text appearance
+                        isTitleGenerating = false
+                        Task {
+                            await animateTextAppearance(finalText: finalTitle, target: $titleText)
+                        }
+                    } else {
+                        isTitleGenerating = false
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    print("❌ Title generation error: \(error)")
+                    isTitleGenerating = false
+                }
+            }
+        }
+    }
+    
+    /// Generate description based on existing title, or generate both title and description if title is empty
+    private func generateDescription() {
+        guard !isDescriptionGenerating else { return }
+        
+        isDescriptionGenerating = true
+        
+        // Get user profile
+        let userProfile: UserProfile? = {
+            let fetchDescriptor = FetchDescriptor<UserProfile>()
+            return try? modelContext.fetch(fetchDescriptor).first
+        }()
+        
+        // Build system prompt
+        let systemPrompt = promptBuilder.buildSystemPrompt(userProfile: userProfile)
+        
+        // Build user message based on whether title exists
+        let userMessage: String
+        if titleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            // Generate a task suggestion (both title and description) that the user should do
+            userMessage = """
+            Suggest a fitness or nutrition task that would be beneficial for the user based on their profile, goals, and lifestyle.
+            This should be something they would want to do or should do.
+            
+            Provide:
+            1. A concise task title (2-4 words max) - something they should do
+            2. A brief, helpful description (1-2 sentences) explaining what the task involves
+            
+            Format your response EXACTLY as:
+            TITLE: [title here]
+            DESCRIPTION: [description here]
+            
+            Make it relevant, actionable, and aligned with their fitness goals.
+            Examples:
+            - TITLE: Morning Run
+              DESCRIPTION: 5km jog in the park to start the day with energy and boost metabolism
+            - TITLE: Healthy Breakfast
+              DESCRIPTION: Balanced meal with protein, carbs, and healthy fats to fuel your day
+            - TITLE: Upper Body Strength
+              DESCRIPTION: 30-minute workout focusing on chest, back, and arms to build muscle
+            """
+        } else {
+            // Generate description based on existing title
+            userMessage = """
+            Generate a brief, helpful description (1-2 sentences) that fits well with this task title: "\(titleText)"
+            
+            The description should explain what the task involves, provide context, and make it clear what the user needs to do.
+            Keep it concise, actionable, and relevant to the title.
+            
+            Respond with ONLY the description text, no additional labels or formatting.
+            """
+        }
+        
+        Task {
+            do {
+                let messages = [
+                    FirebaseFirebaseChatMessage(role: "system", content: systemPrompt),
+                    FirebaseFirebaseChatMessage(role: "user", content: userMessage)
+                ]
+                
+                let response = try await firebaseAIService.sendChatRequest(messages: messages)
+                
+                await MainActor.run {
+                    if let content = response.choices.first?.message.content {
+                        isDescriptionGenerating = false
+                        
+                        if titleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            // Parse both title and description
+                            var finalTitle = ""
+                            var finalDescription = ""
+                            
+                            let lines = content.components(separatedBy: .newlines)
+                            for line in lines {
+                                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                                if trimmed.hasPrefix("TITLE:") {
+                                    let title = trimmed.replacingOccurrences(of: "TITLE:", with: "")
+                                        .trimmingCharacters(in: .whitespaces)
+                                        .replacingOccurrences(of: "\"", with: "")
+                                        .replacingOccurrences(of: "'", with: "")
+                                    finalTitle = String(title.prefix(40))
+                                } else if trimmed.hasPrefix("DESCRIPTION:") {
+                                    finalDescription = trimmed.replacingOccurrences(of: "DESCRIPTION:", with: "")
+                                        .trimmingCharacters(in: .whitespaces)
+                                }
+                            }
+                            
+                            // Animate both title and description
+                            Task {
+                                // Animate title first
+                                await animateTextAppearance(finalText: finalTitle, target: $titleText)
+                                // Then animate description
+                                await animateTextAppearance(finalText: finalDescription, target: $descriptionText)
+                            }
+                        } else {
+                            // Just set description
+                            let cleanedDesc = content
+                                .trimmingCharacters(in: .whitespacesAndNewlines)
+                                .replacingOccurrences(of: "DESCRIPTION:", with: "")
+                                .trimmingCharacters(in: .whitespaces)
+                            
+                            // Animate description appearance
+                            Task {
+                                await animateTextAppearance(finalText: cleanedDesc, target: $descriptionText)
+                            }
+                        }
+                    } else {
+                        isDescriptionGenerating = false
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    print("❌ Description generation error: \(error)")
+                    isDescriptionGenerating = false
+                }
+            }
         }
     }
 }

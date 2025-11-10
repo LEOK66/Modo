@@ -50,6 +50,26 @@ extension Color {
     }
 }
 
+// MARK: - UIColor Extension
+extension UIColor {
+    convenience init(hexString: String, alpha: CGFloat = 1.0) {
+        var cleaned = hexString.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        if cleaned.hasPrefix("#") { cleaned.removeFirst() }
+        var value: UInt64 = 0
+        Scanner(string: cleaned).scanHexInt64(&value)
+        let r, g, b: CGFloat
+        switch cleaned.count {
+        case 6:
+            r = CGFloat((value >> 16) & 0xFF) / 255.0
+            g = CGFloat((value >> 8) & 0xFF) / 255.0
+            b = CGFloat(value & 0xFF) / 255.0
+        default:
+            r = 0; g = 0; b = 0
+        }
+        self.init(red: r, green: g, blue: b, alpha: alpha)
+    }
+}
+
 // MARK: - Input Validation Extension
 extension String {
     /// Validates email format

@@ -1,4 +1,148 @@
 import SwiftUI
+import UIKit
+
+// MARK: - UITextField Wrapper for Smooth Password Toggle
+struct UITextFieldWrapper: UIViewRepresentable {
+    @Binding var text: String
+    let placeholder: String
+    let isSecure: Bool
+    let isPasswordVisible: Bool
+    let keyboardType: UIKeyboardType
+    let textContentType: UITextContentType?
+    let toggleAction: (() -> Void)?
+    let onCoordinatorReady: ((@escaping () -> Void) -> Void)?
+    
+    func makeUIView(context: Context) -> UITextField {
+        let textField = UITextField()
+        textField.font = UIFont.systemFont(ofSize: 14)
+        textField.textColor = UIColor(hexString: "717182")
+        textField.placeholder = placeholder
+        textField.keyboardType = keyboardType
+        textField.autocapitalizationType = .none
+        textField.autocorrectionType = .no
+        textField.textContentType = textContentType
+        textField.isSecureTextEntry = isSecure && !isPasswordVisible
+        textField.text = text
+        
+        // Use same return key type for all fields to prevent keyboard changes
+        textField.returnKeyType = .next
+        textField.enablesReturnKeyAutomatically = false
+        
+        // Store reference to textField in coordinator
+        textField.delegate = context.coordinator
+        context.coordinator.textField = textField
+        context.coordinator.toggleAction = toggleAction
+        
+        // Add notification observer for text changes (catches autofill, paste, etc.)
+        NotificationCenter.default.addObserver(
+            context.coordinator,
+            selector: #selector(Coordinator.textFieldDidChange(_:)),
+            name: UITextField.textDidChangeNotification,
+            object: textField
+        )
+        
+        // Provide toggle function to parent
+        onCoordinatorReady? {
+            context.coordinator.togglePasswordVisibility()
+        }
+        
+        return textField
+    }
+    
+    func updateUIView(_ uiView: UITextField, context: Context) {
+        // Update keyboard type if changed (only when not editing)
+        if !uiView.isFirstResponder && uiView.keyboardType != keyboardType {
+            uiView.keyboardType = keyboardType
+        }
+        
+        // Update text content type if changed (only when not editing)
+        if !uiView.isFirstResponder && uiView.textContentType != textContentType {
+            uiView.textContentType = textContentType
+        }
+        
+        // Only update text if UITextField is NOT being edited (avoids cursor jumping)
+        if !uiView.isFirstResponder && uiView.text != text {
+            uiView.text = text
+        }
+        
+        // Only update secure text entry on initial setup or when visibility changes externally
+        // When button is clicked, toggle happens directly on UITextField via coordinator
+        if isSecure {
+            let shouldBeSecure = !isPasswordVisible
+            if uiView.isSecureTextEntry != shouldBeSecure {
+                uiView.isSecureTextEntry = shouldBeSecure
+            }
+        }
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text)
+    }
+    
+    class Coordinator: NSObject, UITextFieldDelegate {
+        @Binding var text: String
+        weak var textField: UITextField?
+        var toggleAction: (() -> Void)?
+        
+        init(text: Binding<String>) {
+            self._text = text
+        }
+        
+        deinit {
+            NotificationCenter.default.removeObserver(self)
+        }
+        
+        // Sync text to binding in real-time as user types
+        func textField(_ textField: UITextField, shouldChangeCharactersIn range: NSRange, replacementString string: String) -> Bool {
+            // Calculate the new text
+            let currentText = textField.text ?? ""
+            guard let textRange = Range(range, in: currentText) else { return true }
+            let newText = currentText.replacingCharacters(in: textRange, with: string)
+            
+            // Update binding immediately
+            DispatchQueue.main.async { [weak self] in
+                self?.text = newText
+            }
+            
+            return true
+        }
+        
+        // Sync text to binding when editing ends (fallback for autofill, password managers, etc.)
+        func textFieldDidEndEditing(_ textField: UITextField) {
+            // Sync text when editing ends to catch cases like autofill
+            DispatchQueue.main.async { [weak self] in
+                self?.text = textField.text ?? ""
+            }
+        }
+        
+        // Handle text changes via notification (catches autofill, paste, programmatic changes)
+        @objc func textFieldDidChange(_ notification: Notification) {
+            guard let textField = notification.object as? UITextField,
+                  textField === self.textField else { return }
+            
+            DispatchQueue.main.async { [weak self] in
+                self?.text = textField.text ?? ""
+            }
+        }
+        
+        // Toggle visibility directly on UITextField
+        func togglePasswordVisibility() {
+            guard let textField = textField else { return }
+            let selectedRange = textField.selectedTextRange
+            
+            // Toggle secure text entry
+            textField.isSecureTextEntry.toggle()
+            
+            // Restore cursor position
+            if let range = selectedRange {
+                textField.selectedTextRange = range
+            }
+            
+            // Update SwiftUI state for icon update
+            toggleAction?()
+        }
+    }
+}
 
 // MARK: - Input Field Component
 struct CustomInputField: View {
@@ -11,6 +155,7 @@ struct CustomInputField: View {
     let suffix: String?
     let trailingAccessory: AnyView?
     @State private var isPasswordVisible: Bool = false
+    @State private var togglePasswordVisibility: (() -> Void)?
     
     init(
         placeholder: String,
@@ -34,16 +179,26 @@ struct CustomInputField: View {
     
     var body: some View {
         HStack(spacing: 8) {
-            if isSecure && !isPasswordVisible {
-                SecureField(placeholder, text: $text)
-                    .font(.system(size: 14))
-                    .foregroundColor(Color(hexString: "717182"))
-                    .kerning(-0.15)
-                    .textContentType(textContentType)
-                    .keyboardType(keyboardType)
-                    .autocapitalization(.none)
-                    .disableAutocorrection(true)
+            if isSecure {
+                // Use UITextField wrapper for secure fields to maintain focus when toggling
+                UITextFieldWrapper(
+                    text: $text,
+                    placeholder: placeholder,
+                    isSecure: true,
+                    isPasswordVisible: isPasswordVisible,
+                    keyboardType: keyboardType,
+                    textContentType: textContentType,
+                    toggleAction: {
+                        // Update SwiftUI state for icon update
+                        isPasswordVisible.toggle()
+                    },
+                    onCoordinatorReady: { toggleFunc in
+                        // Store the toggle function for button access
+                        togglePasswordVisibility = toggleFunc
+                    }
+                )
             } else {
+                // Use regular TextField for non-secure fields
                 TextField(placeholder, text: $text)
                     .font(.system(size: 14))
                     .foregroundColor(Color(hexString: "717182"))
@@ -63,16 +218,21 @@ struct CustomInputField: View {
             }
             
             if showPasswordToggle {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                Button(action: {
+                    // Toggle directly on UITextField to avoid keyboard reload
+                    if let toggle = togglePasswordVisibility {
+                        toggle()
+                    } else {
+                        // Fallback: just toggle state
                         isPasswordVisible.toggle()
                     }
-                } label: {
+                }) {
                     Image(systemName: isPasswordVisible ? "eye.slash" : "eye")
                         .font(.system(size: 16, weight: .regular))
                         .foregroundColor(Color(hexString: "99A1AF"))
                         .frame(width: 20, height: 20)
                 }
+                .buttonStyle(PlainButtonStyle())
             }
         }
         .padding(.horizontal, 12)

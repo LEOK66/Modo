@@ -98,7 +98,7 @@ struct InfoGatheringView: View {
                             recommendedProtein: recommendedProtein(),
                             targetWeightLoss: $targetWeightLoss, lossUnit: $lossUnit, targetDays: $targetDays,
                             showWeightError: $showTargetWeightError, showDaysError: $showTargetDaysError,
-                            onDone: validateAndComplete, onSkip: completeOnboarding, onBack: lastStep)
+                            onDone: completeOnboarding, onSkip: completeOnboarding, onBack: lastStep)
                             .id(currentStep)
                     default:
                         EmptyView().id(currentStep)
@@ -137,10 +137,6 @@ struct InfoGatheringView: View {
     }
     
     
-    
-    private func validateAndComplete() {
-        completeOnboarding()
-    }
     
     private func completeOnboarding() {
         saveUserData()
@@ -753,7 +749,7 @@ private struct FinalStepView: View {
                 }
                 .onChange(of: actualCalories) {
                     let value = Int(actualCalories) ?? 0
-                    let valid = value > 600
+                    let valid = value > 250
                     showCaloriesError = !valid && !actualCalories.isEmpty
                 }
                 errorView
