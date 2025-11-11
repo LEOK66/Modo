@@ -36,9 +36,8 @@ final class DailyChallengeService: ObservableObject {
     private let responseParser = AIResponseParser()
     
     private init() {
-        // Load today's challenge from Firebase or generate default
-        loadTodayChallenge()
-        // Initial check will be done when UserProfileService updates
+        // Don't load challenge here - wait until view appears
+        // This ensures user is logged in before loading
     }
     
     /// Update user data availability status

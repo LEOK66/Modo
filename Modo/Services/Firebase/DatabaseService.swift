@@ -141,7 +141,7 @@ final class DatabaseService {
     ///   - task: Task to save
     ///   - date: Date the task belongs to (normalized to start of day)
     ///   - completion: Completion handler with result
-    func saveTask(userId: String, task: MainPageView.TaskItem, date: Date, completion: ((Result<Void, Error>) -> Void)? = nil) {
+    func saveTask(userId: String, task: TaskItem, date: Date, completion: ((Result<Void, Error>) -> Void)? = nil) {
         let dateKey = dateToKey(date)
         let operationKey = "\(userId)_\(dateKey)_\(task.id.uuidString)"
         
@@ -209,7 +209,7 @@ final class DatabaseService {
     /// - Parameters:
     ///   - date: Date to fetch tasks for
     ///   - completion: Completion handler with tasks or error
-    func fetchTasksForDate(userId: String, date: Date, completion: @escaping (Result<[MainPageView.TaskItem], Error>) -> Void) {
+    func fetchTasksForDate(userId: String, date: Date, completion: @escaping (Result<[TaskItem], Error>) -> Void) {
         let dateKey = dateToKey(date)
         let tasksPath = db.child("users").child(userId).child("tasks").child(dateKey)
         
@@ -241,7 +241,7 @@ final class DatabaseService {
     ///   - date: Date to listen to
     ///   - callback: Callback with updated tasks
     /// - Returns: Listener handle (store this to stop listening later)
-    func listenToTasks(userId: String, date: Date, callback: @escaping ([MainPageView.TaskItem]) -> Void) -> DatabaseHandle? {
+    func listenToTasks(userId: String, date: Date, callback: @escaping ([TaskItem]) -> Void) -> DatabaseHandle? {
         let dateKey = dateToKey(date)
         let tasksPath = db.child("users").child(userId).child("tasks").child(dateKey)
         
@@ -321,13 +321,13 @@ final class DatabaseService {
     /// Convert Date to string key (YYYY-MM-DD)
     private func dateToKey(_ date: Date) -> String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.dateFormat = DateFormats.standardDate
         formatter.timeZone = TimeZone.current
         formatter.locale = Locale(identifier: "en_US_POSIX")
         return formatter.string(from: date)
     }
     
-    private func taskToDictionary(_ task: MainPageView.TaskItem) throws -> [String: Any] {
+    private func taskToDictionary(_ task: TaskItem) throws -> [String: Any] {
         let encoder = JSONEncoder()
         let data = try encoder.encode(task)
         
@@ -338,8 +338,8 @@ final class DatabaseService {
         return dict
     }
     
-    private func parseTaskDictionary(_ taskDict: [String: Any]) throws -> [MainPageView.TaskItem] {
-        var tasks: [MainPageView.TaskItem] = []
+    private func parseTaskDictionary(_ taskDict: [String: Any]) throws -> [TaskItem] {
+        var tasks: [TaskItem] = []
         
         for (_, taskValue) in taskDict {
             guard let taskData = taskValue as? [String: Any] else {
@@ -349,7 +349,7 @@ final class DatabaseService {
             let jsonData = try JSONSerialization.data(withJSONObject: taskData)
             let decoder = JSONDecoder()
             do {
-                let task = try decoder.decode(MainPageView.TaskItem.self, from: jsonData)
+                let task = try decoder.decode(TaskItem.self, from: jsonData)
                 tasks.append(task)
             } catch {
                 print("❌ DatabaseService: Failed to decode single task - \(error.localizedDescription)")

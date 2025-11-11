@@ -10,15 +10,17 @@ struct MainPageView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var isShowingCalendar = false
     @State private var navigationPath = NavigationPath()
-    @State private var midnightTimer: Timer? = nil
     @State private var isShowingProfile = false
-    @State private var showDailyChallengeDetail = false
+    @State private var isShowingDailyChallengeDetail = false
     @StateObject private var challengeService = DailyChallengeService.shared
     
-    // Cache and database services
+    // Services
     private let cacheService = TaskCacheService.shared
     private let databaseService = DatabaseService.shared
-    private let progressService = ProgressCalculationService.shared
+    private let taskManagerService = TaskManagerService()
+    private let aiService = MainPageAIService()
+    private let notificationService = NotificationSetupService()
+    private let dayCompletionService = DayCompletionService()
     
     // Track current listener handle
     @State private var currentListenerHandle: DatabaseHandle? = nil
@@ -26,120 +28,11 @@ struct MainPageView: View {
     @State private var isListenerActive = false
     @State private var listenerUpdateTask: Task<Void, Never>? = nil
     
-    
-    // Can refactor this to different file to reuse struct
-    struct TaskItem: Identifiable, Codable {
-        let id: UUID
-        let title: String
-        let subtitle: String
-        let time: String
-        let timeDate: Date // For sorting tasks by time
-        let endTime: String? // For fitness tasks with duration
-        let meta: String
-        var isDone: Bool
-        let emphasisHex: String
-        let category: AddTaskView.Category // diet, fitness, others
-        var dietEntries: [AddTaskView.DietEntry]
-        var fitnessEntries: [AddTaskView.FitnessEntry]
-        var createdAt: Date // For sync conflict resolution
-        var updatedAt: Date // For sync conflict resolution
-        var isAIGenerated: Bool // Mark if task is AI generated
-        var isDailyChallenge: Bool // Mark if task is a daily challenge
-        
-        init(id: UUID = UUID(), title: String, subtitle: String, time: String, timeDate: Date, endTime: String? = nil, meta: String, isDone: Bool = false, emphasisHex: String, category: AddTaskView.Category, dietEntries: [AddTaskView.DietEntry], fitnessEntries: [AddTaskView.FitnessEntry], createdAt: Date = Date(), updatedAt: Date = Date(), isAIGenerated: Bool = false, isDailyChallenge: Bool = false) {
-            self.id = id
-            self.title = title
-            self.subtitle = subtitle
-            self.time = time
-            self.timeDate = timeDate
-            self.endTime = endTime
-            self.meta = meta
-            self.isDone = isDone
-            self.emphasisHex = emphasisHex
-            self.category = category
-            self.dietEntries = dietEntries
-            self.fitnessEntries = fitnessEntries
-            self.createdAt = createdAt
-            self.updatedAt = updatedAt
-            self.isAIGenerated = isAIGenerated
-            self.isDailyChallenge = isDailyChallenge
-        }
-        
-        // Calculate total calories for this task
-        // Diet tasks add calories, fitness tasks subtract calories, others don't affect calories
-        var totalCalories: Int {
-            switch category {
-            case .diet:
-                return dietEntries.map { Int($0.caloriesText) ?? 0 }.reduce(0, +)
-            case .fitness:
-                return -fitnessEntries.map { Int($0.caloriesText) ?? 0 }.reduce(0, +)
-            case .others:
-                return 0
-            }
-        }
-        
-        // Custom Codable implementation to handle Date serialization
-        private enum CodingKeys: String, CodingKey {
-            case id, title, subtitle, time, timeDate, endTime, meta, isDone, emphasisHex, category, dietEntries, fitnessEntries, createdAt, updatedAt, isAIGenerated, isDailyChallenge
-        }
-        
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            id = try container.decode(UUID.self, forKey: .id)
-            title = try container.decode(String.self, forKey: .title)
-            subtitle = try container.decode(String.self, forKey: .subtitle)
-            time = try container.decode(String.self, forKey: .time)
-            // Decode timeDate as timestamp (milliseconds)
-            let timeDateTimestamp = try container.decode(Int64.self, forKey: .timeDate)
-            timeDate = Date(timeIntervalSince1970: Double(timeDateTimestamp) / 1000.0)
-            endTime = try container.decodeIfPresent(String.self, forKey: .endTime)
-            meta = try container.decode(String.self, forKey: .meta)
-            isDone = try container.decode(Bool.self, forKey: .isDone)
-            emphasisHex = try container.decode(String.self, forKey: .emphasisHex)
-            category = try container.decode(AddTaskView.Category.self, forKey: .category)
-            // Backwards compatibility: use decodeIfPresent for new fields
-            dietEntries = try container.decodeIfPresent([AddTaskView.DietEntry].self, forKey: .dietEntries) ?? []
-            fitnessEntries = try container.decodeIfPresent([AddTaskView.FitnessEntry].self, forKey: .fitnessEntries) ?? []
-            // Decode timestamps
-            let createdAtTimestamp = try container.decodeIfPresent(Int64.self, forKey: .createdAt) ?? Int64(Date().timeIntervalSince1970 * 1000)
-            createdAt = Date(timeIntervalSince1970: Double(createdAtTimestamp) / 1000.0)
-            let updatedAtTimestamp = try container.decodeIfPresent(Int64.self, forKey: .updatedAt) ?? Int64(Date().timeIntervalSince1970 * 1000)
-            updatedAt = Date(timeIntervalSince1970: Double(updatedAtTimestamp) / 1000.0)
-            // Decode isAIGenerated (defaults to false for backwards compatibility)
-            isAIGenerated = try container.decodeIfPresent(Bool.self, forKey: .isAIGenerated) ?? false
-            // Decode isDailyChallenge (defaults to false for backwards compatibility)
-            isDailyChallenge = try container.decodeIfPresent(Bool.self, forKey: .isDailyChallenge) ?? false
-        }
-        
-        func encode(to encoder: Encoder) throws {
-            var container = encoder.container(keyedBy: CodingKeys.self)
-            try container.encode(id, forKey: .id)
-            try container.encode(title, forKey: .title)
-            try container.encode(subtitle, forKey: .subtitle)
-            try container.encode(time, forKey: .time)
-            // Encode timeDate as timestamp (milliseconds)
-            try container.encode(Int64(timeDate.timeIntervalSince1970 * 1000.0), forKey: .timeDate)
-            try container.encodeIfPresent(endTime, forKey: .endTime)
-            try container.encode(meta, forKey: .meta)
-            try container.encode(isDone, forKey: .isDone)
-            try container.encode(emphasisHex, forKey: .emphasisHex)
-            try container.encode(category, forKey: .category)
-            try container.encode(dietEntries, forKey: .dietEntries)
-            try container.encode(fitnessEntries, forKey: .fitnessEntries)
-            // Encode timestamps (milliseconds)
-            try container.encode(Int64(createdAt.timeIntervalSince1970 * 1000.0), forKey: .createdAt)
-            try container.encode(Int64(updatedAt.timeIntervalSince1970 * 1000.0), forKey: .updatedAt)
-            try container.encode(isAIGenerated, forKey: .isAIGenerated)
-            try container.encode(isDailyChallenge, forKey: .isDailyChallenge)
-        }
-    }
-    
     // Tasks stored by date (normalized to start of day)
     @State private var tasksByDate: [Date: [TaskItem]] = [:]
     
-    // AI Task Generator
-    @StateObject private var aiTaskGenerator = AITaskGenerator()
-    @State private var showAITaskLoading = false
+    // AI Task Generation
+    @State private var isAITaskLoading = false
     
     // Currently selected date (normalized to start of day)
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
@@ -159,8 +52,8 @@ struct MainPageView: View {
     private var dateRange: (min: Date, max: Date) {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
-        let minDate = calendar.date(byAdding: .month, value: -12, to: today) ?? today
-        let maxDate = calendar.date(byAdding: .month, value: 3, to: today) ?? today
+        let minDate = calendar.date(byAdding: .month, value: -AppConstants.DateRange.pastMonths, to: today) ?? today
+        let maxDate = calendar.date(byAdding: .month, value: AppConstants.DateRange.futureMonths, to: today) ?? today
         return (min: calendar.startOfDay(for: minDate), max: calendar.startOfDay(for: maxDate))
     }
     
@@ -174,23 +67,16 @@ struct MainPageView: View {
     /// Generate AI Tasks based on what's missing for the day
     private func generateAITask() {
         // Prevent duplicate clicks: if already generating, ignore
-        if showAITaskLoading {
+        if isAITaskLoading {
             print("⚠️ AI task generation already in progress, ignoring duplicate click")
             return
         }
         
-        print("🎲 Smart AI Task Generation for \(selectedDate)")
-        
         // Get existing tasks for the selected date
         let existingTasks = tasks(for: selectedDate)
-        
-        // Check if there are already AI-generated tasks
         let existingAITasks = existingTasks.filter { $0.isAIGenerated }
-        
-        // If there are AI-generated tasks, delete them first (replace mode)
-        // If no AI tasks exist, check if there are any tasks at all
-        let hasAnyTasks = !existingTasks.isEmpty
         let hasAITasks = !existingAITasks.isEmpty
+        let hasAnyTasks = !existingTasks.isEmpty
         
         if hasAITasks {
             // Replace mode: animate deletion of existing AI tasks, then generate all 4 tasks
@@ -231,11 +117,11 @@ struct MainPageView: View {
     
     private func startAITaskGeneration(replaceMode: Bool = false) {
         // Prevent duplicate calls
-        if showAITaskLoading {
+        if isAITaskLoading {
             return
         }
         
-        showAITaskLoading = true
+        isAITaskLoading = true
         
         // Get current user profile
         let userProfile: UserProfile? = {
@@ -243,753 +129,43 @@ struct MainPageView: View {
             return try? modelContext.fetch(fetchDescriptor).first
         }()
         
-        // Analyze existing tasks for the selected date
+        // Use AI service to generate tasks
         let existingTasks = tasks(for: selectedDate)
-        
-        // Determine what tasks to generate
-        let tasksToGenerate: [String]
-        if replaceMode {
-            // Replace mode: always generate all 4 tasks regardless of existing tasks
-            tasksToGenerate = ["fitness", "breakfast", "lunch", "dinner"]
-            print("🔄 Replace mode: generating all 4 tasks (fitness, breakfast, lunch, dinner)")
-        } else {
-            // Normal mode: analyze and generate only missing tasks
-            let analysis = analyzeExistingTasks(existingTasks)
-            tasksToGenerate = analysis.missingTasks
-            print("📊 Task Analysis:")
-            print("   - Fitness: \(analysis.hasFitness ? "✅" : "❌")")
-            print("   - Breakfast: \(analysis.hasBreakfast ? "✅" : "❌")")
-            print("   - Lunch: \(analysis.hasLunch ? "✅" : "❌")")
-            print("   - Dinner: \(analysis.hasDinner ? "✅" : "❌")")
-            print("💡 Will generate: \(tasksToGenerate.joined(separator: ", "))")
-        }
-        
-        // If no tasks to generate, just finish
-        guard !tasksToGenerate.isEmpty else {
-            DispatchQueue.main.async {
-                self.showAITaskLoading = false
-                print("ℹ️ No tasks to generate")
-            }
-            return
-        }
-        
-        // Generate tasks one by one
-        aiTaskGenerator.generateMissingTasksSequentially(
-            missing: tasksToGenerate,
-            for: selectedDate,
+        let replacingIds = aiService.generateAITasks(
+            existingTasks: existingTasks,
+            selectedDate: selectedDate,
             userProfile: userProfile,
-            isReplacement: replaceMode,
-            onEachTask: { aiTask in
-                // Create task immediately as each one is generated
-                DispatchQueue.main.async {
-                    self.createTaskFromAIGenerated(aiTask)
-                    print("✅ Generated and added: \(aiTask.title)")
-                    // Animation is triggered by setting newlyAddedTaskId in createTaskFromAIGenerated
-                    // It will auto-clear after 1.5 seconds via TaskListView's onChange
-                }
+            replaceMode: replaceMode,
+            onEachTask: { task in
+                // Add task to list
+                self.addTask(task)
+                // Trigger animation for newly added task
+                self.newlyAddedTaskId = task.id
+                print("🎉 AI Task added successfully!")
             },
             onComplete: {
-                DispatchQueue.main.async {
-                    self.showAITaskLoading = false
-                    print("✅ All AI tasks generation completed")
-                }
+                self.isAITaskLoading = false
             }
         )
-    }
-    
-    struct TaskAnalysis {
-        let hasFitness: Bool
-        let hasBreakfast: Bool
-        let hasLunch: Bool
-        let hasDinner: Bool
-        let missingTasks: [String] // ["fitness", "breakfast", "lunch", "dinner"]
-    }
-    
-    /// Analyze existing tasks to determine what's missing
-    private func analyzeExistingTasks(_ tasks: [TaskItem]) -> TaskAnalysis {
-        print("🔍 Analyzing \(tasks.count) existing tasks:")
-        for (index, task) in tasks.enumerated() {
-            let categoryStr = task.category == .fitness ? "fitness" : task.category == .diet ? "diet" : "others"
-            print("   \(index + 1). [\(categoryStr)] \(task.title) at \(task.time)")
+        
+        // Update replacing IDs if any
+        if !replacingIds.isEmpty {
+            replacingAITaskIds = replacingIds
         }
-        
-        let hasFitness = tasks.contains { $0.category == .fitness }
-        
-        // Check for meals by time or keywords
-        let hasBreakfast = tasks.contains { task in
-            task.category == .diet && (
-                (task.time.contains("AM") && !task.time.contains("12:")) ||
-                task.title.lowercased().contains("breakfast")
-            )
-        }
-        
-        let hasLunch = tasks.contains { task in
-            task.category == .diet && (
-                (task.time.contains("12:") || task.time.contains("01:") || task.time.contains("02:")) ||
-                task.title.lowercased().contains("lunch")
-            )
-        }
-        
-        let hasDinner = tasks.contains { task in
-            task.category == .diet && (
-                (task.time.contains("PM") && !task.time.contains("12:") && !task.time.contains("01:") && !task.time.contains("02:")) ||
-                task.title.lowercased().contains("dinner")
-            )
-        }
-        
-        // Build list of missing tasks
-        var missingTasks: [String] = []
-        if !hasFitness {
-            missingTasks.append("fitness")
-        }
-        if !hasBreakfast {
-            missingTasks.append("breakfast")
-        }
-        if !hasLunch {
-            missingTasks.append("lunch")
-        }
-        if !hasDinner {
-            missingTasks.append("dinner")
-        }
-        
-        // If all tasks are present, add a snack as bonus
-        if missingTasks.isEmpty {
-            missingTasks.append("snack")
-        }
-        
-        return TaskAnalysis(
-            hasFitness: hasFitness,
-            hasBreakfast: hasBreakfast,
-            hasLunch: hasLunch,
-            hasDinner: hasDinner,
-            missingTasks: missingTasks
-        )
-    }
-    
-    /// Create TaskItem from AI Generated Task
-    private func createTaskFromAIGenerated(_ aiTask: AIGeneratedTask) {
-        let task: TaskItem
-        
-        switch aiTask.type {
-        case .workout:
-            // Create workout task
-            let exerciseNames = aiTask.exercises.map { $0.name }
-            let subtitle = exerciseNames.prefix(3).joined(separator: ", ") + (exerciseNames.count > 3 ? "..." : "")
-            
-            // Create more detailed description
-            let description = """
-            Total Duration: \(aiTask.totalDuration) min
-            Exercises: \(aiTask.exercises.count)
-            Estimated Calories: \(aiTask.totalCalories) cal
-            
-            Workout Details:
-            """ + "\n" + aiTask.exercises.map { exercise in
-                "• \(exercise.name): \(exercise.sets) sets × \(exercise.reps) reps, \(exercise.restSec)s rest (~\(exercise.calories) cal)"
-            }.joined(separator: "\n")
-            
-            let fitnessEntries = aiTask.exercises.map { exercise in
-                AddTaskView.FitnessEntry(
-                    exercise: nil,
-                    customName: exercise.name,
-                    minutesInt: exercise.durationMin,
-                    caloriesText: String(exercise.calories)
-                )
-            }
-            
-            // Use random time for AI tasks (morning workout)
-            let startTime = "09:00 AM"
-            let calendar = Calendar.current
-            let startDate = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: aiTask.date) ?? aiTask.date
-            let endDate = calendar.date(byAdding: .minute, value: aiTask.totalDuration, to: startDate) ?? startDate
-            let timeFormatter = DateFormatter()
-            timeFormatter.dateFormat = "hh:mm a"
-            let endTime = timeFormatter.string(from: endDate)
-            
-            task = TaskItem(
-                title: aiTask.title,
-                subtitle: subtitle,
-                time: startTime,
-                timeDate: startDate,
-                endTime: endTime,
-                meta: "\(aiTask.totalDuration) min • \(aiTask.exercises.count) exercises • -\(aiTask.totalCalories) cal",
-                isDone: false,
-                emphasisHex: "8B5CF6",
-                category: .fitness,
-                dietEntries: [],
-                fitnessEntries: fitnessEntries,
-                isAIGenerated: true
-            )
-            
-            print("✅ Created AI workout task: \(task.title)")
-            
-        case .nutrition:
-            // Create nutrition task for single meal
-            let meal = aiTask.meals.first!
-            let foodNames = meal.foodItems.map { $0.name }
-            let subtitle = foodNames.prefix(3).joined(separator: ", ") + (foodNames.count > 3 ? "..." : "")
-            
-            // Create more detailed description
-            let description = """
-            Meal: \(meal.name)
-            Total Calories: \(aiTask.totalCalories) kcal
-            Items: \(meal.foodItems.count)
-            
-            Food Items:
-            """ + "\n" + meal.foodItems.map { "• \($0.name) (~\($0.calories) cal)" }.joined(separator: "\n")
-            
-            let dietEntries = meal.foodItems.map { foodItem in
-                // Create as custom food item
-                AddTaskView.DietEntry(
-                    food: nil,
-                    customName: foodItem.name,
-                    caloriesText: String(foodItem.calories)
-                )
-            }
-            
-            // Use meal time
-            let startTime = meal.time
-            let calendar = Calendar.current
-            let timeFormatter = DateFormatter()
-            timeFormatter.dateFormat = "hh:mm a"
-            let startDate = timeFormatter.date(from: startTime).flatMap { parsedTime in
-                let components = calendar.dateComponents([.hour, .minute], from: parsedTime)
-                return calendar.date(bySettingHour: components.hour ?? 8, minute: components.minute ?? 0, second: 0, of: aiTask.date)
-            } ?? aiTask.date
-            
-            task = TaskItem(
-                title: aiTask.title,
-                subtitle: subtitle,
-                time: startTime,
-                timeDate: startDate,
-                endTime: nil,
-                meta: "\(aiTask.totalCalories)kcal",
-                isDone: false,
-                emphasisHex: "10B981",
-                category: .diet,
-                dietEntries: dietEntries,
-                fitnessEntries: [],
-                isAIGenerated: true
-            )
-            
-            print("✅ Created AI nutrition task: \(task.title)")
-        }
-        
-        // Add task to list
-        addTask(task)
-        
-        // Trigger animation for newly added task
-        newlyAddedTaskId = task.id
-        
-        // Show success feedback
-        print("🎉 AI Task added successfully!")
     }
     
     // MARK: - Notification Handling
     
-    /// Setup notification observer for daily challenge task creation
-    private func setupDailyChallengeNotification() {
-        print("🔔 MainPageView: Setting up daily challenge notification observer")
-        
-        NotificationCenter.default.addObserver(
-            forName: NSNotification.Name("AddDailyChallengeTask"),
-            object: nil,
-            queue: .main
-        ) { notification in
-            print("📬 MainPageView: Received daily challenge notification")
-            
-            guard let userInfo = notification.userInfo,
-                  let taskIdString = userInfo["taskId"] as? String,
-                  let taskId = UUID(uuidString: taskIdString),
-                  let title = userInfo["title"] as? String,
-                  let subtitle = userInfo["subtitle"] as? String,
-                  let targetValue = userInfo["targetValue"] as? Int else {
-                print("⚠️ MainPageView: Invalid daily challenge notification data")
-                return
-            }
-            
-            // Get challenge type (default to fitness)
-            let typeString = userInfo["type"] as? String ?? "fitness"
-            let emoji = userInfo["emoji"] as? String ?? "💪"
-            
-            // Create daily challenge task
-            let calendar = Calendar.current
-            let now = Date()
-            let startDate = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: now) ?? now
-            let endDate = calendar.date(bySettingHour: 21, minute: 0, second: 0, of: now) ?? now
-            
-            let timeFormatter = DateFormatter()
-            timeFormatter.dateFormat = "hh:mm a"
-            let displayTime = timeFormatter.string(from: startDate)
-            let displayEndTime = timeFormatter.string(from: endDate)
-            
-            // Determine category and create appropriate entries based on challenge type
-            let category: AddTaskView.Category
-            var dietEntries: [AddTaskView.DietEntry] = []
-            var fitnessEntries: [AddTaskView.FitnessEntry] = []
-            var meta: String
-            
-            // Parse title to extract activity info
-            let titleLower = title.lowercased()
-            
-            if typeString == "diet" {
-                // Diet challenge - estimate calories if not provided
-                category = .diet
-                
-                // For diet challenges, targetValue might be servings, glasses, grams, etc.
-                // Estimate calories based on what the challenge is about
-                let estimatedCalories = self.estimateDietCalories(from: title, targetValue: targetValue)
-                let foodName = self.extractFoodName(from: title)
-                
-                let dietEntry = AddTaskView.DietEntry(
-                    customName: foodName,
-                    quantityText: "\(targetValue)",
-                    unit: self.extractServingUnit(from: title),
-                    caloriesText: "\(estimatedCalories)"
-                )
-                dietEntries = [dietEntry]
-                meta = "+\(estimatedCalories)cal"
-                
-            } else {
-                // Fitness challenge - need to convert targetValue to calories
-                category = .fitness
-                
-                // Determine what targetValue represents and calculate calories
-                let (activityName, caloriesBurned, durationMinutes) = self.parseActivityChallenge(
-                    title: title,
-                    targetValue: targetValue
-                )
-                
-                let fitnessEntry = AddTaskView.FitnessEntry(
-                    customName: activityName,
-                    minutesInt: durationMinutes,
-                    caloriesText: "\(caloriesBurned)"
-                )
-                fitnessEntries = [fitnessEntry]
-                meta = "-\(caloriesBurned)cal"
-            }
-            
-            let task = TaskItem(
-                id: taskId,
-                title: title,
-                subtitle: subtitle,
-                time: displayTime,
-                timeDate: startDate,
-                endTime: displayEndTime,
-                meta: meta,
-                isDone: false,
-                emphasisHex: "8B5CF6", // Purple
-                category: category,
-                dietEntries: dietEntries,
-                fitnessEntries: fitnessEntries,
-                isAIGenerated: false,
-                isDailyChallenge: true
-            )
-            
-            // Add task to list
+    /// Setup notification observers
+    private func setupNotifications() {
+        notificationService.setupDailyChallengeNotification { task in
+            // Delivered on main queue by NotificationSetupService
             self.addTask(task)
-            
-            print("✅ MainPageView: Daily challenge task created - \(title) (\(meta))")
-        }
-    }
-    
-    /// Parse activity challenge and convert to calories
-    /// Returns: (activityName, caloriesBurned, durationMinutes)
-    private func parseActivityChallenge(title: String, targetValue: Int) -> (String, Int, Int) {
-        let titleLower = title.lowercased()
-        
-        // Case 1: Steps challenge (e.g., "Walk 10,000 steps")
-        if titleLower.contains("step") {
-            let activityName = "Walking"
-            // Steps to calories: ~0.04 calories per step (varies by weight, using average)
-            let caloriesBurned = Int(Double(targetValue) * 0.04)
-            // Steps to minutes: ~100 steps per minute
-            let durationMinutes = max(15, min(180, targetValue / 100))
-            return (activityName, caloriesBurned, durationMinutes)
         }
         
-        // Case 2: Minutes challenge (e.g., "30 minutes of running")
-        if titleLower.contains("minute") || titleLower.contains("min") {
-            let activityName = extractActivityName(from: title)
-            let durationMinutes = targetValue
-            // Calories per minute varies by activity intensity (using 7 cal/min as average)
-            let caloriesBurned = targetValue * 7
-            return (activityName, caloriesBurned, durationMinutes)
-        }
-        
-        // Case 3: Reps/sets challenge (e.g., "50 push-ups", "3 sets of squats")
-        if titleLower.contains("rep") || titleLower.contains("set") || 
-           titleLower.contains("push") || titleLower.contains("squat") || 
-           titleLower.contains("plank") {
-            let activityName = extractActivityName(from: title)
-            // Estimate 1-2 calories per rep/set
-            let caloriesBurned = max(50, targetValue * 2)
-            let durationMinutes = max(10, min(60, targetValue / 2))
-            return (activityName, caloriesBurned, durationMinutes)
-        }
-        
-        // Case 4: Distance challenge (e.g., "Run 5km")
-        if titleLower.contains("km") || titleLower.contains("mile") {
-            let activityName = extractActivityName(from: title)
-            // Assume ~100 calories per km (or ~60 per mile)
-            let caloriesBurned = titleLower.contains("km") ? targetValue * 100 : targetValue * 160
-            // Assume ~6 min per km (or 10 min per mile) for moderate pace
-            let durationMinutes = titleLower.contains("km") ? targetValue * 6 : targetValue * 10
-            return (activityName, caloriesBurned, durationMinutes)
-        }
-        
-        // Default: Assume targetValue is an intensity metric, use moderate estimates
-        let activityName = extractActivityName(from: title)
-        let caloriesBurned = max(200, min(600, targetValue * 3))
-        let durationMinutes = max(20, min(60, 45))
-        return (activityName, caloriesBurned, durationMinutes)
-    }
-    
-    /// Extract activity name from title
-    private func extractActivityName(from title: String) -> String {
-        // Common activity mappings
-        let titleLower = title.lowercased()
-        
-        if titleLower.contains("walk") || titleLower.contains("step") {
-            return "Walking"
-        } else if titleLower.contains("run") || titleLower.contains("jog") {
-            return "Running"
-        } else if titleLower.contains("swim") {
-            return "Swimming"
-        } else if titleLower.contains("bike") || titleLower.contains("cycl") {
-            return "Cycling"
-        } else if titleLower.contains("yoga") {
-            return "Yoga"
-        } else if titleLower.contains("push") {
-            return "Push-ups"
-        } else if titleLower.contains("squat") {
-            return "Squats"
-        } else if titleLower.contains("plank") {
-            return "Plank"
-        } else if titleLower.contains("strength") || titleLower.contains("weight") {
-            return "Strength Training"
-        } else if titleLower.contains("cardio") {
-            return "Cardio"
-        } else if titleLower.contains("hiit") {
-            return "HIIT"
-        }
-        
-        // If no match, try to extract main noun by removing numbers and units
-        let cleaned = title
-            .replacingOccurrences(of: ",", with: "")
-            .replacingOccurrences(of: "\\d+", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "steps", with: "", options: .caseInsensitive)
-            .replacingOccurrences(of: "minutes", with: "", options: .caseInsensitive)
-            .replacingOccurrences(of: "reps", with: "", options: .caseInsensitive)
-            .replacingOccurrences(of: "sets", with: "", options: .caseInsensitive)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        return cleaned.isEmpty ? "Exercise" : cleaned.capitalized
-    }
-    
-    /// Estimate calories for diet challenges
-    private func estimateDietCalories(from title: String, targetValue: Int) -> Int {
-        let titleLower = title.lowercased()
-        
-        // Water has 0 calories
-        if titleLower.contains("water") || titleLower.contains("glass") {
-            return 0
-        }
-        
-        // Protein (4 cal/g)
-        if titleLower.contains("protein") && titleLower.contains("gram") {
-            return targetValue * 4
-        }
-        
-        // Vegetables (low calorie)
-        if titleLower.contains("vegeta") || titleLower.contains("salad") {
-            return targetValue * 30
-        }
-        
-        // Fruit
-        if titleLower.contains("fruit") {
-            return targetValue * 60
-        }
-        
-        // Default: moderate calorie estimate
-        return targetValue * 50
-    }
-    
-    /// Extract food name from diet challenge title
-    private func extractFoodName(from title: String) -> String {
-        let titleLower = title.lowercased()
-        
-        if titleLower.contains("water") {
-            return "Water"
-        } else if titleLower.contains("protein") {
-            return "Protein"
-        } else if titleLower.contains("vegeta") {
-            return "Vegetables"
-        } else if titleLower.contains("fruit") {
-            return "Fruits"
-        } else if titleLower.contains("fiber") {
-            return "Fiber"
-        }
-        
-        // Clean up title
-        let cleaned = title
-            .replacingOccurrences(of: "\\d+", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "glass", with: "", options: .caseInsensitive)
-            .replacingOccurrences(of: "serving", with: "", options: .caseInsensitive)
-            .replacingOccurrences(of: "gram", with: "", options: .caseInsensitive)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        return cleaned.isEmpty ? "Healthy Food" : cleaned.capitalized
-    }
-    
-    /// Extract serving unit from diet challenge title
-    private func extractServingUnit(from title: String) -> String {
-        let titleLower = title.lowercased()
-        
-        if titleLower.contains("glass") {
-            return "glasses"
-        } else if titleLower.contains("gram") {
-            return "grams"
-        } else if titleLower.contains("serving") {
-            return "servings"
-        } else if titleLower.contains("cup") {
-            return "cups"
-        }
-        
-        return "servings"
-    }
-    
-    /// Setup notification observer for workout/nutrition task creation from AI
-    private func setupWorkoutTaskNotification() {
-        print("🔔 MainPageView: Setting up workout task notification observer")
-        
-        // Remove existing observer first to prevent duplicates
-        if let existingObserver = notificationObserver {
-            print("   🗑️ Removing existing observer")
-            NotificationCenter.default.removeObserver(existingObserver)
-            notificationObserver = nil
-        }
-        
-        // Add new observer and store the token
-        notificationObserver = NotificationCenter.default.addObserver(
-            forName: NSNotification.Name("CreateWorkoutTask"),
-            object: nil,
-            queue: .main
-        ) { notification in
-            print("📬 ========== MainPageView: RECEIVED NOTIFICATION ==========")
-            print("   Notification object: \(String(describing: notification.object))")
-            print("   User info keys: \(notification.userInfo?.keys.map { String(describing: $0) } ?? [])")
-            
-            guard let userInfo = notification.userInfo,
-                  let dateString = userInfo["date"] as? String,
-                  let goal = userInfo["goal"] as? String else {
-                print("⚠️ MainPageView: Missing required userInfo data")
-                return
-            }
-            
-            // Check if this is a nutrition plan
-            let isNutrition = userInfo["isNutrition"] as? Bool ?? false
-            print("   Task type: \(isNutrition ? "Nutrition" : "Workout")")
-            
-            // Parse date
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "yyyy-MM-dd"
-            guard let date = dateFormatter.date(from: dateString) else { return }
-            
-            // Get time (from user or default)
-            let timeString = userInfo["time"] as? String ?? (isNutrition ? "08:00 AM" : "09:00 AM")
-            
-            // Get description (full details)
-            let description = userInfo["description"] as? String ?? ""
-            
-            print("   Description preview: \(description.prefix(100))...")
-            
-            // Create task title and meta based on type
-            let taskTitle: String
-            let meta: String
-            let subtitle: String
-            let emphasisColor: String
-            let category: AddTaskView.Category
-            
-            // Create entries arrays for both task types
-            var fitnessEntries: [AddTaskView.FitnessEntry] = []
-            var dietEntries: [AddTaskView.DietEntry] = []  // ✅ Define at top level
-            var totalCalories = 0
-            var durationMinutes = 0  // Will be calculated based on type
-            
-            if isNutrition {
-                // Nutrition task - create DietEntries for each food item
-                let calories = userInfo["calories"] as? Int ?? 2000
-                
-                // Use mealName if provided, otherwise use generic title
-                if let mealName = userInfo["mealName"] as? String {
-                    taskTitle = mealName // "Breakfast", "Lunch", "Dinner", "Snack"
-                } else {
-                    taskTitle = "🥗 AI Generated Nutrition Plan"
-                }
-                
-                // ✅ Create DietEntry for each food item (similar to FitnessEntry for exercises)
-                let foodItemsData = userInfo["foodItems"] as? [[String: Any]] ?? []
-                
-                for foodData in foodItemsData {
-                    guard let name = foodData["name"] as? String else { continue }
-                    let foodCalories = foodData["calories"] as? Int ?? 0
-                    
-                    // Create as custom food item (not from standard library)
-                    let entry = AddTaskView.DietEntry(
-                        food: nil,  // Not from standard library
-                        customName: name,
-                        caloriesText: String(foodCalories)
-                    )
-                    dietEntries.append(entry)
-                }
-                
-                // Extract food names for subtitle
-                let foodNames = foodItemsData.compactMap { $0["name"] as? String }
-                subtitle = foodNames.prefix(3).joined(separator: ", ") + (foodNames.count > 3 ? "..." : "")
-                
-                meta = "\(calories)kcal"
-                emphasisColor = "10B981"  // Green for nutrition
-                category = .diet
-                totalCalories = calories
-                
-                // Nutrition doesn't have duration
-                let durationString = userInfo["duration"] as? String ?? "0"
-                durationMinutes = Int(durationString) ?? 0
-            } else {
-                // Workout task - create FitnessEntries
-                let exercisesData = userInfo["exercises"] as? [[String: Any]] ?? []
-                let theme = userInfo["theme"] as? String ?? "Workout"
-                totalCalories = userInfo["totalCalories"] as? Int ?? 0
-                
-                // Create FitnessEntry for each exercise
-                for exerciseData in exercisesData {
-                    guard let name = exerciseData["name"] as? String else { continue }
-                    let durationMin = exerciseData["durationMin"] as? Int ?? 5
-                    let calories = exerciseData["calories"] as? Int ?? 30
-                    
-                    // Create as custom exercise (not from standard library)
-                    let entry = AddTaskView.FitnessEntry(
-                        exercise: nil,  // Not from standard library
-                        customName: name,
-                        minutesInt: durationMin,
-                        caloriesText: String(calories)
-                    )
-                    fitnessEntries.append(entry)
-                }
-                
-                // Set title with theme (no "AI-" prefix, will use AI badge instead)
-                var cleanTheme = theme
-                    .replacingOccurrences(of: " Workout", with: "", options: .caseInsensitive)
-                    .replacingOccurrences(of: " Training", with: "", options: .caseInsensitive)
-                    .replacingOccurrences(of: " Session", with: "", options: .caseInsensitive)
-                    .trimmingCharacters(in: .whitespaces)
-                
-                // If theme is too long or empty, use default
-                if cleanTheme.isEmpty || cleanTheme.lowercased() == "workout" {
-                    cleanTheme = "Fitness"
-                } else if cleanTheme.count > 30 {
-                    cleanTheme = String(cleanTheme.prefix(30))
-                }
-                
-                taskTitle = cleanTheme  // No "AI-" prefix, use isAIGenerated flag instead
-                
-                // Subtitle shows first 3 exercises (consistent with createTaskFromAIGenerated)
-                let exerciseNames = exercisesData.compactMap { $0["name"] as? String }
-                subtitle = exerciseNames.prefix(3).joined(separator: ", ") + (exerciseNames.count > 3 ? "..." : "")
-                
-                // Calculate pure workout time from individual exercises
-                let pureWorkoutTime = exercisesData.reduce(0) { sum, exercise in
-                    sum + (exercise["durationMin"] as? Int ?? 0)
-                }
-                
-                // Total duration already includes warm-up/cool-down (calculated in InsightPageView)
-                let actualDuration = userInfo["totalDuration"] as? Int ?? pureWorkoutTime
-                
-                print("   Pure workout time: \(pureWorkoutTime) min")
-                print("   Total duration (with warm-up/transitions): \(actualDuration) min")
-                print("   Exercises: \(exercisesData.count)")
-                
-                // Meta shows total duration, exercises, and calories (negative for burned calories)
-                meta = "\(actualDuration) min • \(exerciseNames.count) exercises • -\(totalCalories) cal"
-                emphasisColor = "8B5CF6"  // Purple for workout
-                category = .fitness
-                
-                // Use actual duration for endTime calculation
-                durationMinutes = actualDuration
-            }
-            
-            // Parse time and calculate end time
-            let timeFormatter = DateFormatter()
-            timeFormatter.dateFormat = "hh:mm a"
-            
-            var startDate: Date
-            var endDate: Date
-            var displayTime: String
-            var displayEndTime: String
-            
-            if let parsedTime = timeFormatter.date(from: timeString) {
-                let calendar = Calendar.current
-                let timeComponents = calendar.dateComponents([.hour, .minute], from: parsedTime)
-                
-                if let hour = timeComponents.hour, let minute = timeComponents.minute {
-                    startDate = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: date) ?? date
-                    if durationMinutes > 0 {
-                        endDate = calendar.date(byAdding: .minute, value: durationMinutes, to: startDate) ?? startDate
-                    } else {
-                        endDate = calendar.date(byAdding: .hour, value: 1, to: startDate) ?? startDate
-                    }
-                    
-                    displayTime = timeFormatter.string(from: startDate)
-                    displayEndTime = timeFormatter.string(from: endDate)
-                } else {
-                    let defaultHour = isNutrition ? 8 : 9
-                    startDate = calendar.date(bySettingHour: defaultHour, minute: 0, second: 0, of: date) ?? date
-                    if durationMinutes > 0 {
-                        endDate = calendar.date(byAdding: .minute, value: durationMinutes, to: startDate) ?? startDate
-                    } else {
-                        endDate = calendar.date(byAdding: .hour, value: 1, to: startDate) ?? startDate
-                    }
-                    displayTime = isNutrition ? "08:00 AM" : "09:00 AM"
-                    displayEndTime = timeFormatter.string(from: endDate)
-                }
-            } else {
-                let calendar = Calendar.current
-                let defaultHour = isNutrition ? 8 : 9
-                startDate = calendar.date(bySettingHour: defaultHour, minute: 0, second: 0, of: date) ?? date
-                if durationMinutes > 0 {
-                    endDate = calendar.date(byAdding: .minute, value: durationMinutes, to: startDate) ?? startDate
-                } else {
-                    endDate = calendar.date(byAdding: .hour, value: 1, to: startDate) ?? startDate
-                }
-                displayTime = isNutrition ? "08:00 AM" : "09:00 AM"
-                displayEndTime = timeFormatter.string(from: endDate)
-            }
-            
-            // Check if task is AI-generated (from InsightPageView or AI Generate button)
-            let isAIGenerated = userInfo["isAIGenerated"] as? Bool ?? false
-            
-            // Create task with detailed entries (both diet and fitness)
-            let task = TaskItem(
-                title: taskTitle,
-                subtitle: subtitle,
-                time: displayTime,
-                timeDate: startDate,
-                endTime: displayEndTime,
-                meta: meta,
-                isDone: false,
-                emphasisHex: emphasisColor,
-                category: category,
-                dietEntries: dietEntries,  // ✅ Use created diet entries
-                fitnessEntries: fitnessEntries,
-                isAIGenerated: isAIGenerated
-            )
-            
-            // Add to tasks
+        notificationService.setupWorkoutTaskNotification { task in
+            // Delivered on main queue by NotificationSetupService
             self.addTask(task)
-            
-            let taskType = isNutrition ? "Nutrition" : "Workout"
-            print("✅ MainPageView: \(taskType) task created - \(taskTitle) at \(displayTime)")
-            print("   Exercises: \(fitnessEntries.count), Total Calories: \(totalCalories)kcal")
         }
     }
     
@@ -1331,7 +507,7 @@ struct MainPageView: View {
                             navigationPath: $navigationPath,
                             selectedDate: selectedDate,
                             onAITaskTap: { generateAITask() },
-                            showAITaskLoading: $showAITaskLoading
+                            isAITaskLoading: $isAITaskLoading
                         )
                             .padding(.horizontal, 24)
                         
@@ -1341,7 +517,7 @@ struct MainPageView: View {
                             navigationPath: $navigationPath,
                             newlyAddedTaskId: $newlyAddedTaskId,
                             replacingAITaskIds: $replacingAITaskIds,
-                            showChallengeDetail: $showDailyChallengeDetail,
+                            isShowingChallengeDetail: $isShowingDailyChallengeDetail,
                             onDeleteTask: { task in
                                 removeTask(task)
                             },
@@ -1389,7 +565,7 @@ struct MainPageView: View {
                 }
             }
             // Challenge detail sheet from main page
-            .sheet(isPresented: $showDailyChallengeDetail) {
+            .sheet(isPresented: $isShowingDailyChallengeDetail) {
                 DailyChallengeDetailView(
                     challenge: challengeService.currentChallenge,
                     isCompleted: challengeService.isChallengeCompleted,
@@ -1413,7 +589,7 @@ struct MainPageView: View {
                                 object: nil,
                                 userInfo: userInfo
                             )
-                            showDailyChallengeDetail = false
+                            isShowingDailyChallengeDetail = false
                         }
                     }
                 )
@@ -1469,8 +645,7 @@ struct MainPageView: View {
             // Load cached tasks for current user into memory so calendar dots persist
             loadAllCachedTasksIntoMemory(centerDate: selectedDate)
             setupListenerIfNeeded(for: selectedDate)
-            setupWorkoutTaskNotification()
-            setupDailyChallengeNotification()
+            setupNotifications()
             // Update calories service on appear
             let todayTasks = tasks(for: selectedDate)
             updateCaloriesServiceIfNeeded(tasks: todayTasks, date: selectedDate)
@@ -1481,14 +656,7 @@ struct MainPageView: View {
             print("📍 MainPageView: onDisappear called")
             isViewVisible = false
             stopCurrentListener()
-            
-            // Remove notification observer to prevent memory leaks and duplicates
-            if let observer = notificationObserver {
-                print("🔕 MainPageView: Removing workout task notification observer")
-                NotificationCenter.default.removeObserver(observer)
-                notificationObserver = nil
-            }
-            
+            notificationService.removeAllObservers()
             cancelMidnightSettlement()
         }
         .onChange(of: selectedDate) { oldValue, newValue in
@@ -1655,61 +823,41 @@ struct MainPageView: View {
     /// Evaluate whether all tasks for a date are completed and sync status
     private func evaluateAndSyncDayCompletion(for date: Date) {
         guard let userId = Auth.auth().currentUser?.uid else { return }
-        let calendar = Calendar.current
-        let normalizedDate = calendar.startOfDay(for: date)
-        let today = calendar.startOfDay(for: Date())
-        
-        // Defer settlement for the current day until midnight
-        if calendar.isDate(normalizedDate, inSameDayAs: today) {
-            print("⏳ MainPageView: Deferring day completion settlement until midnight for \(normalizedDate)")
-            return
-        }
-        let dayTasks = tasks(for: normalizedDate)
-        // Only check when there's at least one task that day
-        guard !dayTasks.isEmpty else {
-            progressService.markDayAsNotCompleted(userId: userId, date: normalizedDate, modelContext: modelContext)
-            return
-        }
-        let isCompleted = progressService.isDayCompleted(tasks: dayTasks, date: normalizedDate)
-        if isCompleted {
-            progressService.markDayAsCompleted(userId: userId, date: normalizedDate, modelContext: modelContext)
-        } else {
-            progressService.markDayAsNotCompleted(userId: userId, date: normalizedDate, modelContext: modelContext)
-        }
+        let dayTasks = tasks(for: date)
+        dayCompletionService.evaluateAndSyncDayCompletion(
+            for: date,
+            tasks: dayTasks,
+            userId: userId,
+            modelContext: modelContext
+        )
     }
 
     /// Schedule a one-shot timer to settle today's completion at the next midnight
     private func scheduleMidnightSettlement() {
-        cancelMidnightSettlement()
-        let calendar = Calendar.current
-        // Next midnight start of tomorrow
-        guard let nextMidnight = calendar.nextDate(after: Date(), matching: DateComponents(hour: 0, minute: 0, second: 0), matchingPolicy: .nextTime, direction: .forward) else { return }
-        let interval = max(1, nextMidnight.timeIntervalSinceNow)
-        midnightTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { _ in
-            let today = Date()
-            let normalizedToday = calendar.startOfDay(for: today.addingTimeInterval(-60)) // small backoff
-            // Evaluate settlement for the day that just ended
-            self.evaluateAndSyncDayCompletion(for: normalizedToday)
-            // Reschedule for the following midnight
-            self.scheduleMidnightSettlement()
+        dayCompletionService.scheduleMidnightSettlement { date in
+            guard let userId = Auth.auth().currentUser?.uid else { return }
+            let dayTasks = self.tasks(for: date)
+            self.dayCompletionService.evaluateAndSyncDayCompletion(
+                for: date,
+                tasks: dayTasks,
+                userId: userId,
+                modelContext: self.modelContext
+            )
         }
-        RunLoop.main.add(midnightTimer!, forMode: .common)
-        print("🕛 MainPageView: Scheduled midnight settlement at \(nextMidnight)")
     }
 
     /// Cancel any scheduled midnight settlement timer
     private func cancelMidnightSettlement() {
-        midnightTimer?.invalidate()
-        midnightTimer = nil
+        dayCompletionService.cancelMidnightSettlement()
     }
 }
 
 // MARK: - Navigation Destination Type
-private enum AddTaskDestination: Hashable {
+enum AddTaskDestination: Hashable {
     case addTask
 }
 
-private enum TaskDetailDestination: Hashable {
+enum TaskDetailDestination: Hashable {
     case detail(taskId: UUID)
     
     var taskId: UUID? {
@@ -1722,707 +870,9 @@ private enum ProfileDestination: Hashable {
     case profile
 }
 
-private struct TopHeaderView: View {
-    @Binding var isShowingCalendar: Bool
-    @Binding var isShowingProfile: Bool
-    let selectedDate: Date
-    @EnvironmentObject var userProfileService: UserProfileService
-    
-    private var fallbackAvatar: some View {
-        Text("A")
-            .font(.system(size: 16, weight: .semibold))
-            .foregroundColor(Color(hexString: "101828"))
-    }
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            // Avatar
-            Button(action: {
-                withAnimation {
-                    isShowingProfile = true
-                }
-            }) {
-                ZStack {
-                    Circle()
-                        .fill(Color.white)
-                        .frame(width: 40, height: 40)
-                        .overlay(
-                            Circle().stroke(Color(hexString: "E5E7EB"), lineWidth: 1)
-                        )
-                    
-                    // Display user avatar or default
-                    Group {
-                        if let urlString = userProfileService.profileImageURL, !urlString.isEmpty {
-                            if urlString.hasPrefix("http") || urlString.hasPrefix("https") {
-                                if let url = URL(string: urlString) {
-                                    // Use cached image with placeholder
-                                    CachedAsyncImage(url: url) {
-                                        // Placeholder: show default avatar or fallback
-                                        if let name = userProfileService.avatarName, !name.isEmpty, UIImage(named: name) != nil {
-                                            Image(name)
-                                                .resizable()
-                                                .scaledToFill()
-                                                .frame(width: 40, height: 40)
-                                                .clipShape(Circle())
-                                        } else {
-                                            fallbackAvatar
-                                                .frame(width: 40, height: 40)
-                                                .clipShape(Circle())
-                                        }
-                                    }
-                                    .frame(width: 40, height: 40)
-                                    .clipShape(Circle())
-                                } else {
-                                    fallbackAvatar
-                                }
-                            } else {
-                                fallbackAvatar
-                            }
-                        } else if let name = userProfileService.avatarName, !name.isEmpty, UIImage(named: name) != nil {
-                            Image(name)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: 40, height: 40)
-                                .clipShape(Circle())
-                        } else {
-                            fallbackAvatar
-                        }
-                    }
-                }
-            }
-            .buttonStyle(PlainButtonStyle())
-
-            Spacer()
-
-            // Centered date look
-            Text(Self.formattedDate(selectedDate: selectedDate))
-                .font(.system(size: 22, weight: .bold))
-                .foregroundColor(Color(hexString: "101828"))
-
-            Spacer()
-
-            // Calendar
-            Button {
-                withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
-                    isShowingCalendar = true
-                }
-            } label: {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color.black)
-                    .frame(width: 40, height: 40)
-                    .overlay(
-                        CalendarIcon(strokeColor: .white, size: 20)
-                    )
-            }
-        }
-    }
-
-    private static func formattedDate(selectedDate: Date) -> String {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        let selected = calendar.startOfDay(for: selectedDate)
-        
-        if calendar.isDate(selected, inSameDayAs: today) {
-            return "Today"
-        }
-        
-        let df = DateFormatter()
-        df.setLocalizedDateFormatFromTemplate("MMMM d")
-        df.locale = .current
-        return df.string(from: selectedDate)
-    }
-}
-
-// Displays Completed Diet and Fitness Tasks (Should factor out to Components.swift)
-private struct CombinedStatsCard: View {
-    let tasks: [MainPageView.TaskItem]
-    
-    private var completedCount: Int {
-        tasks.filter { $0.isDone }.count
-    }
-    
-    private var totalCount: Int {
-        tasks.count
-    }
-    
-    private var dietCount: Int {
-        tasks.filter { $0.category == .diet && !$0.isDone }.count
-    }
-    
-    private var fitnessCount: Int {
-        tasks.filter { $0.category == .fitness && !$0.isDone }.count
-    }
-    
-    private var totalCalories: Int {
-        tasks.filter { $0.isDone }.reduce(0) { total, task in
-            total + task.totalCalories
-        }
-    }
-    
-    var body: some View {
-        RoundedRectangle(cornerRadius: 16, style: .continuous)
-            .fill(Color.white)
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color(hexString: "E5E7EB"), lineWidth: 1)
-            )
-            .shadow(color: Color.black.opacity(0.04), radius: 2, x: 0, y: 1)
-            .overlay(
-                HStack(spacing: 0) {
-                    StatItem(value: "\(completedCount)/\(totalCount)", label: "Completed", tint: Color(hexString: "101828"))
-                    StatItem(value: "\(dietCount)", label: "Diet", tint: Color(hexString: "00A63E"))
-                    StatItem(value: "\(fitnessCount)", label: "Fitness", tint: Color(hexString: "155DFC"))
-                    StatItem(value: "\(totalCalories)", label: "Calories", tint: Color(hexString: "4ECDC4"))
-                }
-                .frame(maxWidth: .infinity)
-                .padding(12)
-            )
-            .frame(width: 327, height: 92)
-    }
-
-
-   // Formats the Text for statistics
-    private struct StatItem: View {
-        let value: String
-        let label: String
-        let tint: Color
-
-        var body: some View {
-            VStack(spacing: 4) {
-                Text(value)
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(tint)
-                    .contentTransition(.numericText())
-                Text(label)
-                    .font(.system(size: 12))
-                    .foregroundColor(Color(hexString: "6A7282"))
-            }
-            .frame(maxWidth: .infinity)
-        }
-    }
-}
-
-private struct TasksHeader: View {
-    @Binding var navigationPath: NavigationPath
-    let selectedDate: Date
-    let onAITaskTap: () -> Void
-    @Binding var showAITaskLoading: Bool
-    
-    private var headerText: String {
-
-        return "Modo's Tasks"
-    }
-
-    var body: some View {
-        ZStack {
-            // Center title
-            Text(headerText)
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundColor(Color(hexString: "101828"))
-            
-            // Left and right buttons
-            HStack {
-                // AI Tasks button (left side with gradient)
-                Button(action: {
-                    onAITaskTap()
-                }) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.white)
-                        Text(showAITaskLoading ? "..." : "AI")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.white)
-                            .lineLimit(1)
-                    }
-                    .frame(width: 60, height: 36)
-                    .background(
-                        LinearGradient(
-                            colors: [Color(hexString: "8B5CF6"), Color(hexString: "6366F1")],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .shadow(color: Color(hexString: "8B5CF6").opacity(0.3), radius: 8, x: 0, y: 4)
-                }
-                
-                Spacer()
-                
-                // Add Task button (right side, minimalist)
-                Button(action: {
-                    navigationPath.append(AddTaskDestination.addTask)
-                }) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.white)
-                        Text("Add")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.white)
-                            .lineLimit(1)
-                    }
-                    .frame(width: 70, height: 36)
-                    .background(Color.black)
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                }
-            }
-        }
-        .frame(height: 60)
-        .background(Color.white)
-    }
-}
-
-private struct TaskRowCard: View {
-    let title: String
-    let subtitle: String
-    let time: String
-    let endTime: String?
-    let meta: String
-    @Binding var isDone: Bool
-    let emphasis: Color
-    let category: AddTaskView.Category
-    let isAIGenerated: Bool
-    let isDailyChallenge: Bool
-    let isFutureDate: Bool
-    @State private var checkboxScale: CGFloat = 1.0
-    @State private var strikethroughProgress: CGFloat = 0.0
-
-    init(title: String, subtitle: String, time: String, endTime: String?, meta: String, isDone: Binding<Bool>, emphasis: Color, category: AddTaskView.Category, isAIGenerated: Bool = false, isDailyChallenge: Bool = false, isFutureDate: Bool = false) {
-        self.title = title
-        self.subtitle = subtitle
-        self.time = time
-        self.endTime = endTime
-        self.meta = meta
-        self._isDone = isDone
-        self.emphasis = emphasis
-        self.category = category
-        self.isAIGenerated = isAIGenerated
-        self.isDailyChallenge = isDailyChallenge
-        self.isFutureDate = isFutureDate
-    }
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            // Checkbox button - only show for non-future dates
-            if !isFutureDate {
-                Button {
-                    let willBeDone = !isDone
-                    
-                    withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
-                        isDone.toggle()
-                        triggerCompletionHaptic()
-                    }
-                    // Checkbox bounce animation
-                    withAnimation(.easeOut(duration: 0.15)) {
-                        checkboxScale = 1.3
-                    }
-                    withAnimation(.easeIn(duration: 0.15).delay(0.15)) {
-                        checkboxScale = 1.0
-                    }
-                    // Strikethrough animation
-                    if willBeDone {
-                        withAnimation(.easeInOut(duration: 0.4).delay(0.1)) {
-                            strikethroughProgress = 1.0
-                        }
-                    } else {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            strikethroughProgress = 0.0
-                        }
-                    }
-                } label: {
-                    ZStack {
-                        Circle()
-                            .fill(isDone ? emphasis : Color.white)
-                            .frame(width: 22, height: 22)
-                            .overlay(
-                                Circle().stroke(Color(hexString: "E5E7EB"), lineWidth: isDone ? 0 : 1)
-                            )
-                            .scaleEffect(checkboxScale)
-                        if isDone {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(.white)
-                                .scaleEffect(checkboxScale)
-                        }
-                    }
-                }
-                .buttonStyle(.plain)
-            }
-            
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    GeometryReader { geometry in
-                        ZStack(alignment: .leading) {
-                            Text(title)
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(isDone ? emphasis : Color(hexString: "101828"))
-                            
-                            // Animated strikethrough line
-                            if strikethroughProgress > 0 {
-                                Path { path in
-                                    let y = geometry.size.height / 2
-                                    let startX: CGFloat = 0
-                                    let endX = geometry.size.width * strikethroughProgress
-                                    path.move(to: CGPoint(x: startX, y: y))
-                                    path.addLine(to: CGPoint(x: endX, y: y))
-                                }
-                                .stroke(
-                                    emphasis,
-                                    style: StrokeStyle(
-                                        lineWidth: 2,
-                                        lineCap: .round
-                                    )
-                                )
-                                .animation(.none, value: strikethroughProgress)
-                            }
-                        }
-                    }
-                    .frame(height: 20) // Fixed height for GeometryReader
-                }
-                if !subtitle.isEmpty {
-                    Text(subtitle)
-                        .font(.system(size: 14))
-                        .foregroundColor(Color(hexString: "6A7282"))
-                        .lineLimit(1)
-                }
-                HStack(spacing: 8) {
-                    // Time display - hide for daily challenge tasks
-                    if !isDailyChallenge {
-                        if let endTime = endTime {
-                            HStack(spacing: 4) {
-                                Image(systemName: "clock")
-                                    .font(.system(size: 12))
-                                Text("\(time) - \(endTime)")
-                                    .font(.system(size: 12))
-                            }
-                            .foregroundColor(Color(hexString: "364153"))
-                        } else {
-                            HStack(spacing: 4) {
-                                Image(systemName: "clock")
-                                    .font(.system(size: 12))
-                                Text(time)
-                                    .font(.system(size: 12))
-                            }
-                            .foregroundColor(Color(hexString: "364153"))
-                        }
-                    }
-                    
-                    // Daily Challenge badge if task is a daily challenge
-                    if isDailyChallenge {
-                        HStack(spacing: 3) {
-                            Image(systemName: "trophy.fill")
-                                .font(.system(size: 10, weight: .semibold))
-                            Text("Challenge")
-                                .font(.system(size: 10, weight: .bold))
-                        }
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(
-                            LinearGradient(
-                                colors: [Color(hexString: "F59E0B"), Color(hexString: "EAB308")],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .cornerRadius(8)
-                    }
-                    // AI badge if task is AI generated (and not a daily challenge)
-                    else if isAIGenerated {
-                        HStack(spacing: 3) {
-                            Image(systemName: "sparkles")
-                                .font(.system(size: 10, weight: .semibold))
-                            Text("AI")
-                                .font(.system(size: 10, weight: .bold))
-                        }
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(
-                            LinearGradient(
-                                colors: [Color(hexString: "8B5CF6"), Color(hexString: "6366F1")],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .cornerRadius(8)
-                    }
-                }
-            }
-            Spacer(minLength: 0)
-            
-            // Meta information (calories and exercises for fitness, calories for diet)
-            if !meta.isEmpty {
-                if category == .fitness {
-                    // For fitness tasks, show calories and exercises count in 2 lines
-                    VStack(alignment: .trailing, spacing: 4) {
-                        // Extract calories from meta (format: "XX min • Y exercises • -ZZZ cal")
-                        if let calMatch = meta.range(of: #"-?\d+\s*cal"#, options: .regularExpression) {
-                            Text(meta[calMatch].replacingOccurrences(of: " ", with: ""))
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(emphasis)
-                        }
-                        // Extract exercises count
-                        if let exMatch = meta.range(of: #"\d+\s*exercises?"#, options: .regularExpression) {
-                            Text(meta[exMatch])
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(Color(hexString: "6A7282"))
-                        }
-                    }
-                } else {
-                    // For diet and other tasks, show meta as is
-                    Text(meta)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(emphasis)
-                }
-            }
-        }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.white)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(isDone ? emphasis.opacity(0.25) : Color(hexString: "E5E7EB"), lineWidth: 1)
-        )
-        .shadow(color: Color.black.opacity(0.04), radius: 2, x: 0, y: 1)
-        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        // Ensure strikethrough reflects current isDone when view (re)appears or external updates arrive
-        .onAppear {
-            strikethroughProgress = isDone ? 1.0 : 0.0
-        }
-        .onChange(of: isDone) { _, newValue in
-            // Keep progress in sync if completion state changes from outside (e.g., listener)
-            strikethroughProgress = newValue ? 1.0 : 0.0
-        }
-    }
-    
-    private func triggerCompletionHaptic() {
-        #if canImport(UIKit)
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        #endif
-    }
-}
-
-
-// Helper view for task detail navigation
-private struct TaskDetailDestinationView: View {
-    let destination: TaskDetailDestination
-    let getTask: (UUID) -> MainPageView.TaskItem?
-    let onUpdateTask: (MainPageView.TaskItem, MainPageView.TaskItem) -> Void
-    
-    var body: some View {
-        Group {
-            if let taskId = destination.taskId,
-               let task = getTask(taskId) {
-                DetailPageView(
-                    taskId: taskId,
-                    getTask: getTask,
-                    onUpdateTask: onUpdateTask
-                )
-            } else {
-                // Fallback view if task not found
-                VStack(spacing: 16) {
-                    Spacer()
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.system(size: 48))
-                        .foregroundColor(Color(hexString: "9CA3AF"))
-                    Text("Task not found")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(Color(hexString: "6A7282"))
-                    Text("The task may have been deleted")
-                        .font(.system(size: 14))
-                        .foregroundColor(Color(hexString: "9CA3AF"))
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(hexString: "F9FAFB"))
-            }
-        }
-    }
-}
-
-private struct TaskListView: View {
-    let tasks: [MainPageView.TaskItem]
-    let selectedDate: Date
-    @Binding var navigationPath: NavigationPath
-    @Binding var newlyAddedTaskId: UUID?
-    @Binding var replacingAITaskIds: Set<UUID>
-    @Binding var showChallengeDetail: Bool
-    let onDeleteTask: (MainPageView.TaskItem) -> Void
-    let onUpdateTask: (MainPageView.TaskItem) -> Void
-    @State private var deletingTaskIds: Set<UUID> = []
-    @State private var animatingInTaskIds: Set<UUID> = []
-    
-    // Check if selected date is in the future
-    private var isFutureDate: Bool {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        let selected = calendar.startOfDay(for: selectedDate)
-        return selected > today
-    }
-
-    var body: some View {
-        Group {
-            if tasks.isEmpty {
-                ScrollView {
-                    EmptyTasksView()
-                }
-            } else {
-                GeometryReader { geometry in
-                    ScrollViewReader { proxy in
-                        List {
-                            ForEach(tasks, id: \.id) { task in
-                                let isNewlyAdded = newlyAddedTaskId == task.id
-                                let isAnimatingIn = animatingInTaskIds.contains(task.id)
-                                
-                                TaskRowCard(
-                                    title: task.title,
-                                    subtitle: task.subtitle,
-                                    time: task.time,
-                                    endTime: task.endTime,
-                                    meta: task.meta,
-                                    isDone: Binding(
-                                        get: { task.isDone },
-                                        set: { newValue in
-                                            // Disable check for future dates
-                                            guard !isFutureDate else { return }
-                                            
-                                            // Create a new TaskItem with updated isDone
-                                            let updatedTask = MainPageView.TaskItem(
-                                                id: task.id,
-                                                title: task.title,
-                                                subtitle: task.subtitle,
-                                                time: task.time,
-                                                timeDate: task.timeDate,
-                                                endTime: task.endTime,
-                                                meta: task.meta,
-                                                isDone: newValue,
-                                                emphasisHex: task.emphasisHex,
-                                                category: task.category,
-                                                dietEntries: task.dietEntries,
-                                                fitnessEntries: task.fitnessEntries,
-                                                isAIGenerated: task.isAIGenerated,
-                                                isDailyChallenge: task.isDailyChallenge
-                                            )
-                                            onUpdateTask(updatedTask)
-                                        }
-                                    ),
-                                    emphasis: Color(hexString: task.emphasisHex),
-                                    category: task.category,
-                                    isAIGenerated: task.isAIGenerated,
-                                    isDailyChallenge: task.isDailyChallenge,
-                                    isFutureDate: isFutureDate
-                                )
-                                .scaleEffect(isNewlyAdded ? 1.05 : 1.0)
-                                .shadow(
-                                    color: isNewlyAdded ? Color(hexString: task.emphasisHex).opacity(0.3) : Color.clear,
-                                    radius: isNewlyAdded ? 12 : 0,
-                                    x: 0,
-                                    y: 0
-                                )
-                                .id(task.id)
-                                .offset(x: deletingTaskIds.contains(task.id) ? geometry.size.width : 0)
-                                .offset(y: isAnimatingIn ? 0 : (isNewlyAdded ? 30 : 0))
-                                .opacity(deletingTaskIds.contains(task.id) ? 0 : (replacingAITaskIds.contains(task.id) ? 0 : (isAnimatingIn ? 1 : (isNewlyAdded ? 0 : 1))))
-                                .scaleEffect(replacingAITaskIds.contains(task.id) ? 0.8 : (isAnimatingIn ? 1.0 : (isNewlyAdded ? 0.9 : 1.0)))
-                                .animation(.spring(response: 0.5, dampingFraction: 0.75), value: isNewlyAdded)
-                                .animation(.easeInOut(duration: 0.4), value: replacingAITaskIds.contains(task.id))
-                                .onAppear {
-                                    if isNewlyAdded && !isAnimatingIn {
-                                        // Start animation in
-                                        animatingInTaskIds.insert(task.id)
-                                        // Animate in with fade and slide up
-                                        withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
-                                            // Animation triggered by state change
-                                        }
-                                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                                            if newlyAddedTaskId == task.id {
-                                                withAnimation(.easeOut(duration: 0.3)) {
-                                                    newlyAddedTaskId = nil
-                                                }
-                                            }
-                                            animatingInTaskIds.remove(task.id)
-                                        }
-                                    }
-                                }
-                                .listRowInsets(EdgeInsets(top: 0, leading: 24, bottom: 12, trailing: 24))
-                                .listRowSeparator(.hidden)
-                                .listRowBackground(Color.clear)
-                                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                    Button(role: .destructive) {
-                                        deleteTask(task)
-                                    } label: {
-                                        Label("Delete", systemImage: "trash.fill")
-                                    }
-                                    
-                                    Button {
-                                        navigationPath.append(TaskDetailDestination.detail(taskId: task.id))
-                                    } label: {
-                                        Label("Detail", systemImage: "info.circle.fill")
-                                    }
-                                    .tint(Color.gray)
-                                }
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    if task.isDailyChallenge {
-                                        showChallengeDetail = true
-                                    } else {
-                                        navigationPath.append(TaskDetailDestination.detail(taskId: task.id))
-                                    }
-                                }
-                            }
-                        }
-                        .listStyle(.plain)
-                        .scrollContentBackground(.hidden)
-                        // FIX #1 & #2: Better handling of new task animation
-                        .onChange(of: newlyAddedTaskId) { oldId, newId in
-                            // Only proceed if we have a new task (not clearing)
-                            guard let taskId = newId, newId != oldId else { return }
-                            
-                            // FIX #2: Longer delay to ensure view hierarchy is ready
-                            // This gives the navigation transition time to complete
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                withAnimation(.easeInOut(duration: 0.6)) {
-                                    proxy.scrollTo(taskId, anchor: .center)
-                                }
-                            }
-                            
-                            // FIX #1: Always clear the highlight after 1.5 seconds
-                            // Independent of other state changes
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                                withAnimation(.easeOut(duration: 0.3)) {
-                                    newlyAddedTaskId = nil
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    private func deleteTask(_ task: MainPageView.TaskItem) {
-        triggerDeleteHaptic()
-        
-        // Add to deleting set for animation
-        deletingTaskIds.insert(task.id)
-        
-        // Remove after animation completes
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            onDeleteTask(task)
-            deletingTaskIds.remove(task.id)
-        }
-    }
-    
-    private func triggerDeleteHaptic() {
-        #if canImport(UIKit)
-        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
-        #endif
-    }
-}
+// MARK: - Extracted Components
+// TopHeaderView, CombinedStatsCard, TasksHeader, TaskRowCard, TaskListView, and TaskDetailDestinationView
+// have been moved to separate files for better code organization.
 
 #Preview {
     NavigationStack {

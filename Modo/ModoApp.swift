@@ -7,26 +7,15 @@ import FirebaseAuth
 
 @main
 struct ModoApp: App {
-    @StateObject private var authService = AuthService.shared
+    @ObservedObject private var authService = AuthService.shared
     @StateObject private var userProgress = UserProgress()
     @StateObject private var dailyCaloriesService = DailyCaloriesService()
     @StateObject private var userProfileService = UserProfileService()
-    @State private var isEmailVerified = false
     @State private var verificationTimer: Timer?
-    @State private var showAuthenticatedUI = false
-    @State private var hasCheckedInitialAuth = false
     
     init() {
         FirebaseApp.configure()
-        
-        // CRITICAL: Enable Firebase Database persistence BEFORE any other database usage
-        // This must be done immediately after FirebaseApp.configure() and before any
-        // service accesses Database.database() or DatabaseService.shared
         Database.database().isPersistenceEnabled = true
-        
-        // Configure AuthService after Firebase is configured
-        // This ensures Auth.auth() is available when AuthService initializes
-        AuthService.shared.configure()
         
         // Configure URLCache for image caching
         // Memory cache: 50MB, Disk cache: 100MB
@@ -36,15 +25,30 @@ struct ModoApp: App {
         URLCache.shared = cache
     }
     
+    // MARK: - App State Management
+    private var currentState: AppState {
+        guard authService.isAuthenticated else {
+            return .login
+        }
+        
+        if authService.needsEmailVerification {
+            return .emailVerification
+        }
+        
+        if !authService.hasCompletedOnboarding {
+            return .onboarding
+        }
+        
+        return .main
+    }
+    
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Item.self,
             UserProfile.self,
             FirebaseChatMessage.self,
             DailyCompletion.self,
         ])
         
-        // Enable auto-migration for schema changes
         let modelConfiguration = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: false,
@@ -54,199 +58,56 @@ struct ModoApp: App {
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])
         } catch {
-            // If migration fails, try to delete and recreate the container
-            print("⚠️ ModelContainer creation failed: \(error)")
-            print("🔄 Attempting to reset database...")
-            
-            // Get the default store URL
-            let url = URL.applicationSupportDirectory.appending(path: "default.store")
-            
-            // Try to delete the old database files
-            if FileManager.default.fileExists(atPath: url.path) {
-                try? FileManager.default.removeItem(at: url)
-                print("✅ Deleted old database at: \(url.path)")
-            }
-            
-            // Try to create container again
+            // Temporary solution that only falling back to in-memory storage but in the future we need to
+            // think about how to do data migration
+            print("⚠️ Falling back to in-memory storage")
+            let inMemoryOnly = ModelConfiguration(
+                schema: schema,
+                isStoredInMemoryOnly: true
+            )
             do {
-                return try ModelContainer(for: schema, configurations: [modelConfiguration])
+                return try ModelContainer(for: schema, configurations: [inMemoryOnly])
             } catch {
-                fatalError("Could not create ModelContainer even after reset: \(error)")
+                fatalError("Could not create ModelContainer even in-memory: \(error)")
             }
         }
     }()
     
-    // Computed property to get email verification status
-    // Uses cached value from currentUser if available, otherwise uses state
-    private var emailVerified: Bool {
-        let verified = authService.currentUser?.isEmailVerified ?? isEmailVerified
-        // Check if user is Apple/Google user (always verified)
-        if let user = authService.currentUser {
-            let isAppleOrGoogleUser = user.providerData.contains { provider in
-                provider.providerID == "apple.com" || provider.providerID == "google.com"
-            }
-            if isAppleOrGoogleUser {
-                return true
-            }
-        }
-        return verified
-    }
-
     var body: some Scene {
         WindowGroup {
             ZStack {
-                // Determine if we should show authenticated UI
-                // Since AuthService.configure() is called in init(), authService.isAuthenticated
-                // should already be correct when the view first renders
-                // If user is authenticated, show authenticated UI immediately to prevent login screen flash
-                // showAuthenticatedUI is used to prevent showing authenticated views during logout transition
-                let shouldShowAuthenticated = authService.isAuthenticated && (showAuthenticatedUI || !hasCheckedInitialAuth)
-                
-                if shouldShowAuthenticated {
-                    // Use cached verification status if available to prevent flashing
-                    if emailVerified {
-                        if authService.hasCompletedOnboarding {
-                            MainContainerView()
-                                .environmentObject(authService)
-                                .environmentObject(userProgress)
-                                .environmentObject(dailyCaloriesService)
-                                .environmentObject(userProfileService)
-                                .transition(.asymmetric(
-                                    insertion: .opacity.combined(with: .scale(scale: 0.95)),
-                                    removal: .opacity.combined(with: .scale(scale: 1.05))
-                                ))
-                        } else {
-                            InfoGatheringView()
-                                .environmentObject(authService)
-                                .environmentObject(userProgress)
-                                .transition(.asymmetric(
-                                    insertion: .opacity.combined(with: .scale(scale: 0.95)),
-                                    removal: .opacity.combined(with: .scale(scale: 1.05))
-                                ))
-                        }
-                    } else {
-                        EmailVerificationView()
-                            .environmentObject(authService)
-                            .transition(.asymmetric(
-                                insertion: .opacity.combined(with: .scale(scale: 0.95)),
-                                removal: .opacity.combined(with: .scale(scale: 1.05))
-                            ))
-                            .onAppear {
-                                startVerificationPolling()
-                            }
-                            .onDisappear {
-                                stopVerificationPolling()
-                            }
-                    }
-                } else {
+                switch currentState {
+                case .login:
                     LoginView()
-                        .environmentObject(authService)
-                        .transition(.asymmetric(
-                            insertion: .opacity.combined(with: .scale(scale: 0.95)),
-                            removal: .opacity.combined(with: .scale(scale: 1.05))
-                        ))
+                        .transition(.opacity)
+                    
+                case .emailVerification:
+                    EmailVerificationView()
+                        .transition(.opacity)
+                        .onAppear {
+                            startVerificationPolling()
+                        }
+                        .onDisappear {
+                            stopVerificationPolling()
+                        }
+                    
+                case .onboarding:
+                    InfoGatheringView()
+                        .transition(.opacity)
+                    
+                case .main:
+                    MainContainerView()
+                        .transition(.opacity)
                 }
             }
-            .animation(.spring(response: 0.5, dampingFraction: 0.8), value: authService.isAuthenticated)
-            .animation(.spring(response: 0.5, dampingFraction: 0.8), value: isEmailVerified)
-            .animation(.spring(response: 0.5, dampingFraction: 0.8), value: showAuthenticatedUI)
-            .animation(.spring(response: 0.5, dampingFraction: 0.8), value: authService.hasCompletedOnboarding)
+            .animation(.easeInOut(duration: 0.3), value: currentState)
+            .environmentObject(authService)
+            .environmentObject(userProgress)
+            .environmentObject(dailyCaloriesService)
+            .environmentObject(userProfileService)
             .onChange(of: authService.isAuthenticated) { _, newValue in
-                if newValue {
-                    // User just logged in - check verification status
-                    showAuthenticatedUI = true
-                    if let user = authService.currentUser {
-                        // For Apple Sign-In and Google Sign-In, email is usually pre-verified
-                        let isAppleOrGoogleUser = user.providerData.contains { provider in
-                            provider.providerID == "apple.com" || provider.providerID == "google.com"
-                        }
-                        
-                        if isAppleOrGoogleUser {
-                            // Apple/Google users are automatically verified
-                            isEmailVerified = true
-                        } else {
-                            isEmailVerified = user.isEmailVerified
-                        }
-                    }
-                    checkVerificationStatus()
-                    
-                    // Load challenge data for the newly logged in user
-                    DailyChallengeService.shared.loadTodayChallenge()
-                    
-                } else {
-                    // User logged out - immediately hide authenticated UI to prevent flashing
-                    showAuthenticatedUI = false
-                    isEmailVerified = false
+                if !newValue {
                     stopVerificationPolling()
-                }
-            }
-            .onChange(of: authService.hasCompletedOnboarding) { _, newValue in
-                // When onboarding status changes to false (during logout), ensure we don't show InfoGatheringView
-                if !newValue && !authService.isAuthenticated {
-                    showAuthenticatedUI = false
-                }
-            }
-            .onAppear {
-                // Check authentication status immediately when view appears
-                // This runs synchronously after Firebase is configured
-                // This prevents showing login screen briefly when app reopens
-                if !hasCheckedInitialAuth {
-                    hasCheckedInitialAuth = true
-                    
-                    // Since AuthService.configure() was called in init(),
-                    // authService.isAuthenticated should already be set correctly
-                    if authService.isAuthenticated {
-                        // If user is authenticated, use cached verification status immediately
-                        // This prevents showing email verification page if already verified
-                        if let user = authService.currentUser {
-                            // Use cached verification status immediately to avoid flashing
-                            // Check if user is Apple/Google user (always verified)
-                            let isAppleOrGoogleUser = user.providerData.contains { provider in
-                                provider.providerID == "apple.com" || provider.providerID == "google.com"
-                            }
-                            
-                            if isAppleOrGoogleUser {
-                                // Apple/Google users are automatically verified
-                                isEmailVerified = true
-                            } else {
-                                isEmailVerified = user.isEmailVerified
-                            }
-                            
-                            // Set showAuthenticatedUI immediately to prevent login screen flash
-                            showAuthenticatedUI = true
-                            
-                            // Only verify in background if we need to refresh the status
-                            // For Google Sign-In users, email is usually pre-verified
-                            if !isEmailVerified {
-                                // Only check if cached status shows unverified
-                                checkVerificationStatus()
-                            }
-                        } else {
-                            showAuthenticatedUI = true
-                            checkVerificationStatus()
-                        }
-                    } else {
-                        showAuthenticatedUI = false
-                    }
-                }
-            }
-            .task {
-                // Additional async check after initial sync check
-                // This ensures we catch any auth state changes that might occur
-                if hasCheckedInitialAuth && authService.isAuthenticated && !showAuthenticatedUI {
-                    // If auth state changed after initial check, update UI
-                    if let user = authService.currentUser {
-                        let isAppleOrGoogleUser = user.providerData.contains { provider in
-                            provider.providerID == "apple.com" || provider.providerID == "google.com"
-                        }
-                        
-                        if isAppleOrGoogleUser {
-                            isEmailVerified = true
-                        } else {
-                            isEmailVerified = user.isEmailVerified
-                        }
-                        showAuthenticatedUI = true
-                    }
                 }
             }
             .onOpenURL { url in
@@ -258,7 +119,6 @@ struct ModoApp: App {
 
 
     private func startVerificationPolling() {
-        // Check verification every 2 seconds while on the view
         verificationTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
             checkVerificationStatus()
         }
@@ -271,17 +131,8 @@ struct ModoApp: App {
 
     private func checkVerificationStatus() {
         authService.checkEmailVerification { verified in
-            DispatchQueue.main.async {
-                // Only update if verification status changed
-                // This prevents unnecessary UI updates if already verified
-                // Note: In offline mode, this will use cached status, so if user was already verified,
-                // it will remain verified even without network
-                if self.isEmailVerified != verified {
-                    self.isEmailVerified = verified
-                }
-                self.showAuthenticatedUI = true
-                
-                if verified {
+            if verified {
+                DispatchQueue.main.async {
                     self.stopVerificationPolling()
                 }
             }

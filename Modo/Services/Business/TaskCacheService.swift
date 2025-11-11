@@ -11,7 +11,7 @@ final class TaskCacheService {
     
     // MARK: - Constants
     /// Cache window size (in months): 1 month before and after, 2 months total
-    private let cacheWindowMonths = 1
+    private let cacheWindowMonths = AppConstants.Cache.windowMonths
     
     // MARK: - Helper Methods
     
@@ -58,7 +58,7 @@ final class TaskCacheService {
     /// Uses ISO8601 format, date part only: YYYY-MM-DD
     private func dateToKey(_ date: Date) -> String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.dateFormat = DateFormats.standardDate
         formatter.timeZone = TimeZone.current
         formatter.locale = Locale(identifier: "en_US_POSIX")
         return formatter.string(from: date)
@@ -67,7 +67,7 @@ final class TaskCacheService {
     /// Convert string key to Date
     private func keyToDate(_ key: String) -> Date? {
         let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.dateFormat = DateFormats.standardDate
         formatter.timeZone = TimeZone.current
         formatter.locale = Locale(identifier: "en_US_POSIX")
         return formatter.date(from: key)
@@ -77,7 +77,7 @@ final class TaskCacheService {
     
     /// Load cached tasks from UserDefaults
     /// - Returns: [Date: [TaskItem]] dictionary, Date normalized to 00:00:00 of the day
-    func loadCachedTasks(for userId: String) -> [Date: [MainPageView.TaskItem]] {
+    func loadCachedTasks(for userId: String) -> [Date: [TaskItem]] {
         let key = getCacheKey(for: userId)
         guard let data = UserDefaults.standard.data(forKey: key) else {
             return [:]
@@ -87,10 +87,10 @@ final class TaskCacheService {
             // Decode JSON data
             let decoder = JSONDecoder()
             // JSON format: { "2025-01-15": [TaskItem...], "2025-01-16": [TaskItem...] }
-            let taskDict = try decoder.decode([String: [MainPageView.TaskItem]].self, from: data)
+            let taskDict = try decoder.decode([String: [TaskItem]].self, from: data)
             
             // Convert String keys to Date keys
-            var result: [Date: [MainPageView.TaskItem]] = [:]
+            var result: [Date: [TaskItem]] = [:]
             let calendar = Calendar.current
             
             for (dateKey, tasks) in taskDict {
@@ -110,12 +110,12 @@ final class TaskCacheService {
     
     /// Save tasks to UserDefaults
     /// - Parameter tasksByDate: [Date: [TaskItem]] dictionary, Date should be normalized
-    func saveCachedTasks(_ tasksByDate: [Date: [MainPageView.TaskItem]], for userId: String) {
+    func saveCachedTasks(_ tasksByDate: [Date: [TaskItem]], for userId: String) {
         let key = getCacheKey(for: userId)
         
         do {
             // Convert Date keys to String keys
-            var taskDict: [String: [MainPageView.TaskItem]] = [:]
+            var taskDict: [String: [TaskItem]] = [:]
             for (date, tasks) in tasksByDate {
                 let dateKey = dateToKey(date)
                 taskDict[dateKey] = tasks
@@ -185,7 +185,7 @@ final class TaskCacheService {
     
     /// Get current cache window
     /// - Returns: (minDate, maxDate) and cached task data
-    func getCurrentCacheWindow(centerDate: Date = Date()) -> (window: (minDate: Date, maxDate: Date), tasks: [Date: [MainPageView.TaskItem]]) {
+    func getCurrentCacheWindow(centerDate: Date = Date()) -> (window: (minDate: Date, maxDate: Date), tasks: [Date: [TaskItem]]) {
         guard let userId = getCurrentUserId() else {
             let emptyWindow = calculateCacheWindow(centerDate: centerDate)
             return (window: emptyWindow, tasks: [:])
@@ -220,7 +220,7 @@ final class TaskCacheService {
     // MARK: - Task CRUD (Local Cache Only)
     
     /// Get task list for specified date (from cache only)
-    func getTasks(for date: Date, userId: String? = nil) -> [MainPageView.TaskItem] {
+    func getTasks(for date: Date, userId: String? = nil) -> [TaskItem] {
         let userId = userId ?? getCurrentUserId() ?? ""
         guard !userId.isEmpty else { return [] }
         
@@ -232,7 +232,7 @@ final class TaskCacheService {
     }
     
     /// Save task to cache (local update immediately)
-    func saveTask(_ task: MainPageView.TaskItem, date: Date, userId: String? = nil) {
+    func saveTask(_ task: TaskItem, date: Date, userId: String? = nil) {
         let userId = userId ?? getCurrentUserId() ?? ""
         guard !userId.isEmpty else { return }
         
@@ -259,7 +259,7 @@ final class TaskCacheService {
     
     /// Save multiple tasks for a specific date (batch save, more efficient)
     /// REPLACES the cached list for that date to ensure deletions are respected
-    func saveTasksForDate(_ tasks: [MainPageView.TaskItem], date: Date, userId: String? = nil) {
+    func saveTasksForDate(_ tasks: [TaskItem], date: Date, userId: String? = nil) {
         let userId = userId ?? getCurrentUserId() ?? ""
         guard !userId.isEmpty else { return }
         
@@ -306,7 +306,7 @@ final class TaskCacheService {
     }
     
     /// Update task (local update immediately)
-    func updateTask(_ task: MainPageView.TaskItem, oldDate: Date, userId: String? = nil) {
+    func updateTask(_ task: TaskItem, oldDate: Date, userId: String? = nil) {
         let userId = userId ?? getCurrentUserId() ?? ""
         guard !userId.isEmpty else { return }
         

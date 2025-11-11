@@ -194,7 +194,9 @@ struct CustomInputField: View {
                     },
                     onCoordinatorReady: { toggleFunc in
                         // Store the toggle function for button access
-                        togglePasswordVisibility = toggleFunc
+                        DispatchQueue.main.async {
+                            togglePasswordVisibility = toggleFunc
+                        }
                     }
                 )
             } else {

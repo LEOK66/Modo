@@ -18,7 +18,7 @@ class ProgressCalculationService {
     ///   - tasks: All tasks to check
     ///   - date: Date to check
     /// - Returns: True if the day has at least one task and all tasks are completed
-    func isDayCompleted(tasks: [MainPageView.TaskItem], date: Date) -> Bool {
+    func isDayCompleted(tasks: [TaskItem], date: Date) -> Bool {
         let calendar = Calendar.current
         let normalizedDate = calendar.startOfDay(for: date)
         

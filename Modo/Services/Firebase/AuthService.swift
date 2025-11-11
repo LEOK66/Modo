@@ -11,30 +11,34 @@ import CryptoKit
 final class AuthService: ObservableObject {
     static let shared = AuthService()
     private var authStateListener: AuthStateDidChangeListenerHandle?
-    private var isInitialized = false
-    
-    private init() {
-        // Don't initialize Firebase Auth here - wait until configure() is called
-        // This prevents crashes if AuthService is accessed before FirebaseApp.configure()
-    }
-    
-    // Call this method after FirebaseApp.configure() to initialize auth state
-    func configure() {
-        guard !isInitialized else { return }
-        isInitialized = true
-        
-        // Immediately check current user state synchronously
-        let currentUser = Auth.auth().currentUser
-        self.currentUser = currentUser
-        self.isAuthenticated = currentUser != nil
-        if currentUser != nil {
-            loadOnboardingStatus()
-        }
-        setupAuthStateListener()
-    }   
     @Published var isAuthenticated = false
     @Published var currentUser: User?
     @Published var hasCompletedOnboarding = false
+    
+    private init() {
+        setupAuthStateListener()
+        if let user = Auth.auth().currentUser {
+            self.currentUser = user
+            self.isAuthenticated = true
+            loadOnboardingStatus()
+        }
+    }
+    
+    // MARK: - Email Verification Status
+    /// Determines if the current user needs email verification
+    /// Apple/Google users are automatically considered verified
+    var needsEmailVerification: Bool {
+        guard let user = currentUser ?? Auth.auth().currentUser else {
+            return false
+        }
+        
+        // Apple/Google users don't need email verification
+        let isThirdPartyAuth = user.providerData.contains { provider in
+            provider.providerID == "apple.com" || provider.providerID == "google.com"
+        }
+        
+        return !isThirdPartyAuth && !user.isEmailVerified
+    }
 
     // MARK: - Create Account
     func signUp(email: String, password: String, completion: @escaping (Result<User, Error>) -> Void) {
@@ -65,7 +69,6 @@ final class AuthService: ObservableObject {
 
     // MARK: - Sign Out
     func signOut() throws {
-        // Reset DailyChallengeService state before signing out
         DailyChallengeService.shared.resetState()
         
         try Auth.auth().signOut()
@@ -108,19 +111,15 @@ final class AuthService: ObservableObject {
             return
         }
         
-        // Store cached verification status before reload
         let cachedVerificationStatus = user.isEmailVerified
         
         user.reload { error in
             DispatchQueue.main.async {
                 if let error = error {
-                    // If reload fails (e.g., no network), use cached verification status
-                    // This prevents showing email verification page for already-verified users when offline
                     print("Error reloading user: \(error.localizedDescription)")
                     print("Using cached verification status: \(cachedVerificationStatus)")
                     completion(cachedVerificationStatus)
                 } else {
-                    // Reload successful, use the latest verification status
                     completion(user.isEmailVerified)
                 }
             }
@@ -133,51 +132,38 @@ final class AuthService: ObservableObject {
         print("🔵 AuthService: Starting Google Sign In")
         
         guard let clientID = FirebaseApp.app()?.options.clientID else {
-            print("❌ AuthService: Missing client ID")
             completion(.failure(NSError(domain: "AuthService", code: -1,
                                         userInfo: [NSLocalizedDescriptionKey: "Missing client ID"])))
             return
         }
         
-        print("✅ AuthService: Client ID found: \(clientID)")
-        
         // Configure Google Sign-In
         let config = GIDConfiguration(clientID: clientID)
         GIDSignIn.sharedInstance.configuration = config
         
-        print("🔵 AuthService: Starting Google Sign In flow")
-        
         // Start the sign-in flow
         GIDSignIn.sharedInstance.signIn(withPresenting: presentingViewController) { result, error in
             if let error = error {
-                print("❌ AuthService: Google Sign In error: \(error.localizedDescription)")
                 completion(.failure(error))
                 return
             }
-            
-            print("✅ AuthService: Google Sign In successful, processing tokens")
             
             guard
                 let idToken = result?.user.idToken?.tokenString,
                 let accessToken = result?.user.accessToken.tokenString
             else {
-                print("❌ AuthService: Missing tokens")
                 completion(.failure(NSError(domain: "AuthService", code: -2,
                                             userInfo: [NSLocalizedDescriptionKey: "Missing tokens"])))
                 return
             }
-            
-            print("✅ AuthService: Tokens received, signing in to Firebase")
             
             let credential = GoogleAuthProvider.credential(withIDToken: idToken, accessToken: accessToken)
             
             // Sign in to Firebase
             Auth.auth().signIn(with: credential) { authResult, error in
                 if let error = error {
-                    print("❌ AuthService: Firebase sign in error: \(error.localizedDescription)")
                     completion(.failure(error))
                 } else if let user = authResult?.user {
-                    print("✅ AuthService: Firebase sign in successful for user: \(user.uid)")
                     completion(.success(user))
                 }
             }
@@ -188,6 +174,7 @@ final class AuthService: ObservableObject {
     func signInWithApple(authorization: ASAuthorization, 
                         nonce: String,
                         completion: @escaping (Result<User, Error>) -> Void) {
+        print("🔵 AuthService: Starting Apple Sign In")
         guard let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential else {
             completion(.failure(NSError(domain: "AuthService", code: -3,
                                         userInfo: [NSLocalizedDescriptionKey: "Invalid Apple ID credential"])))
@@ -215,6 +202,7 @@ final class AuthService: ObservableObject {
                     // Force update auth state immediately for Apple Sign-In
                     self?.currentUser = user
                     self?.isAuthenticated = true
+                    self?.loadOnboardingStatus()
                     completion(.success(user))
                 } else {
                     completion(.failure(NSError(domain: "AuthService", code: -6,
@@ -275,8 +263,6 @@ final class AuthService: ObservableObject {
     }
     
     private func loadOnboardingStatus() {
-        // Load from UserDefaults or Firebase
-        // For now, using UserDefaults
         if let userId = Auth.auth().currentUser?.uid {
             hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding_\(userId)")
         }

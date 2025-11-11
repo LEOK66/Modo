@@ -4,14 +4,14 @@ struct CalendarPopupView: View {
     @Binding var showCalendar: Bool
     @Binding var selectedDate: Date
     let dateRange: (min: Date, max: Date)
-    let tasksByDate: [Date: [MainPageView.TaskItem]]
+    let tasksByDate: [Date: [TaskItem]]
 
     @State private var currentMonth: Date = Date()
     @State private var selectedDay: Int? = nil
 
     private let weekSymbols = ["Su","Mo","Tu","We","Th","Fr","Sa"]
     
-    init(showCalendar: Binding<Bool>, selectedDate: Binding<Date>, dateRange: (min: Date, max: Date), tasksByDate: [Date: [MainPageView.TaskItem]] = [:]) {
+    init(showCalendar: Binding<Bool>, selectedDate: Binding<Date>, dateRange: (min: Date, max: Date), tasksByDate: [Date: [TaskItem]] = [:]) {
         self._showCalendar = showCalendar
         self._selectedDate = selectedDate
         self.dateRange = dateRange
@@ -215,7 +215,7 @@ private struct DaysGridView: View {
     @Binding var selectedDay: Int?
     @Binding var currentMonth: Date
     let dateRange: (min: Date, max: Date)
-    let tasksByDate: [Date: [MainPageView.TaskItem]]
+    let tasksByDate: [Date: [TaskItem]]
 
     private let columns = Array(repeating: GridItem(.fixed(36.57), spacing: 6), count: 7)
     private let calendar = Calendar.current
