@@ -15,8 +15,18 @@ struct UITextFieldWrapper: UIViewRepresentable {
     func makeUIView(context: Context) -> UITextField {
         let textField = UITextField()
         textField.font = UIFont.systemFont(ofSize: 14)
-        textField.textColor = UIColor(hexString: "717182")
-        textField.placeholder = placeholder
+        textField.textColor = .label // Adapts to light/dark mode
+        
+        // Set placeholder with adaptive color for light/dark mode
+        let placeholderColor = UIColor.placeholderText
+        textField.attributedPlaceholder = NSAttributedString(
+            string: placeholder,
+            attributes: [
+                .foregroundColor: placeholderColor,
+                .font: UIFont.systemFont(ofSize: 14)
+            ]
+        )
+        
         textField.keyboardType = keyboardType
         textField.autocapitalizationType = .none
         textField.autocorrectionType = .no
@@ -58,6 +68,18 @@ struct UITextFieldWrapper: UIViewRepresentable {
         // Update text content type if changed (only when not editing)
         if !uiView.isFirstResponder && uiView.textContentType != textContentType {
             uiView.textContentType = textContentType
+        }
+        
+        // Update placeholder if it changed (with adaptive color)
+        if uiView.attributedPlaceholder?.string != placeholder {
+            let placeholderColor = UIColor.placeholderText
+            uiView.attributedPlaceholder = NSAttributedString(
+                string: placeholder,
+                attributes: [
+                    .foregroundColor: placeholderColor,
+                    .font: UIFont.systemFont(ofSize: 14)
+                ]
+            )
         }
         
         // Only update text if UITextField is NOT being edited (avoids cursor jumping)
@@ -201,14 +223,25 @@ struct CustomInputField: View {
                 )
             } else {
                 // Use regular TextField for non-secure fields
-                TextField(placeholder, text: $text)
-                    .font(.system(size: 14))
-                    .foregroundColor(Color(hexString: "717182"))
-                    .kerning(-0.15)
-                    .textContentType(textContentType)
-                    .keyboardType(keyboardType)
-                    .autocapitalization(.none)
-                    .disableAutocorrection(true)
+                // Use ZStack to create a custom placeholder that adapts to light/dark mode
+                ZStack(alignment: .leading) {
+                    // Custom placeholder that adapts to light/dark mode
+                    if text.isEmpty {
+                        Text(placeholder)
+                            .font(.system(size: 14))
+                            .foregroundColor(Color(uiColor: .placeholderText))
+                            .allowsHitTesting(false) // Allow taps to pass through to TextField
+                    }
+                    // TextField without native placeholder (we handle it ourselves)
+                    TextField("", text: $text, prompt: Text(""))
+                        .font(.system(size: 14))
+                        .foregroundColor(.primary) // Adapts to light/dark mode
+                        .kerning(-0.15)
+                        .textContentType(textContentType)
+                        .keyboardType(keyboardType)
+                        .autocapitalization(.none)
+                        .disableAutocorrection(true)
+                }
             }
             
             if let trailingAccessory = trailingAccessory {

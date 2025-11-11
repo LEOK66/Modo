@@ -16,25 +16,25 @@ struct PrimaryButton: View {
             ZStack {
                 Text(title)
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.white)
+                    .foregroundColor(Color(.systemBackground)) // Inverted: white in light mode, black in dark mode
                     .opacity(isLoading ? 0 : 1)
                 
                 if isLoading {
                     HStack(spacing: 8) {
                         Circle()
-                            .fill(Color.white)
+                            .fill(Color(.systemBackground)) // Inverted: white in light mode, black in dark mode
                             .frame(width: 8, height: 8)
                             .scaleEffect(isLoading ? 1 : 0.5)
                             .animation(.easeInOut(duration: 0.6).repeatForever(), value: isLoading)
                         
                         Circle()
-                            .fill(Color.white)
+                            .fill(Color(.systemBackground)) // Inverted: white in light mode, black in dark mode
                             .frame(width: 8, height: 8)
                             .scaleEffect(isLoading ? 1 : 0.5)
                             .animation(.easeInOut(duration: 0.6).repeatForever().delay(0.2), value: isLoading)
                         
                         Circle()
-                            .fill(Color.white)
+                            .fill(Color(.systemBackground)) // Inverted: white in light mode, black in dark mode
                             .frame(width: 8, height: 8)
                             .scaleEffect(isLoading ? 1 : 0.5)
                             .animation(.easeInOut(duration: 0.6).repeatForever().delay(0.4), value: isLoading)
@@ -43,7 +43,7 @@ struct PrimaryButton: View {
             }
             .frame(maxWidth: .infinity, minHeight: 52)
         }
-        .background(Color.black)
+        .background(Color.primary) // Adapts to light/dark mode (black in light, white in dark)
         .cornerRadius(12)
         .disabled(isLoading)
         .frame(maxWidth: LayoutConstants.inputFieldMaxWidth)

@@ -18,12 +18,12 @@ extension View {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
     
-    /// Adds a background that dismisses keyboard on tap, without interfering with foreground interactions
+    /// Adds a gesture that dismisses keyboard on tap, without interfering with foreground interactions
+    /// This uses simultaneousGesture to allow other interactions to work normally
     func dismissKeyboardOnBackgroundTap() -> some View {
-        self.background(
-            Color.clear
-                .contentShape(Rectangle())
-                .onTapGesture {
+        self.simultaneousGesture(
+            TapGesture()
+                .onEnded { _ in
                     UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                 }
         )

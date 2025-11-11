@@ -14,6 +14,8 @@ final class AuthService: ObservableObject {
     @Published var isAuthenticated = false
     @Published var currentUser: User?
     @Published var hasCompletedOnboarding = false
+    private var appleSignInDelegate: AppleSignInDelegate?
+    private var appleSignInPresentationProvider: AppleSignInPresentationContextProvider?
     
     private init() {
         setupAuthStateListener()
@@ -126,9 +128,9 @@ final class AuthService: ObservableObject {
         }
     }
     
-    // MARK: - Google Sign-In
-    func signInWithGoogle(presentingViewController: UIViewController,
-                          completion: @escaping (Result<User, Error>) -> Void) {
+    // MARK: - Google Sign-In (Internal - use startGoogleSignInFlow instead)
+    private func signInWithGoogle(presentingViewController: UIViewController,
+                                   completion: @escaping (Result<User, Error>) -> Void) {
         print("🔵 AuthService: Starting Google Sign In")
         
         guard let clientID = FirebaseApp.app()?.options.clientID else {
@@ -170,10 +172,10 @@ final class AuthService: ObservableObject {
         }
     }
     
-    // MARK: - Apple Sign-In
-    func signInWithApple(authorization: ASAuthorization, 
-                        nonce: String,
-                        completion: @escaping (Result<User, Error>) -> Void) {
+    // MARK: - Apple Sign-In (Internal - use startAppleSignInFlow instead)
+    private func signInWithApple(authorization: ASAuthorization, 
+                                  nonce: String,
+                                  completion: @escaping (Result<User, Error>) -> Void) {
         print("🔵 AuthService: Starting Apple Sign In")
         guard let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential else {
             completion(.failure(NSError(domain: "AuthService", code: -3,
@@ -254,6 +256,119 @@ final class AuthService: ObservableObject {
         }.joined()
         
         return hashString
+    }
+    
+    // MARK: - High-Level Social Auth Methods
+    /// Starts the Apple Sign-In flow, handling all UI setup internally
+    /// This method encapsulates nonce generation, ASAuthorizationController creation, and delegate management
+    func startAppleSignInFlow(completion: @escaping (Result<User, Error>) -> Void) {
+        let nonce = AuthService.randomNonceString()
+        let hashedNonce = AuthService.sha256(nonce)
+        
+        let appleIDProvider = ASAuthorizationAppleIDProvider()
+        let request = appleIDProvider.createRequest()
+        request.requestedScopes = [.fullName, .email]
+        request.nonce = hashedNonce
+        
+        // Create delegate and presentation provider - keep strong references
+        appleSignInDelegate = AppleSignInDelegate(
+            authService: self,
+            nonce: nonce,
+            onSuccess: { user in
+                completion(.success(user))
+            },
+            onError: { error in
+                completion(.failure(error))
+            }
+        )
+        
+        appleSignInPresentationProvider = AppleSignInPresentationContextProvider()
+        
+        guard let delegate = appleSignInDelegate, let provider = appleSignInPresentationProvider else {
+            completion(.failure(NSError(domain: "AuthService", code: -7,
+                                        userInfo: [NSLocalizedDescriptionKey: "Failed to create Apple Sign-In components"])))
+            return
+        }
+        
+        let authorizationController = ASAuthorizationController(authorizationRequests: [request])
+        authorizationController.delegate = delegate
+        authorizationController.presentationContextProvider = provider
+        authorizationController.performRequests()
+    }
+    
+    // MARK: - Apple Sign-In Delegate (Private)
+    private class AppleSignInDelegate: NSObject, ASAuthorizationControllerDelegate {
+        weak var authService: AuthService?
+        let nonce: String
+        let onSuccess: (User) -> Void
+        let onError: (Error) -> Void
+        
+        init(authService: AuthService, nonce: String, onSuccess: @escaping (User) -> Void, onError: @escaping (Error) -> Void) {
+            self.authService = authService
+            self.nonce = nonce
+            self.onSuccess = onSuccess
+            self.onError = onError
+        }
+        
+        func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+            guard let authService = authService else {
+                onError(NSError(domain: "AuthService", code: -9, userInfo: [NSLocalizedDescriptionKey: "AuthService deallocated"]))
+                return
+            }
+            
+            authService.signInWithApple(authorization: authorization, nonce: nonce) { result in
+                DispatchQueue.main.async {
+                    switch result {
+                    case .success(let user):
+                        self.onSuccess(user)
+                    case .failure(let error):
+                        self.onError(error)
+                    }
+                }
+            }
+        }
+        
+        func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+            onError(error)
+        }
+    }
+
+    // MARK: - Apple Sign-In Presentation Context Provider (Private)
+    private class AppleSignInPresentationContextProvider: NSObject, ASAuthorizationControllerPresentationContextProviding {
+        func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+            guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                  let window = windowScene.windows.first else {
+                fatalError("No window found")
+            }
+            return window
+        }
+    }
+    
+    /// Starts the Google Sign-In flow, automatically finding the presenting view controller
+    /// This method encapsulates the view controller lookup logic
+    func startGoogleSignInFlow(completion: @escaping (Result<User, Error>) -> Void) {
+        guard let topViewController = findTopViewController() else {
+            completion(.failure(NSError(domain: "AuthService", code: -8,
+                                        userInfo: [NSLocalizedDescriptionKey: "Unable to start Google Sign In. Please try again."])))
+            return
+        }
+        
+        signInWithGoogle(presentingViewController: topViewController, completion: completion)
+    }
+    
+    // MARK: - Helper: Find Top View Controller
+    private func findTopViewController() -> UIViewController? {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first else {
+            return nil
+        }
+        
+        var topController = window.rootViewController
+        while let presentedController = topController?.presentedViewController {
+            topController = presentedController
+        }
+        
+        return topController
     }
     
     // MARK: - Onboarding Status

@@ -19,15 +19,15 @@ struct SocialButton: View {
                 Text(title)
                     .font(.system(size: 14, weight: .medium))
             }
-            .foregroundColor(Color(hexString: "0A0A0A"))
+            .foregroundColor(.primary) // Adapts to light/dark mode
             .frame(width: 125.5, height: 48)
             .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.white)
+                    .fill(Color(.systemBackground)) // Adapts to light/dark mode
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color(hexString: "E5E7EB"), lineWidth: 1)
+                    .stroke(Color(.separator), lineWidth: 1) // Adapts to light/dark mode
             )
         }
     }

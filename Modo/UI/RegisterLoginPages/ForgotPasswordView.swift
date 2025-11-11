@@ -3,6 +3,7 @@ import FirebaseAuth
 
 struct ForgotPasswordView: View {
     @EnvironmentObject var authService: AuthService
+    @StateObject private var timerManager = ResendTimerManager()
     @State private var email: String = ""
     @State private var isSending: Bool = false
     @State private var showEmailError: Bool = false
@@ -10,8 +11,6 @@ struct ForgotPasswordView: View {
     @State private var showErrorMessage: Bool = false
     @State private var errorMessage: String = ""
     @State private var isCodeSent: Bool = false
-    @State private var resendTimer: Int = 59
-    @State private var timer: Timer?
 
     var body: some View {
         VStack(spacing: 24) {
@@ -25,49 +24,42 @@ struct ForgotPasswordView: View {
             VStack(spacing: 8) {
                 Text("Enter your email address and we'll send you a reset link.")
                     .font(.system(size: 15))
-                    .foregroundColor(Color(hexString: "6A7282"))
+                    .foregroundColor(.secondary) // Adapts to light/dark mode
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 24)
                 
                 Text("Note: You will only receive the link if this email is registered.")
                     .font(.system(size: 13))
-                    .foregroundColor(Color(hexString: "8B92A4"))
+                    .foregroundColor(Color(.tertiaryLabel)) // Adapts to light/dark mode
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 24)
             }
 
             // Email input
-            VStack(alignment: .leading, spacing: 4) {
-                CustomInputField(
-                    placeholder: "Email address",
-                    text: $email,
-                    keyboardType: .emailAddress,
-                    textContentType: .emailAddress
-                )
-                
-                if showEmailError {
-                    Text("Please enter a valid email address")
-                        .font(.system(size: 10))
-                        .foregroundColor(.red)
-                        .padding(.leading, 12)
-                }
-            }
+            ValidatedInputField(
+                placeholder: "Email address",
+                text: $email,
+                showError: $showEmailError,
+                errorMessage: "Please enter a valid email address",
+                keyboardType: .emailAddress,
+                textContentType: .emailAddress
+            )
 
             // Send reset link
             PrimaryButton(
-                title: isCodeSent ? "Resend (\(resendTimer)s)" : "Send Reset Link",
+                title: isCodeSent ? "Resend (\(timerManager.remainingTime)s)" : "Send Reset Link",
                 isLoading: isSending
             ) {
                 sendReset()
             }
-            .disabled(isCodeSent && resendTimer > 0)
+            .disabled(isCodeSent && !timerManager.canResend)
 
             Spacer()
         }
         .padding(.top, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(
-            Color.white
+            Color(.systemBackground) // Adapts to light/dark mode
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
                 .onTapGesture {
@@ -86,9 +78,14 @@ struct ForgotPasswordView: View {
                 isPresented: showErrorMessage
             )
         )
+        .onChange(of: timerManager.canResend) { _, canResend in
+            // When timer ends and canResend becomes true, reset isCodeSent
+            if canResend && isCodeSent {
+                isCodeSent = false
+            }
+        }
         .onDisappear {
-            timer?.invalidate()
-            timer = nil
+            timerManager.stop()
         }
     }
 
@@ -113,8 +110,7 @@ struct ForgotPasswordView: View {
                         
                         // Start resend timer
                         isCodeSent = true
-                        resendTimer = 59
-                        startResendTimer()
+                        timerManager.start(duration: 59)
                         
                         // Hide success message after 3 seconds
                         DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
@@ -126,39 +122,17 @@ struct ForgotPasswordView: View {
                     case .failure(let error):
                         print("Password reset error: \(error.localizedDescription)")
                         
-                        // Check for specific error codes
-                        let nsError = error as NSError
-                        
-                        if nsError.code == 17011 {
-                            // User not found
-                            errorMessage = "No account found with this email address. Please check your email or sign up."
-                        } else if nsError.code == 17008 {
-                            // Invalid email
-                            errorMessage = "The email address is invalid. Please enter a valid email."
-                        } else {
-                            // Other errors
-                            errorMessage = error.localizedDescription
-                        }
-                        
+                        // Use AuthErrorHandler for error processing
+                        errorMessage = AuthErrorHandler.getMessage(for: error, context: .passwordReset)
                         showErrorMessage = true
+                        
                         DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                            showErrorMessage = false
+                            withAnimation {
+                                showErrorMessage = false
+                            }
                         }
                     }
                 }
-            }
-        }
-    }
-    
-    private func startResendTimer() {
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
-            if resendTimer > 0 {
-                resendTimer -= 1
-            } else {
-                timer.invalidate()
-                self.timer = nil
-                // Reset the state when timer reaches 0
-                isCodeSent = false
             }
         }
     }

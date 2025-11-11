@@ -7,7 +7,7 @@ import FirebaseAuth
 
 @main
 struct ModoApp: App {
-    @ObservedObject private var authService = AuthService.shared
+    @StateObject private var authService = AuthService.shared
     @StateObject private var userProgress = UserProgress()
     @StateObject private var dailyCaloriesService = DailyCaloriesService()
     @StateObject private var userProfileService = UserProfileService()

@@ -3,12 +3,12 @@ import FirebaseAuth
 
 struct EmailVerificationView: View {
     @EnvironmentObject var authService: AuthService
+    @StateObject private var timerManager = ResendTimerManager()
     @State private var isVerified = false
     @State private var isChecking = false
     @State private var showResendSuccess = false
-    @State private var resendTimer: Int = 60
-    @State private var timer: Timer?
-    @State private var canResend: Bool = false
+    @State private var showResendError = false
+    @State private var resendErrorMessage = ""
     
     var body: some View {
         VStack(spacing: 24) {
@@ -27,23 +27,23 @@ struct EmailVerificationView: View {
             // Title
             Text("Check Your Email")
                 .font(.system(size: 24, weight: .bold))
-                .foregroundColor(Color(hexString: "101828"))
+                .foregroundColor(.primary) // Adapts to light/dark mode
             
             // Description
             VStack(spacing: 8) {
                 if let email = authService.currentUser?.email {
                     Text("We've sent a verification link to")
                         .font(.system(size: 15))
-                        .foregroundColor(Color(hexString: "6A7282"))
+                        .foregroundColor(.secondary) // Adapts to light/dark mode
                     
                     Text(email)
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(Color(hexString: "101828"))
+                        .foregroundColor(.primary) // Adapts to light/dark mode
                 }
                 
                 Text("Please click the link to verify your email address")
                     .font(.system(size: 14))
-                    .foregroundColor(Color(hexString: "6A7282"))
+                    .foregroundColor(.secondary) // Adapts to light/dark mode
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)
             }
@@ -53,7 +53,7 @@ struct EmailVerificationView: View {
                 // Instructions
                 Text("We'll automatically detect when you verify")
                     .font(.system(size: 13))
-                    .foregroundColor(Color(hexString: "6A7282"))
+                    .foregroundColor(.secondary) // Adapts to light/dark mode
                     .multilineTextAlignment(.center)
                     .padding(.top, 8)
                 
@@ -62,31 +62,31 @@ struct EmailVerificationView: View {
                     resendVerificationEmail()
                 } label: {
                     HStack(spacing: 8) {
-                        if !canResend {
+                        if !timerManager.canResend {
                             Image(systemName: "clock")
                                 .font(.system(size: 12))
                         }
-                        Text(canResend ? "Resend Verification Email" : "Resend in \(resendTimer)s")
+                        Text(timerManager.canResend ? "Resend Verification Email" : "Resend in \(timerManager.remainingTime)s")
                             .font(.system(size: 14, weight: .medium))
                     }
-                    .foregroundColor(canResend ? .blue : Color(hexString: "9CA3AF"))
+                    .foregroundColor(timerManager.canResend ? .blue : Color(.tertiaryLabel)) // Adapts to light/dark mode
                     .padding(.vertical, 12)
                     .padding(.horizontal, 24)
                 }
-                .disabled(!canResend)
+                .disabled(!timerManager.canResend)
                 
                 // Tip text
-                if !canResend {
+                if !timerManager.canResend {
                     Text("Please wait before requesting another email")
                         .font(.system(size: 12))
-                        .foregroundColor(Color(hexString: "9CA3AF"))
+                        .foregroundColor(Color(.tertiaryLabel)) // Adapts to light/dark mode
                         .padding(.top, 4)
                 }
                 
                 // Check spam folder reminder
                 Text("Don't see the email? Check your spam folder")
                     .font(.system(size: 12))
-                    .foregroundColor(Color(hexString: "6A7282"))
+                    .foregroundColor(.secondary) // Adapts to light/dark mode
                     .multilineTextAlignment(.center)
                     .padding(.top, 8)
                 
@@ -95,7 +95,7 @@ struct EmailVerificationView: View {
                 } label: {
                     Text("Back to Login")
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(Color(hexString: "4A5565"))
+                        .foregroundColor(.secondary) // Adapts to light/dark mode
                         .padding(.vertical, 12)
                         .padding(.horizontal, 24)
                 }
@@ -108,22 +108,33 @@ struct EmailVerificationView: View {
         }
         .padding(.horizontal, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.white.ignoresSafeArea())
+        .background(
+            Color(.systemBackground)
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                }
+        )
         .overlay(
             SuccessToast(
                 message: "Verification email sent!",
                 isPresented: showResendSuccess
             )
         )
+        .overlay(
+            ErrorToast(
+                message: resendErrorMessage,
+                isPresented: showResendError
+            )
+        )
         .onAppear {
-            startResendTimer()
+            timerManager.start(duration: 60)
             // Check verification status when view appears
             checkVerification()
         }
         .onDisappear {
-            // Clean up timer
-            timer?.invalidate()
-            timer = nil
+            timerManager.stop()
         }
     }
     
@@ -139,17 +150,27 @@ struct EmailVerificationView: View {
     }
     
     private func resendVerificationEmail() {
-        guard let user = authService.currentUser, canResend else { return }
+        guard let user = authService.currentUser, timerManager.canResend else { return }
         
         user.sendEmailVerification { error in
             DispatchQueue.main.async {
                 if let error = error {
                     print("Error resending verification email: \(error.localizedDescription)")
+                    // Show error message using AuthErrorHandler
+                    resendErrorMessage = AuthErrorHandler.getMessage(for: error, context: .emailVerification)
+                    showResendError = true
+                    
+                    // Hide error message after 3 seconds
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                        withAnimation {
+                            showResendError = false
+                        }
+                    }
                 } else {
                     showResendSuccess = true
                     
                     // Restart the timer
-                    startResendTimer()
+                    timerManager.reset()
                     
                     // Hide success message after 3 seconds
                     DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
@@ -158,22 +179,6 @@ struct EmailVerificationView: View {
                         }
                     }
                 }
-            }
-        }
-    }
-    
-    private func startResendTimer() {
-        // Start with 60 seconds cooldown
-        resendTimer = 60
-        canResend = false
-        
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-            if resendTimer > 0 {
-                resendTimer -= 1
-            } else {
-                canResend = true
-                timer?.invalidate()
-                timer = nil
             }
         }
     }
