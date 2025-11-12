@@ -8,6 +8,10 @@ struct MainContainerView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var profiles: [UserProfile]
     
+    // Services from Container
+    private let challengeService = ServiceContainer.shared.challengeService
+    private let databaseService = ServiceContainer.shared.databaseService
+    
     var body: some View {
         NavigationStack {
             ZStack {
@@ -30,7 +34,7 @@ struct MainContainerView: View {
                 ensureDefaultAvatarIfNeeded()
                 
                 // Check for date change when view appears
-                DailyChallengeService.shared.checkAndResetForNewDay()
+                challengeService.checkAndResetForNewDay()
             }
             .onChange(of: profiles) { _, newProfiles in
                 // Update when profiles change
@@ -40,7 +44,7 @@ struct MainContainerView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
                 // Check for date change when app returns from background
-                DailyChallengeService.shared.checkAndResetForNewDay()
+                challengeService.checkAndResetForNewDay()
             }
         }
     }
@@ -80,7 +84,7 @@ struct MainContainerView: View {
                 } catch { 
                     print("❌ MainContainerView: Failed to save default avatar - \(error.localizedDescription)") 
                 }
-                DatabaseService.shared.saveUserProfile(profile) { _ in }
+                databaseService.saveUserProfile(profile) { _ in }
                 // Refresh the shared service to update UI immediately
                 userProfileService.setProfile(profile)
             }

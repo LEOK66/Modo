@@ -4,8 +4,17 @@ import FirebaseDatabase
 
 /// Service for managing Firebase real-time listeners for tasks
 class TaskListenerService {
-    private let databaseService = DatabaseService.shared
-    private let cacheService = TaskCacheService.shared
+    private let databaseService: DatabaseServiceProtocol
+    private let cacheService: TaskCacheService
+    
+    /// Initialize with dependencies
+    /// - Parameters:
+    ///   - databaseService: Database service for Firebase operations (defaults to shared instance)
+    ///   - cacheService: Cache service for local storage (defaults to shared instance)
+    init(databaseService: DatabaseServiceProtocol = DatabaseService.shared, cacheService: TaskCacheService = TaskCacheService.shared) {
+        self.databaseService = databaseService
+        self.cacheService = cacheService
+    }
     
     private var currentListenerHandle: DatabaseHandle?
     private var currentListenerDate: Date?

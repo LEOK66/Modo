@@ -143,13 +143,15 @@ struct RegisterView: View {
                         isLoading = false
                         print("Sign up error: \(error.localizedDescription)")
                         
-                        // Use AuthErrorHandler for error processing
-                        errorMessage = AuthErrorHandler.getMessage(for: error, context: .signUp)
-                        showErrorMessage = true
-                        
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                            withAnimation {
-                                showErrorMessage = false
+                        let appError = AppError.from(error)
+                        if !appError.isUserCancellation {
+                            errorMessage = appError.userMessage(context: .signUp)
+                            showErrorMessage = true
+                            
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                                withAnimation {
+                                    showErrorMessage = false
+                                }
                             }
                         }
                     }
@@ -168,9 +170,9 @@ struct RegisterView: View {
                 case .failure(let error):
                     print("Apple sign in error: \(error.localizedDescription)")
                     
-                    // Use AuthErrorHandler for error processing
-                    if !AuthErrorHandler.isUserCancellation(error) {
-                        errorMessage = AuthErrorHandler.getMessage(for: error, context: .signUp)
+                    let appError = AppError.from(error)
+                    if !appError.isUserCancellation {
+                        errorMessage = appError.userMessage(context: .signUp)
                         showErrorMessage = true
                         
                         DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
@@ -194,9 +196,9 @@ struct RegisterView: View {
                 case .failure(let error):
                     print("Google sign in error: \(error.localizedDescription)")
                     
-                    // Use AuthErrorHandler for error processing
-                    if !AuthErrorHandler.isUserCancellation(error) {
-                        errorMessage = AuthErrorHandler.getMessage(for: error, context: .signUp)
+                    let appError = AppError.from(error)
+                    if !appError.isUserCancellation {
+                        errorMessage = appError.userMessage(context: .signUp)
                         showErrorMessage = true
                         
                         DispatchQueue.main.asyncAfter(deadline: .now() + 3) {

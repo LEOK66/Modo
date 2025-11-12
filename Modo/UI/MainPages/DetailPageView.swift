@@ -1,33 +1,21 @@
 import SwiftUI
+import SwiftData
 
 struct DetailPageView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
     let taskId: UUID
     let getTask: (UUID) -> TaskItem?
     let onUpdateTask: (TaskItem, TaskItem) -> Void
     
-    private var task: TaskItem? {
-        getTask(taskId)
-    }
+    // ViewModel - manages all business logic and state
+    @StateObject private var viewModel: DetailTaskViewModel
     
-    // Edit state - we need to work with mutable copies
-    @State private var titleText: String = ""
-    @State private var descriptionText: String = ""
-    @State private var timeDate: Date = Date()
+    // UI-only states (cannot be in ViewModel)
     @State private var isTimeSheetPresented: Bool = false
-    @State private var isEditing: Bool = false
-    @State private var selectedCategory: TaskCategory? = nil
-    @State private var dietEntries: [DietEntry] = []
-    @State private var fitnessEntries: [FitnessEntry] = []
-    
-    // Quick pick states (similar to AddTaskView)
     @State private var isQuickPickPresented: Bool = false
     @State private var quickPickMode: QuickPickSheetView.QuickPickMode? = nil
     @State private var quickPickSearch: String = ""
-    @State private var editingDietEntryIndex: Int? = nil
-    @State private var editingFitnessEntryIndex: Int? = nil
-    @State private var durationHoursInt: Int = 0
-    @State private var durationMinutesInt: Int = 0
     @State private var isDurationSheetPresented: Bool = false
     
     // QuickPickSheetView states
@@ -36,12 +24,40 @@ struct DetailPageView: View {
     @State private var onlineFoods: [MenuData.FoodItem] = []
     @State private var isOnlineLoading: Bool = false
     
-    // Focus states
+    // Focus states (cannot be in ViewModel)
     @FocusState private var titleFocused: Bool
     @FocusState private var descriptionFocused: Bool
     @FocusState private var dietNameFocusIndex: Int?
     @FocusState private var fitnessNameFocusIndex: Int?
     @State private var pendingScrollId: String? = nil
+    
+    // Initialize ViewModel
+    init(taskId: UUID, getTask: @escaping (UUID) -> TaskItem?, onUpdateTask: @escaping (TaskItem, TaskItem) -> Void) {
+        self.taskId = taskId
+        self.getTask = getTask
+        self.onUpdateTask = onUpdateTask
+        
+        // Create temporary model context for ViewModel initialization
+        // The actual modelContext will be set in onAppear via environment
+        let schema = Schema([UserProfile.self, FirebaseChatMessage.self, DailyCompletion.self])
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try! ModelContainer(for: schema, configurations: [config])
+        let tempModelContext = ModelContext(container)
+        
+        // Get initial task if available
+        let initialTask = getTask(taskId)
+        
+        // Create ViewModel directly with default parameters
+        // Repository will be created automatically using ServiceContainer
+        self._viewModel = StateObject(wrappedValue: DetailTaskViewModel(
+            task: initialTask,
+            modelContext: tempModelContext
+        ))
+    }
+    
+    private var task: TaskItem? {
+        viewModel.task
+    }
     
     var body: some View {
         ZStack(alignment: .top) {
@@ -51,14 +67,14 @@ struct DetailPageView: View {
             if let task = task {
                 VStack(spacing: 0) {
                     // Header
-                    PageHeader(title: isEditing ? "Edit Task" : "Task Details")
+                    PageHeader(title: viewModel.isEditing ? "Edit Task" : "Task Details")
                         .padding(.top, 12)
                         .padding(.horizontal, 24)
                     
                     ScrollViewReader { proxy in
                         ScrollView {
                             VStack(spacing: 16) {
-                                if isEditing {
+                                if viewModel.isEditing {
                                     editingContentView
                                         .transition(.asymmetric(
                                             insertion: .move(edge: .bottom).combined(with: .opacity),
@@ -77,12 +93,12 @@ struct DetailPageView: View {
                         }
                     }
                     
-                    if isEditing {
+                    if viewModel.isEditing {
                         bottomActionBar
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
-                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isEditing)
+                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: viewModel.isEditing)
             } else {
                 // Error state
                 VStack(spacing: 16) {
@@ -101,10 +117,10 @@ struct DetailPageView: View {
         .sheet(isPresented: $isDurationSheetPresented) {
             DurationPickerSheetView(
                 isPresented: $isDurationSheetPresented,
-                durationHours: $durationHoursInt,
-                durationMinutes: $durationMinutesInt,
+                durationHours: $viewModel.durationHoursInt,
+                durationMinutes: $viewModel.durationMinutesInt,
                 onDurationChanged: {
-                    recalcCaloriesFromDurationIfNeeded()
+                    viewModel.recalcCaloriesFromDurationIfNeeded()
                 }
             )
         }
@@ -113,17 +129,17 @@ struct DetailPageView: View {
                 isPresented: $isQuickPickPresented,
                 mode: quickPickMode,
                 searchText: $quickPickSearch,
-                dietEntries: $dietEntries,
-                editingDietEntryIndex: $editingDietEntryIndex,
-                fitnessEntries: $fitnessEntries,
-                editingFitnessEntryIndex: $editingFitnessEntryIndex,
-                titleText: $titleText,
+                dietEntries: $viewModel.dietEntries,
+                editingDietEntryIndex: $viewModel.editingDietEntryIndex,
+                fitnessEntries: $viewModel.fitnessEntries,
+                editingFitnessEntryIndex: $viewModel.editingFitnessEntryIndex,
+                titleText: $viewModel.titleText,
                 recentFoods: $recentFoods,
                 recentExercises: $recentExercises,
                 onlineFoods: $onlineFoods,
                 isOnlineLoading: $isOnlineLoading,
                 onRecalcDietCalories: { index in
-                    recalcEntryCalories(index)
+                    viewModel.recalcEntryCalories(index)
                 },
                 onPendingScrollId: { id in
                     pendingScrollId = id
@@ -142,14 +158,14 @@ struct DetailPageView: View {
             )
         }
         .onAppear {
-            if self.task != nil {
-                loadTaskData()
+            if let task = self.task {
+                viewModel.loadTaskData(from: task)
             }
         }
         .onChange(of: taskId) { _, _ in
             // Reload data if task id changes
-            if self.task != nil {
-                loadTaskData()
+            if let task = self.task {
+                viewModel.loadTaskData(from: task)
             }
         }
         .navigationBarBackButtonHidden(true)
@@ -164,8 +180,7 @@ struct DetailPageView: View {
                     
                     // Edit button
                     Button(action: {
-                        loadTaskData() // Reload data when entering edit mode
-                        isEditing = true
+                        viewModel.startEditing()
                     }) {
                         Text("Edit Task")
                             .font(.system(size: 16, weight: .semibold))
@@ -193,11 +208,11 @@ struct DetailPageView: View {
                     timeCard
                     categoryCard
                     
-                    if selectedCategory == .diet {
+                    if viewModel.selectedCategory == .diet {
                         caloriesCard
                     }
                     
-                    if selectedCategory == .fitness {
+                    if viewModel.selectedCategory == .fitness {
                         fitnessEntriesCard
                     }
                 }
@@ -210,7 +225,7 @@ struct DetailPageView: View {
     // MARK: - Edit Cards
     private var titleCard: some View {
         TitleCardView(
-            titleText: $titleText,
+            titleText: $viewModel.titleText,
             titleFocused: $titleFocused,
             isTitleGenerating: false,
             onGenerateTapped: {}
@@ -219,7 +234,7 @@ struct DetailPageView: View {
     
     private var descriptionCard: some View {
         DescriptionCardView(
-            descriptionText: $descriptionText,
+            descriptionText: $viewModel.descriptionText,
             descriptionFocused: $descriptionFocused,
             isDescriptionGenerating: false,
             onGenerateTapped: {}
@@ -228,7 +243,7 @@ struct DetailPageView: View {
     
     private var timeCard: some View {
         TimeCardView(
-            timeDate: $timeDate,
+            timeDate: $viewModel.timeDate,
             isTimeSheetPresented: $isTimeSheetPresented,
             onDismissKeyboard: {
                 titleFocused = false
@@ -241,43 +256,43 @@ struct DetailPageView: View {
     
     private var categoryCard: some View {
         CategoryCardView(
-            selectedCategory: $selectedCategory,
-            dietEntries: $dietEntries,
-            fitnessEntries: $fitnessEntries
+            selectedCategory: $viewModel.selectedCategory,
+            dietEntries: $viewModel.dietEntries,
+            fitnessEntries: $viewModel.fitnessEntries
         )
     }
     
     private var caloriesCard: some View {
         DietEntriesCardView(
-            dietEntries: $dietEntries,
-            editingDietEntryIndex: $editingDietEntryIndex,
-            titleText: $titleText,
+            dietEntries: $viewModel.dietEntries,
+            editingDietEntryIndex: $viewModel.editingDietEntryIndex,
+            titleText: $viewModel.titleText,
             dietNameFocusIndex: $dietNameFocusIndex,
             pendingScrollId: $pendingScrollId,
             onAddFoodItem: {
-                        dietEntries.append(DietEntry(quantityText: "1", unit: "serving", caloriesText: ""))
-                        editingDietEntryIndex = dietEntries.count - 1
-                        quickPickMode = .food
-                        quickPickSearch = ""
-                        isQuickPickPresented = true
-                        triggerHapticLight()
+                viewModel.dietEntries.append(DietEntry(quantityText: "1", unit: "serving", caloriesText: ""))
+                viewModel.editingDietEntryIndex = viewModel.dietEntries.count - 1
+                quickPickMode = .food
+                quickPickSearch = ""
+                isQuickPickPresented = true
+                triggerHapticLight()
             },
             onEditFoodItem: { index in
-                editingDietEntryIndex = index
+                viewModel.editingDietEntryIndex = index
                 quickPickMode = .food
                 quickPickSearch = ""
                 isQuickPickPresented = true
             },
             onDeleteFoodItem: { index in
-                dietEntries.remove(at: index)
+                viewModel.dietEntries.remove(at: index)
                 triggerHapticMedium()
             },
             onClearAll: {
-                dietEntries.removeAll()
+                viewModel.dietEntries.removeAll()
                 triggerHapticLight()
             },
             onRecalcCalories: { index in
-                recalcEntryCalories(index)
+                viewModel.recalcEntryCalories(index)
             },
             onTriggerHaptic: {
                 triggerHapticLight()
@@ -287,34 +302,34 @@ struct DetailPageView: View {
     
     private var fitnessEntriesCard: some View {
         FitnessEntriesCardView(
-            fitnessEntries: $fitnessEntries,
-            editingFitnessEntryIndex: $editingFitnessEntryIndex,
-            titleText: $titleText,
+            fitnessEntries: $viewModel.fitnessEntries,
+            editingFitnessEntryIndex: $viewModel.editingFitnessEntryIndex,
+            titleText: $viewModel.titleText,
             fitnessNameFocusIndex: $fitnessNameFocusIndex,
             pendingScrollId: $pendingScrollId,
-            durationHoursInt: $durationHoursInt,
-            durationMinutesInt: $durationMinutesInt,
+            durationHoursInt: $viewModel.durationHoursInt,
+            durationMinutesInt: $viewModel.durationMinutesInt,
             isDurationSheetPresented: $isDurationSheetPresented,
             onAddExercise: {
-                        fitnessEntries.append(FitnessEntry())
-                        editingFitnessEntryIndex = fitnessEntries.count - 1
-                        quickPickMode = .exercise
-                        quickPickSearch = ""
-                        isQuickPickPresented = true
-                        triggerHapticLight()
+                viewModel.fitnessEntries.append(FitnessEntry())
+                viewModel.editingFitnessEntryIndex = viewModel.fitnessEntries.count - 1
+                quickPickMode = .exercise
+                quickPickSearch = ""
+                isQuickPickPresented = true
+                triggerHapticLight()
             },
             onEditExercise: { index in
-                    editingFitnessEntryIndex = index
-                    quickPickMode = .exercise
-                    quickPickSearch = ""
-                    isQuickPickPresented = true
+                viewModel.editingFitnessEntryIndex = index
+                quickPickMode = .exercise
+                quickPickSearch = ""
+                isQuickPickPresented = true
             },
             onDeleteExercise: { index in
-                    fitnessEntries.remove(at: index)
-                    triggerHapticMedium()
+                viewModel.fitnessEntries.remove(at: index)
+                triggerHapticMedium()
             },
             onClearAll: {
-                fitnessEntries.removeAll()
+                viewModel.fitnessEntries.removeAll()
                 triggerHapticLight()
             },
             onTriggerHaptic: {
@@ -339,8 +354,7 @@ struct DetailPageView: View {
             
             HStack(spacing: 12) {
                 Button(action: {
-                    isEditing = false
-                    loadTaskData() // Reload original data
+                    viewModel.cancelEditing()
                 }) {
                     Text("Cancel")
                         .font(.system(size: 16, weight: .medium))
@@ -351,9 +365,19 @@ struct DetailPageView: View {
                 }
                 
                 Button(action: {
-                    saveChanges()
-                    isEditing = false
-                    triggerHapticMedium()
+                    viewModel.saveChanges { result in
+                        switch result {
+                        case .success(let updatedTask):
+                            // Notify parent view of the update
+                            if let oldTask = viewModel.originalTask {
+                                onUpdateTask(updatedTask, oldTask)
+                            }
+                            triggerHapticMedium()
+                        case .failure(let error):
+                            // Error is already handled in ViewModel (errorMessage)
+                            print("Failed to save task: \(error.localizedDescription)")
+                        }
+                    }
                 }) {
                     Text("Save")
                         .font(.system(size: 16, weight: .medium))
@@ -370,150 +394,6 @@ struct DetailPageView: View {
     }
     
     // MARK: - Helper Methods
-    
-    private func recalcEntryCalories(_ index: Int) {
-        guard index < dietEntries.count else { return }
-        guard dietEntries[index].food != nil else { return }
-        let calculatedCalories = TaskEditHelper.dietEntryCalories(dietEntries[index])
-        dietEntries[index].caloriesText = String(calculatedCalories)
-    }
-    
-    private func recalcCaloriesFromDurationIfNeeded() {
-        guard selectedCategory == .fitness else { return }
-        guard let idx = editingFitnessEntryIndex, idx < fitnessEntries.count else { return }
-        let totalMinutes = max(0, durationHoursInt * 60 + durationMinutesInt)
-        fitnessEntries[idx].minutesInt = totalMinutes
-        if let per30 = fitnessEntries[idx].exercise?.calPer30Min {
-            let estimated = Int(round(Double(per30) * Double(totalMinutes) / 30.0))
-            fitnessEntries[idx].caloriesText = String(estimated)
-        }
-    }
-    
-    private func loadTaskData() {
-        guard let task = task else { return }
-        titleText = task.title
-        descriptionText = task.subtitle
-        selectedCategory = task.category
-        // Extract time from task.timeDate for time picker
-        let calendar = Calendar.current
-        let timeComponents = calendar.dateComponents([.hour, .minute], from: task.timeDate)
-        if let hour = timeComponents.hour, let minute = timeComponents.minute {
-            // Create a Date with today's date and the task's time
-            let today = Date()
-            timeDate = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: today) ?? today
-        } else {
-            timeDate = Date()
-        }
-        
-        // Create deep copies to avoid mutating the original task
-        dietEntries = task.dietEntries.map { entry in
-            DietEntry(
-                food: entry.food,
-                customName: entry.customName,
-                quantityText: entry.quantityText,
-                unit: entry.unit,
-                caloriesText: entry.caloriesText
-            )
-        }
-        fitnessEntries = task.fitnessEntries.map { entry in
-            var newEntry = FitnessEntry()
-            newEntry.exercise = entry.exercise
-            newEntry.customName = entry.customName
-            newEntry.minutesInt = entry.minutesInt
-            newEntry.caloriesText = entry.caloriesText
-            return newEntry
-        }
-    }
-    
-    private func saveChanges() {
-        guard let oldTask = task else { return }
-        
-        // Merge time from timeDate (hour:minute) with old task's date
-        // Extract date part from old task's timeDate (normalized)
-        let calendar = Calendar.current
-        let oldDateKey = calendar.startOfDay(for: oldTask.timeDate)
-        
-        // Extract time components from the new timeDate (selected by user)
-        let timeComponents = calendar.dateComponents([.hour, .minute], from: timeDate)
-        
-        // Merge time with old task's date
-        let newTimeDate = calendar.date(bySettingHour: timeComponents.hour ?? 0,
-                                        minute: timeComponents.minute ?? 0,
-                                        second: 0,
-                                        of: oldDateKey) ?? oldDateKey
-        
-        // Calculate end time for fitness tasks
-        let endTimeValue: String?
-        if selectedCategory == .fitness {
-            let totalMinutes = fitnessEntries.map { $0.minutesInt }.reduce(0, +)
-            if totalMinutes > 0 {
-                let endDate = calendar.date(byAdding: .minute, value: totalMinutes, to: newTimeDate) ?? newTimeDate
-                let df = DateFormatter()
-                df.locale = .current
-                df.timeStyle = .short
-                df.dateStyle = .none
-                endTimeValue = df.string(from: endDate)
-            } else {
-                endTimeValue = nil
-            }
-        } else {
-            endTimeValue = nil
-        }
-        
-        // Build calories meta text
-        let metaText: String = {
-            switch selectedCategory {
-            case .diet:
-                let totalCalories = dietEntries.map { Int($0.caloriesText) ?? 0 }.reduce(0, +)
-                return "+\(totalCalories) cal"
-            case .fitness:
-                let totalCalories = fitnessEntries.map { Int($0.caloriesText) ?? 0 }.reduce(0, +)
-                return "-\(totalCalories) cal"
-            default:
-                return ""
-            }
-        }()
-        
-        // Determine the correct emphasis color based on the selected category
-        let emphasisHexValue: String = {
-            switch selectedCategory {
-            case .diet: return "16A34A"
-            case .fitness: return "364153"
-            case .others: return "364153"
-            case .none: return oldTask.emphasisHex
-            }
-        }()
-        
-        // Truncate subtitle
-        let truncatedSubtitle = TaskEditHelper.truncateSubtitle(descriptionText)
-        
-        // Format time string for display
-        let df = DateFormatter()
-        df.locale = .current
-        df.timeStyle = .short
-        df.dateStyle = .none
-        let timeString = df.string(from: newTimeDate)
-        
-        // Create new TaskItem with updated values, preserving the original id
-        let newTask = TaskItem(
-            id: oldTask.id,
-            title: titleText.isEmpty ? oldTask.title : titleText,
-            subtitle: truncatedSubtitle,
-            time: timeString,
-            timeDate: newTimeDate,
-            endTime: endTimeValue,
-            meta: metaText,
-            isDone: oldTask.isDone,
-            emphasisHex: emphasisHexValue,
-            category: selectedCategory ?? oldTask.category,
-            dietEntries: dietEntries,
-            fitnessEntries: fitnessEntries
-        )
-        
-        // Call update callback
-        onUpdateTask(newTask, oldTask)
-    }
-    
     
     private func triggerHapticLight() {
         #if canImport(UIKit)

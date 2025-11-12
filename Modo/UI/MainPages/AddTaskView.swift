@@ -7,109 +7,84 @@ struct AddTaskView: View {
     let selectedDate: Date
     @Binding var newlyAddedTaskId: UUID?
     let onTaskCreated: (TaskItem) -> Void
-    // Form state
-    @State private var titleText: String = ""
-    @State private var descriptionText: String = ""
-    @State private var timeDate: Date = Date()
-    @State private var isTimeSheetPresented: Bool = false
-    @State private var selectedCategory: TaskCategory? = nil
-    @State private var isDurationSheetPresented: Bool = false
-    @State private var durationHoursInt: Int = 0
-    @State private var durationMinutesInt: Int = 0
-    @State private var isQuickPickPresented: Bool = false
-    @State private var quickPickMode: QuickPickSheetView.QuickPickMode? = nil
-    @State private var quickPickSearch: String = ""
-    @State private var onlineFoods: [MenuData.FoodItem] = []
-    @State private var isOnlineLoading: Bool = false
-    @State private var searchDebounceWork: DispatchWorkItem? = nil
     
-    // Lightweight Recents (in-memory per session)
-    @State private var recentFoods: [MenuData.FoodItem] = []
-    @State private var recentExercises: [MenuData.ExerciseItem] = []
+    // ViewModel - manages all business logic and state
+    @StateObject private var viewModel: AddTaskViewModel
     
-    // Undo delete snackbars
-    @State private var showUndoBanner: Bool = false
-    @State private var undoMessage: String = ""
-    private struct DeletedDietContext { let entry: DietEntry; let index: Int }
-    private struct DeletedFitnessContext { let entry: FitnessEntry; let index: Int }
-    @State private var lastDeletedDiet: DeletedDietContext? = nil
-    @State private var lastDeletedFitness: DeletedFitnessContext? = nil
-    @State private var lastClearedDiet: [DietEntry]? = nil
-    @State private var lastClearedFitness: [FitnessEntry]? = nil
-    
-    // Focus and scroll
+    // Focus states (cannot be in ViewModel, must be in View)
     @FocusState private var titleFocused: Bool
     @FocusState private var descriptionFocused: Bool
     @FocusState private var dietNameFocusIndex: Int?
     @FocusState private var fitnessNameFocusIndex: Int?
-    @State private var pendingScrollId: String? = nil
     
-    // Helper function to dismiss keyboard
-    private func dismissKeyboard() {
-        titleFocused = false
-        descriptionFocused = false
-        dietNameFocusIndex = nil
-        fitnessNameFocusIndex = nil
-        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    init(selectedDate: Date, newlyAddedTaskId: Binding<UUID?>, onTaskCreated: @escaping (TaskItem) -> Void) {
+        self.selectedDate = selectedDate
+        self._newlyAddedTaskId = newlyAddedTaskId
+        self.onTaskCreated = onTaskCreated
+        
+        // Create temporary model context for ViewModel initialization
+        // The actual modelContext from @Environment will be used via updateViewModelWithModelContext()
+        // This is needed because @StateObject requires initialization in init, but @Environment
+        // is only available when the view's body is rendered
+        let schema = Schema([UserProfile.self, FirebaseChatMessage.self, DailyCompletion.self])
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try! ModelContainer(for: schema, configurations: [config])
+        let tempModelContext = ModelContext(container)
+        
+        // Create ViewModel directly with default parameters
+        // Repository will be created automatically using ServiceContainer
+        self._viewModel = StateObject(wrappedValue: AddTaskViewModel(
+            selectedDate: selectedDate,
+            modelContext: tempModelContext
+        ))
     }
     
-    // AI UI placeholders
-    @State private var isAIGenerateSheetPresented: Bool = false
-    @State private var isAskAISheetPresented: Bool = false
-    @State private var aiPromptText: String = ""
-    @State private var askAIMessages: [AskAIChatView.SimpleMessage] = [] // Persist Ask AI chat history
-    
-    // AI Generation state
-    @State private var isAIGenerating: Bool = false
-    @State private var aiGenerateError: String? = nil
-    @State private var isTitleGenerating: Bool = false
-    @State private var isDescriptionGenerating: Bool = false
-    
-    // ✅ Use new AI services for task generation
-    private let aiService = AddTaskAIService()
-    private let aiParser = AddTaskAIParser()
-
-    @State private var dietEntries: [DietEntry] = []
-    @State private var editingDietEntryIndex: Int? = nil
-    
-    @State private var fitnessEntries: [FitnessEntry] = []
-    @State private var editingFitnessEntryIndex: Int? = nil
-    
-    var totalDietCalories: Int {
-        let values: [Int] = dietEntries.map { entry in
-            Int(entry.caloriesText) ?? 0
-        }
-        let sum: Int = values.reduce(0, +)
-        return sum
-    }
-
     var body: some View {
         ZStack(alignment: .top) {
             backgroundView
             mainContentView
             undoBannerView
         }
-        .sheet(isPresented: $isQuickPickPresented) {
+        .sheet(isPresented: $viewModel.isQuickPickPresented) {
             quickPickSheet
         }
-        .sheet(isPresented: $isAskAISheetPresented) {
-            AskAIChatView(messages: $askAIMessages)
+        .sheet(isPresented: $viewModel.isAskAISheetPresented) {
+            AskAIChatView(messages: $viewModel.askAIMessages)
         }
-        .sheet(isPresented: $isDurationSheetPresented, onDismiss: {
-            dismissKeyboard()
+        .sheet(isPresented: $viewModel.isDurationSheetPresented, onDismiss: {
+            viewModel.recalcCaloriesFromDurationIfNeeded()
+            viewModel.dismissKeyboard()
         }) {
             durationSheet
         }
-        .onChange(of: isQuickPickPresented) { _, isPresented in
+        .onChange(of: viewModel.isQuickPickPresented) { _, isPresented in
             if !isPresented {
-                // Only clear editing indices, don't trigger any scrolling
-                if editingDietEntryIndex != nil {
-                    editingDietEntryIndex = nil
-                }
-                if editingFitnessEntryIndex != nil {
-                    editingFitnessEntryIndex = nil
-                }
+                viewModel.clearEditingIndices()
             }
+        }
+        .onChange(of: titleFocused) { _, isFocused in
+            viewModel.titleFocused = isFocused
+        }
+        .onChange(of: descriptionFocused) { _, isFocused in
+            viewModel.descriptionFocused = isFocused
+        }
+        .onChange(of: dietNameFocusIndex) { _, index in
+            viewModel.dietNameFocusIndex = index
+        }
+        .onChange(of: fitnessNameFocusIndex) { _, index in
+            viewModel.fitnessNameFocusIndex = index
+        }
+        .onChange(of: viewModel.titleFocused) { _, isFocused in
+            titleFocused = isFocused
+        }
+        .onChange(of: viewModel.descriptionFocused) { _, isFocused in
+            descriptionFocused = isFocused
+        }
+        .onChange(of: viewModel.dietNameFocusIndex) { _, index in
+            dietNameFocusIndex = index
+        }
+        .onChange(of: viewModel.fitnessNameFocusIndex) { _, index in
+            fitnessNameFocusIndex = index
         }
         .gesture(
             DragGesture(minimumDistance: 50)
@@ -118,17 +93,19 @@ struct AddTaskView: View {
                     let verticalAmount = value.translation.height
                     
                     // Only handle horizontal swipes (ignore vertical)
-                    // Swipe from left to right: dismiss view (return to main page)
                     if abs(horizontalAmount) > abs(verticalAmount) && horizontalAmount > 0 {
-                        // Swipe from left to right: dismiss
                         dismiss()
                     }
                 }
         )
-        
         .navigationBarBackButtonHidden(true)
+        .onAppear {
+            // Update ViewModel's modelContext with the actual one from environment
+            // This is needed because @StateObject is initialized in init() before @Environment is available
+            viewModel.updateModelContext(modelContext)
+        }
     }
-
+    
     // MARK: - View Components
     
     private var backgroundView: some View {
@@ -136,6 +113,7 @@ struct AddTaskView: View {
             .ignoresSafeArea()
             .contentShape(Rectangle())
             .onTapGesture {
+                viewModel.dismissKeyboard()
                 UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             }
     }
@@ -148,9 +126,9 @@ struct AddTaskView: View {
             Spacer().frame(height: 12)
             // AI Toolbar
             AIToolbarView(
-                isAIGenerating: isAIGenerating,
-                onAskAITapped: { isAskAISheetPresented = true },
-                onAIGenerateTapped: { generateTaskAutomatically() }
+                isAIGenerating: viewModel.isAIGenerating,
+                onAskAITapped: { viewModel.isAskAISheetPresented = true },
+                onAIGenerateTapped: { viewModel.generateTaskAutomatically() }
             )
             scrollableContent
                 .background(Color(hexString: "F3F4F6"))
@@ -172,11 +150,11 @@ struct AddTaskView: View {
                     timeCard
                     dismissKeyboardSpacer
                     categoryCard
-                    if selectedCategory == .diet {
+                    if viewModel.selectedCategory == .diet {
                         dismissKeyboardSpacer
                         dietEntriesCard
                     }
-                    if selectedCategory == .fitness {
+                    if viewModel.selectedCategory == .fitness {
                         dismissKeyboardSpacer
                         fitnessEntriesCard
                     }
@@ -185,10 +163,10 @@ struct AddTaskView: View {
                 .padding(.horizontal, 24)
                 .padding(.vertical, 16)
             }
-            .onChange(of: pendingScrollId) { _, newValue in
+            .onChange(of: viewModel.pendingScrollId) { _, newValue in
                 guard let id = newValue else { return }
                 withAnimation { proxy.scrollTo(id, anchor: .center) }
-                pendingScrollId = nil
+                viewModel.pendingScrollId = nil
             }
             .onChange(of: titleFocused) { _, isFocused in
                 if isFocused {
@@ -226,20 +204,21 @@ struct AddTaskView: View {
             .frame(height: 16)
             .contentShape(Rectangle())
             .onTapGesture {
-                dismissKeyboard()
+                viewModel.dismissKeyboard()
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             }
     }
     
     private var undoBannerView: some View {
         Group {
-            if showUndoBanner {
+            if viewModel.showUndoBanner {
                 HStack(spacing: 12) {
-                    Text(undoMessage)
+                    Text(viewModel.undoMessage)
                         .font(.system(size: 14))
                         .foregroundColor(Color(hexString: "101828"))
                     Spacer()
                     Button("Undo") {
-                        handleUndoAction()
+                        viewModel.handleUndoAction()
                     }
                     .font(.system(size: 14, weight: .semibold))
                 }
@@ -255,58 +234,36 @@ struct AddTaskView: View {
         }
     }
     
-    private func handleUndoAction() {
-        if let snapshot = lastClearedDiet {
-            dietEntries = snapshot
-            lastClearedDiet = nil
-        } else if let snapshotF = lastClearedFitness {
-            fitnessEntries = snapshotF
-            lastClearedFitness = nil
-        } else if let ctx = lastDeletedDiet {
-            dietEntries.insert(ctx.entry, at: min(ctx.index, dietEntries.count))
-            lastDeletedDiet = nil
-        } else if let ctx = lastDeletedFitness {
-            fitnessEntries.insert(ctx.entry, at: min(ctx.index, fitnessEntries.count))
-            lastDeletedFitness = nil
-        }
-        withAnimation { showUndoBanner = false }
-    }
-    
     private var quickPickSheet: some View {
         QuickPickSheetView(
-            isPresented: $isQuickPickPresented,
-            mode: quickPickMode,
-            searchText: $quickPickSearch,
-            dietEntries: $dietEntries,
-            editingDietEntryIndex: $editingDietEntryIndex,
-            fitnessEntries: $fitnessEntries,
-            editingFitnessEntryIndex: $editingFitnessEntryIndex,
-            titleText: $titleText,
-            recentFoods: $recentFoods,
-            recentExercises: $recentExercises,
-            onlineFoods: $onlineFoods,
-            isOnlineLoading: $isOnlineLoading,
+            isPresented: $viewModel.isQuickPickPresented,
+            mode: viewModel.quickPickMode,
+            searchText: $viewModel.quickPickSearch,
+            dietEntries: $viewModel.dietEntries,
+            editingDietEntryIndex: $viewModel.editingDietEntryIndex,
+            fitnessEntries: $viewModel.fitnessEntries,
+            editingFitnessEntryIndex: $viewModel.editingFitnessEntryIndex,
+            titleText: $viewModel.title,
+            recentFoods: $viewModel.recentFoods,
+            recentExercises: $viewModel.recentExercises,
+            onlineFoods: $viewModel.onlineFoods,
+            isOnlineLoading: $viewModel.isOnlineLoading,
             onRecalcDietCalories: { index in
-                recalcEntryCalories(index)
+                viewModel.recalcEntryCalories(at: index)
             },
             onPendingScrollId: { id in
-                pendingScrollId = id
+                viewModel.pendingScrollId = id
             },
             onSetDietFocusIndex: { index in
+                viewModel.dietNameFocusIndex = index
                 dietNameFocusIndex = index
             },
             onSetFitnessFocusIndex: { index in
+                viewModel.fitnessNameFocusIndex = index
                 fitnessNameFocusIndex = index
             },
             onSearchFoods: { query, completion in
-                searchDebounceWork?.cancel()
-                let work = DispatchWorkItem {
-                    OffClient.searchFoodsCached(query: query, limit: 50) { results in
-                        completion(results)
-                    }
-                }
-                searchDebounceWork = work
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
+                viewModel.searchFoods(query: query, completion: completion)
             }
         )
     }
@@ -318,32 +275,32 @@ struct AddTaskView: View {
                     Text("Hours")
                         .font(.system(size: 14))
                         .foregroundColor(Color(hexString: "6A7282"))
-                    Picker("Hours", selection: $durationHoursInt) {
+                    Picker("Hours", selection: $viewModel.durationHoursInt) {
                         ForEach(0...5, id: \.self) { Text("\($0)") }
                     }
                     .pickerStyle(.wheel)
                     .frame(maxWidth: .infinity)
-                    .onChange(of: durationHoursInt) { _, _ in
-                        recalcCaloriesFromDurationIfNeeded()
+                    .onChange(of: viewModel.durationHoursInt) { _, _ in
+                        viewModel.recalcCaloriesFromDurationIfNeeded()
                     }
                 }
                 VStack {
                     Text("Minutes")
                         .font(.system(size: 14))
                         .foregroundColor(Color(hexString: "6A7282"))
-                    Picker("Minutes", selection: $durationMinutesInt) {
+                    Picker("Minutes", selection: $viewModel.durationMinutesInt) {
                         ForEach(0...59, id: \.self) { Text("\($0)") }
                     }
                     .pickerStyle(.wheel)
                     .frame(maxWidth: .infinity)
-                    .onChange(of: durationMinutesInt) { _, _ in
-                        recalcCaloriesFromDurationIfNeeded()
+                    .onChange(of: viewModel.durationMinutesInt) { _, _ in
+                        viewModel.recalcCaloriesFromDurationIfNeeded()
                     }
                 }
             }
             Button("Done") {
-                recalcCaloriesFromDurationIfNeeded()
-                isDurationSheetPresented = false
+                viewModel.recalcCaloriesFromDurationIfNeeded()
+                viewModel.isDurationSheetPresented = false
             }
             .font(.system(size: 16, weight: .semibold))
             .frame(maxWidth: .infinity, minHeight: 44)
@@ -355,84 +312,62 @@ struct AddTaskView: View {
     
     private var titleCard: some View {
         TitleCardView(
-            titleText: $titleText,
+            titleText: $viewModel.title,
             titleFocused: $titleFocused,
-            isTitleGenerating: isTitleGenerating,
-            onGenerateTapped: { generateOrRefineTitle() }
+            isTitleGenerating: viewModel.isTitleGenerating,
+            onGenerateTapped: { viewModel.generateOrRefineTitle() }
         )
     }
 
     private var descriptionCard: some View {
         DescriptionCardView(
-            descriptionText: $descriptionText,
+            descriptionText: $viewModel.description,
             descriptionFocused: $descriptionFocused,
-            isDescriptionGenerating: isDescriptionGenerating,
-            onGenerateTapped: { generateDescription() }
+            isDescriptionGenerating: viewModel.isDescriptionGenerating,
+            onGenerateTapped: { viewModel.generateDescription() }
         )
     }
 
     private var timeCard: some View {
         TimeCardView(
-            timeDate: $timeDate,
-            isTimeSheetPresented: $isTimeSheetPresented,
-            onDismissKeyboard: { dismissKeyboard() }
+            timeDate: $viewModel.timeDate,
+            isTimeSheetPresented: $viewModel.isTimeSheetPresented,
+            onDismissKeyboard: { viewModel.dismissKeyboard() }
         )
     }
 
     private var categoryCard: some View {
         CategoryCardView(
-            selectedCategory: $selectedCategory,
-            dietEntries: $dietEntries,
-            fitnessEntries: $fitnessEntries
+            selectedCategory: $viewModel.selectedCategory,
+            dietEntries: $viewModel.dietEntries,
+            fitnessEntries: $viewModel.fitnessEntries
         )
     }
 
     private var dietEntriesCard: some View {
         DietEntriesCardView(
-            dietEntries: $dietEntries,
-            editingDietEntryIndex: $editingDietEntryIndex,
-            titleText: $titleText,
+            dietEntries: $viewModel.dietEntries,
+            editingDietEntryIndex: $viewModel.editingDietEntryIndex,
+            titleText: $viewModel.title,
             dietNameFocusIndex: $dietNameFocusIndex,
-            pendingScrollId: $pendingScrollId,
+            pendingScrollId: $viewModel.pendingScrollId,
             onAddFoodItem: {
-                dietEntries.append(DietEntry(quantityText: "1", unit: "serving", caloriesText: ""))
-                editingDietEntryIndex = dietEntries.count - 1
-                quickPickMode = .food
-                quickPickSearch = ""
-                isQuickPickPresented = true
+                viewModel.addDietEntry()
                 triggerHapticLight()
             },
             onEditFoodItem: { index in
-                editingDietEntryIndex = index
-                quickPickMode = .food
-                quickPickSearch = ""
-                isQuickPickPresented = true
+                viewModel.editDietEntry(at: index)
             },
             onDeleteFoodItem: { index in
-                let removed = dietEntries.remove(at: index)
-                lastDeletedDiet = DeletedDietContext(entry: removed, index: index)
-                undoMessage = "Diet item deleted"
-                withAnimation { showUndoBanner = true }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                    withAnimation { showUndoBanner = false }
-                    lastDeletedDiet = nil
-                }
+                viewModel.deleteDietEntry(at: index)
                 triggerHapticMedium()
             },
             onClearAll: {
-                let count = dietEntries.count
-                lastClearedDiet = dietEntries
-                dietEntries.removeAll()
-                undoMessage = count > 1 ? "Diet items cleared" : "Diet item cleared"
-                withAnimation { showUndoBanner = true }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                    withAnimation { showUndoBanner = false }
-                    lastClearedDiet = nil
-                }
+                viewModel.clearAllDietEntries()
                 triggerHapticLight()
             },
             onRecalcCalories: { index in
-                recalcEntryCalories(index)
+                viewModel.recalcEntryCalories(at: index)
             },
             onTriggerHaptic: {
                 triggerHapticLight()
@@ -442,228 +377,39 @@ struct AddTaskView: View {
 
     private var fitnessEntriesCard: some View {
         FitnessEntriesCardView(
-            fitnessEntries: $fitnessEntries,
-            editingFitnessEntryIndex: $editingFitnessEntryIndex,
-            titleText: $titleText,
+            fitnessEntries: $viewModel.fitnessEntries,
+            editingFitnessEntryIndex: $viewModel.editingFitnessEntryIndex,
+            titleText: $viewModel.title,
             fitnessNameFocusIndex: $fitnessNameFocusIndex,
-            pendingScrollId: $pendingScrollId,
-            durationHoursInt: $durationHoursInt,
-            durationMinutesInt: $durationMinutesInt,
-            isDurationSheetPresented: $isDurationSheetPresented,
+            pendingScrollId: $viewModel.pendingScrollId,
+            durationHoursInt: $viewModel.durationHoursInt,
+            durationMinutesInt: $viewModel.durationMinutesInt,
+            isDurationSheetPresented: $viewModel.isDurationSheetPresented,
             onAddExercise: {
-                fitnessEntries.append(FitnessEntry())
-                editingFitnessEntryIndex = fitnessEntries.count - 1
-                quickPickMode = .exercise
-                quickPickSearch = ""
-                isQuickPickPresented = true
+                viewModel.addFitnessEntry()
                 triggerHapticLight()
             },
             onEditExercise: { index in
-                editingFitnessEntryIndex = index
-                quickPickMode = .exercise
-                quickPickSearch = ""
-                isQuickPickPresented = true
+                viewModel.editFitnessEntry(at: index)
             },
             onDeleteExercise: { index in
-                let removed = fitnessEntries.remove(at: index)
-                lastDeletedFitness = DeletedFitnessContext(entry: removed, index: index)
-                undoMessage = "Exercise deleted"
-                withAnimation { showUndoBanner = true }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                    withAnimation { showUndoBanner = false }
-                    lastDeletedFitness = nil
-                }
+                viewModel.deleteFitnessEntry(at: index)
                 triggerHapticMedium()
             },
             onClearAll: {
-                lastClearedFitness = fitnessEntries
-                fitnessEntries.removeAll()
-                undoMessage = "Exercises cleared"
-                withAnimation { showUndoBanner = true }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                    withAnimation { showUndoBanner = false }
-                    lastClearedFitness = nil
-                }
+                viewModel.clearAllFitnessEntries()
                 triggerHapticLight()
             },
             onTriggerHaptic: {
                 triggerHapticLight()
             },
             onDismissKeyboard: {
-                dismissKeyboard()
+                viewModel.dismissKeyboard()
             },
             formattedDuration: { h, m in
-                formattedDuration(h: h, m: m)
+                viewModel.formattedDuration(h: h, m: m)
             }
         )
-    }
-    
-
-    
-    // MARK: - Helper Methods
-    
-    private var formattedTime: String {
-        let df = DateFormatter()
-        df.locale = .current
-        df.timeStyle = .short
-        df.dateStyle = .none
-        return df.string(from: timeDate)
-    }
-
-    private func formattedDuration(h: Int, m: Int) -> String {
-        if h > 0 && m > 0 { return "\(h)h \(m)m" }
-        if h > 0 { return "\(h)h" }
-        return "\(m)m"
-    }
-
-    private func recalcCaloriesFromDurationIfNeeded() {
-        guard selectedCategory == .fitness else { return }
-        guard let idx = editingFitnessEntryIndex, idx < fitnessEntries.count else { return }
-        let h = durationHoursInt
-        let m = durationMinutesInt
-        let totalMinutes = max(0, h * 60 + m)
-        // Always persist duration, even for custom exercises (no per30)
-        fitnessEntries[idx].minutesInt = totalMinutes
-        if let per30 = fitnessEntries[idx].exercise?.calPer30Min {
-            let estimated = Int(round(Double(per30) * Double(totalMinutes) / 30.0))
-            fitnessEntries[idx].caloriesText = String(estimated)
-        }
-    }
-
-    private var canSave: Bool {
-        let hasTitle = !titleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        guard let category = selectedCategory else { return false }
-        switch category {
-        case .diet:
-            return hasTitle
-        case .fitness:
-            return hasTitle && !fitnessEntries.isEmpty
-        case .others:
-            return hasTitle
-        }
-    }
-
-    private var emphasisHexForCategory: String {
-        switch selectedCategory {
-        case .diet: return "16A34A"
-        case .fitness: return "364153"
-        case .others: return "364153"
-        case .none: return "364153"
-        }
-    }
-
-    // Truncate subtitle to first sentence with "..." suffix if too long
-    private func truncatedSubtitle(_ text: String) -> String {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty { return "" }
-        
-        // Get first sentence (end at period, question mark, or exclamation)
-        let firstSentence = trimmed
-            .components(separatedBy: CharacterSet(charactersIn: ".!?"))
-            .first?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? trimmed
-        
-        // If still too long (>50 chars), truncate with "..."
-        if firstSentence.count > 50 {
-            let truncated = String(firstSentence.prefix(47))
-            return truncated + "..."
-        }
-        
-        return firstSentence
-    }
-    
-    // Calculate end time for fitness tasks
-    private func calculateEndTime(startTime: Date, durationMinutes: Int) -> String? {
-        guard durationMinutes > 0 else { return nil }
-        let endDate = Calendar.current.date(byAdding: .minute, value: durationMinutes, to: startTime) ?? startTime
-        let df = DateFormatter()
-        df.locale = .current
-        df.timeStyle = .short
-        df.dateStyle = .none
-        return df.string(from: endDate)
-    }
-
-    private func categoryChip(_ category: TaskCategory) -> some View {
-        let isSelected = selectedCategory == category
-        return Button {
-            selectedCategory = category
-            
-            if category == .diet && dietEntries.isEmpty {
-                dietEntries.append(DietEntry(quantityText: "1", unit: "serving", caloriesText: ""))
-            } else if category == .fitness && fitnessEntries.isEmpty {
-                fitnessEntries.append(FitnessEntry())
-            }
-        } label: {
-            HStack(spacing: 8) {
-                Text(category.rawValue)
-                    .font(.system(size: 16))
-                    .foregroundColor(Color(hexString: "0A0A0A"))
-            }
-            .frame(height: 48)
-            .frame(maxWidth: .infinity)
-            .background(isSelected ? Color(hexString: "F3E8FF") : Color(hexString: "F9FAFB"))
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(isSelected ? Color(hexString: "C27AFF") : Color.clear, lineWidth: isSelected ? 2 : 0)
-            )
-        }
-    }
-    
-    private func dietEntryCalories(_ entry: DietEntry) -> Int {
-        guard let food = entry.food else { return 0 }
-        guard let qtyDouble = Double(entry.quantityText), qtyDouble > 0 else { return 0 }
-        
-        if entry.unit == "g" {
-            guard let per100 = food.caloriesPer100g else { return 0 }
-            return Int(round(per100 * qtyDouble / 100.0))
-        } else if entry.unit == "lbs" {
-            guard let per100 = food.caloriesPer100g else { return 0 }
-            let grams = qtyDouble * 453.592
-            return Int(round(per100 * grams / 100.0))
-        } else if entry.unit == "kg" {
-            guard let per100 = food.caloriesPer100g else { return 0 }
-            let grams = qtyDouble * 1000.0
-            return Int(round(per100 * grams / 100.0))
-        } else {
-            guard let per = food.servingCalories else { return 0 }
-            return Int(round(Double(per) * qtyDouble))
-        }
-    }
-    
-    private func recalcEntryCalories(_ index: Int) {
-        guard index < dietEntries.count else { return }
-        guard dietEntries[index].food != nil else { return }
-        let calculatedCalories = dietEntryCalories(dietEntries[index])
-        dietEntries[index].caloriesText = String(calculatedCalories)
-    }
-
-    
-    private var totalFitnessCalories: Int {
-        let values: [Int] = fitnessEntries.map { entry in
-            Int(entry.caloriesText) ?? 0
-        }
-        let sum: Int = values.reduce(0, +)
-        return sum
-    }
-    
-    private var totalFitnessDurationMinutes: Int {
-        let minutes: [Int] = fitnessEntries.map { $0.minutesInt }
-        let sum: Int = minutes.reduce(0, +)
-        return sum
-    }
-
-    
-    private func triggerHapticLight() {
-        #if canImport(UIKit)
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        #endif
-    }
-    
-    private func triggerHapticMedium() {
-        #if canImport(UIKit)
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        #endif
     }
     
     private var bottomActionBar: some View {
@@ -685,10 +431,10 @@ struct AddTaskView: View {
                         .font(.system(size: 16, weight: .medium))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity, minHeight: 56)
-                        .background(canSave ? Color.black : Color(hexString: "D1D5DB"))
+                        .background(viewModel.canSave ? Color.black : Color(hexString: "D1D5DB"))
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
-                .disabled(!canSave)
+                .disabled(!viewModel.canSave)
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
@@ -696,230 +442,34 @@ struct AddTaskView: View {
         }
     }
     
-    // MARK: - Task Saving
+    // MARK: - Helper Methods
+    
+    private func updateViewModelWithModelContext() {
+        // Update ViewModel with actual modelContext from environment
+        viewModel.updateModelContext(modelContext)
+    }
     
     private func saveTask() {
-        // Merge time from timeDate (hour:minute) with selectedDate's date
-        let calendar = Calendar.current
-        let timeComponents = calendar.dateComponents([.hour, .minute], from: timeDate)
-        let finalDate = calendar.date(bySettingHour: timeComponents.hour ?? 0,
-                                     minute: timeComponents.minute ?? 0,
-                                     second: 0,
-                                     of: selectedDate) ?? selectedDate
-        
-        // Calculate end time for fitness tasks
-        let endTimeValue: String?
-        if selectedCategory == .fitness && totalFitnessDurationMinutes > 0 {
-            endTimeValue = calculateEndTime(startTime: finalDate, durationMinutes: totalFitnessDurationMinutes)
-        } else {
-            endTimeValue = nil
+        guard let task = viewModel.createTask() else {
+            return
         }
-        
-        // Build calories meta text
-        let metaText: String = {
-            switch selectedCategory {
-            case .diet:
-                return "+\(totalDietCalories) cal"
-            case .fitness:
-                return "-\(totalFitnessCalories) cal"
-            default:
-                return ""
-            }
-        }()
-        
-        // Create the task with all necessary data
-        // Only save entries from the selected category
-        let finalDietEntries: [DietEntry]
-        let finalFitnessEntries: [FitnessEntry]
-        
-        switch selectedCategory {
-        case .diet:
-            finalDietEntries = dietEntries
-            finalFitnessEntries = []
-        case .fitness:
-            finalDietEntries = []
-            finalFitnessEntries = fitnessEntries
-        case .others, .none:
-            finalDietEntries = []
-            finalFitnessEntries = []
-        }
-        
-        let task = TaskItem(
-            title: titleText.isEmpty ? "New Task" : titleText,
-            subtitle: truncatedSubtitle(descriptionText),
-            time: formattedTime,
-            timeDate: finalDate,  // Use merged date+time
-            endTime: endTimeValue,
-            meta: metaText,
-            isDone: false,
-            emphasisHex: emphasisHexForCategory,
-            category: selectedCategory ?? .others,
-            dietEntries: finalDietEntries,
-            fitnessEntries: finalFitnessEntries
-        )
         
         onTaskCreated(task)
-        newlyAddedTaskId = task.id // Trigger animation for newly added task
+        newlyAddedTaskId = task.id
         triggerHapticMedium()
         dismiss()
     }
     
-    // MARK: - AI Generation
-    
-    /// Automatically generate a task based on existing tasks for the day
-    private func generateTaskAutomatically() {
-        print("🎬 Automatic AI Generation started...")
-        
-        isAIGenerating = true
-        aiGenerateError = nil
-        
-        aiService.generateTaskAutomatically(for: selectedDate, modelContext: modelContext) { result in
-            switch result {
-            case .success(let content):
-                print("✅ Received response from OpenAI")
-                print("🔄 Parsing and filling content...")
-                parseAndFillTaskContent(content)
-                isAIGenerating = false
-                print("✅ Generation completed!")
-            case .failure(let error):
-                print("❌ AI generation error: \(error)")
-                print("❌ Error details: \(error.localizedDescription)")
-                isAIGenerating = false
-                aiGenerateError = "Failed to generate: \(error.localizedDescription)"
-            }
-        }
+    private func triggerHapticLight() {
+        #if canImport(UIKit)
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        #endif
     }
     
-    
-    /// Generate task content using AI based on user's profile and prompt (Legacy - for Ask AI feature)
-    private func generateTaskWithAI() {
-        print("🎬 AI Generation started...")
-        print("📝 Prompt: \(aiPromptText)")
-        
-        isAIGenerating = true
-        aiGenerateError = nil
-        
-        aiService.generateTaskFromPrompt(userPrompt: aiPromptText, modelContext: modelContext) { result in
-            switch result {
-            case .success(let content):
-                print("✅ Received response from OpenAI")
-                print("🔄 Parsing and filling content...")
-                parseAndFillTaskContent(content)
-                isAIGenerating = false
-                isAIGenerateSheetPresented = false
-                aiPromptText = "" // Clear prompt for next use
-                print("✅ Generation completed!")
-            case .failure(let error):
-                print("❌ AI generation error: \(error)")
-                print("❌ Error details: \(error.localizedDescription)")
-                isAIGenerating = false
-                aiGenerateError = error.localizedDescription
-            }
-        }
-    }
-    
-    /// Parse AI response and fill form fields
-    private func parseAndFillTaskContent(_ content: String) {
-        print("🤖 Parsing AI generated content...")
-        
-        let parsed = aiParser.parseTaskContent(content)
-        
-        // Fill form fields
-        if let title = parsed.title {
-            titleText = title
-        }
-        
-        if let description = parsed.description {
-            descriptionText = description
-        }
-        
-        if let category = parsed.category {
-            selectedCategory = category
-        }
-        
-        if let timeDate = parsed.timeDate {
-            self.timeDate = timeDate
-        }
-        
-        // Fill entries
-        if selectedCategory == .fitness {
-            fitnessEntries = parsed.exercises
-            print("✅ Added \(parsed.exercises.count) fitness entries")
-        } else if selectedCategory == .diet {
-            dietEntries = parsed.foods
-            print("✅ Added \(parsed.foods.count) diet entries")
-        }
-        
-        print("✅ Task content filled successfully!")
-    }
-    
-    
-    // MARK: - Title & Description AI Generation
-    
-    /// Animate text appearing character by character (typing effect)
-    private func animateTextAppearance(
-        finalText: String,
-        target: Binding<String>,
-        delayPerChar: TimeInterval = 0.03
-    ) async {
-        let characters = Array(finalText)
-        var currentText = ""
-        
-        for char in characters {
-            currentText.append(char)
-            await MainActor.run {
-                target.wrappedValue = currentText
-            }
-            try? await Task.sleep(nanoseconds: UInt64(delayPerChar * 1_000_000_000))
-        }
-    }
-    
-    /// Generate or refine task title based on user profile
-    private func generateOrRefineTitle() {
-        guard !isTitleGenerating else { return }
-        
-        isTitleGenerating = true
-        
-        aiService.generateOrRefineTitle(currentTitle: titleText, modelContext: modelContext) { result in
-            switch result {
-            case .success(let finalTitle):
-                isTitleGenerating = false
-                Task {
-                    await animateTextAppearance(finalText: finalTitle, target: $titleText)
-                }
-            case .failure(let error):
-                print("❌ Title generation error: \(error)")
-                isTitleGenerating = false
-            }
-        }
-    }
-    
-    /// Generate description based on existing title, or generate both title and description if title is empty
-    private func generateDescription() {
-        guard !isDescriptionGenerating else { return }
-        
-        isDescriptionGenerating = true
-        
-        aiService.generateDescription(currentTitle: titleText, modelContext: modelContext) { result in
-            switch result {
-            case .success(let (title, description)):
-                isDescriptionGenerating = false
-                
-                Task {
-                    if titleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        // Animate both title and description
-                        await animateTextAppearance(finalText: title, target: $titleText)
-                        await animateTextAppearance(finalText: description, target: $descriptionText)
-                    } else {
-                        // Just animate description
-                        await animateTextAppearance(finalText: description, target: $descriptionText)
-                    }
-                }
-            case .failure(let error):
-                print("❌ Description generation error: \(error)")
-                isDescriptionGenerating = false
-            }
-        }
+    private func triggerHapticMedium() {
+        #if canImport(UIKit)
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        #endif
     }
 }
 

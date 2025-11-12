@@ -3,6 +3,12 @@ import FirebaseAuth
 
 /// Task cache service - manages local cache window and UserDefaults storage
 /// Implements 2-month sliding window cache strategy (1 month before and after current date)
+/// 
+/// **Cache Strategy**:
+/// - Sliding window: 1 month before and after current date (2 months total)
+/// - Cache invalidation: Based on timestamp (tasks older than cache window are removed)
+/// - Cache preloading: Preload adjacent dates when user navigates
+/// - Performance: Batch operations, minimize UserDefaults reads/writes
 final class TaskCacheService {
     
     // MARK: - Singleton
@@ -12,6 +18,13 @@ final class TaskCacheService {
     // MARK: - Constants
     /// Cache window size (in months): 1 month before and after, 2 months total
     private let cacheWindowMonths = AppConstants.Cache.windowMonths
+    
+    /// Cache invalidation: Maximum age for cached data (in seconds)
+    /// Data older than this will be considered stale and reloaded from Firebase
+    private let cacheMaxAge: TimeInterval = 3600 // 1 hour
+    
+    /// Cache preload range: Number of days to preload on each side of current date
+    private let preloadDays: Int = 7 // Preload 7 days before and after
     
     // MARK: - Helper Methods
     
@@ -73,6 +86,62 @@ final class TaskCacheService {
         return formatter.date(from: key)
     }
     
+    // MARK: - Cache Metadata
+    
+    /// Cache metadata structure to track cache age and validity
+    private struct CacheMetadata: Codable {
+        var lastUpdated: Date
+        var version: Int // For future cache format migrations
+    }
+    
+    /// Get cache metadata key
+    private func getMetadataKey(for userId: String) -> String {
+        return "task_cache_metadata_\(userId)"
+    }
+    
+    /// Load cache metadata
+    private func loadCacheMetadata(for userId: String) -> CacheMetadata? {
+        let key = getMetadataKey(for: userId)
+        guard let data = UserDefaults.standard.data(forKey: key) else {
+            return nil
+        }
+        
+        do {
+            let decoder = JSONDecoder()
+            return try decoder.decode(CacheMetadata.self, from: data)
+        } catch {
+            print("⚠️ TaskCacheService: Failed to load cache metadata - \(error.localizedDescription)")
+            return nil
+        }
+    }
+    
+    /// Save cache metadata
+    private func saveCacheMetadata(_ metadata: CacheMetadata, for userId: String) {
+        let key = getMetadataKey(for: userId)
+        
+        do {
+            let encoder = JSONEncoder()
+            let data = try encoder.encode(metadata)
+            UserDefaults.standard.set(data, forKey: key)
+        } catch {
+            print("⚠️ TaskCacheService: Failed to save cache metadata - \(error.localizedDescription)")
+        }
+    }
+    
+    /// Check if cache is valid (not stale)
+    /// - Parameters:
+    ///   - userId: User ID
+    ///   - date: Date to check cache validity for
+    /// - Returns: True if cache is valid, false if stale
+    func isCacheValid(for userId: String, date: Date) -> Bool {
+        guard let metadata = loadCacheMetadata(for: userId) else {
+            return false
+        }
+        
+        let age = Date().timeIntervalSince(metadata.lastUpdated)
+        return age < cacheMaxAge
+    }
+    
     // MARK: - UserDefaults Storage
     
     /// Load cached tasks from UserDefaults
@@ -121,13 +190,16 @@ final class TaskCacheService {
                 taskDict[dateKey] = tasks
             }
             
-            // Encode to JSON
+            // Encode to JSON (without pretty printing for better performance)
             let encoder = JSONEncoder()
-            encoder.outputFormatting = .prettyPrinted
             let data = try encoder.encode(taskDict)
             
             // Save to UserDefaults
             UserDefaults.standard.set(data, forKey: key)
+            
+            // Update cache metadata
+            let metadata = CacheMetadata(lastUpdated: Date(), version: 1)
+            saveCacheMetadata(metadata, for: userId)
             
             print("✅ TaskCacheService: Cache saved (\(taskDict.count) dates)")
         } catch {
@@ -155,9 +227,11 @@ final class TaskCacheService {
     }
     
     /// Clear all cached tasks for current user
-    /// - Parameter userId: User ID (optional, uses current user if nil)
-    /// - Parameter alsoClearFirebase: If true, also deletes all tasks from Firebase
-    func clearCache(userId: String? = nil, alsoClearFirebase: Bool = false) {
+    /// - Parameters:
+    ///   - userId: User ID (optional, uses current user if nil)
+    ///   - databaseService: Optional database service to clear Firebase tasks (if provided and alsoClearFirebase is true)
+    ///   - alsoClearFirebase: If true, also deletes all tasks from Firebase (requires databaseService parameter)
+    func clearCache(userId: String? = nil, databaseService: DatabaseServiceProtocol? = nil, alsoClearFirebase: Bool = false) {
         let userId = userId ?? getCurrentUserId() ?? ""
         guard !userId.isEmpty else {
             print("⚠️ TaskCacheService: No user ID provided, cannot clear cache")
@@ -168,9 +242,14 @@ final class TaskCacheService {
         UserDefaults.standard.removeObject(forKey: key)
         print("🗑️ TaskCacheService: Cache cleared for user \(userId)")
         
-        // Also clear Firebase if requested
+        // Also clear Firebase if requested and database service is provided
         if alsoClearFirebase {
-            DatabaseService.shared.deleteAllTasks(userId: userId) { result in
+            guard let databaseService = databaseService else {
+                print("⚠️ TaskCacheService: DatabaseService not provided, cannot clear Firebase tasks")
+                return
+            }
+            
+            databaseService.deleteAllTasks(userId: userId) { result in
                 switch result {
                 case .success:
                     print("✅ TaskCacheService: Firebase tasks also cleared")
@@ -215,6 +294,111 @@ final class TaskCacheService {
         cleanCacheOutsideWindow(windowMin: newWindow.minDate, windowMax: newWindow.maxDate, for: userId)
         
         print("📅 TaskCacheService: Cache window updated - \(dateToKey(newWindow.minDate)) to \(dateToKey(newWindow.maxDate))")
+    }
+    
+    // MARK: - Cache Preloading
+    
+    /// Preload tasks for dates around the given center date
+    /// This improves performance by loading adjacent dates in advance
+    /// - Parameters:
+    ///   - centerDate: Center date to preload around
+    ///   - userId: User ID
+    ///   - databaseService: Database service to fetch from Firebase if needed
+    ///   - completion: Completion handler called when preload completes
+    func preloadCache(centerDate: Date, userId: String, databaseService: DatabaseServiceProtocol, completion: ((Result<Void, Error>) -> Void)? = nil) {
+        let calendar = Calendar.current
+        let normalizedCenter = calendar.startOfDay(for: centerDate)
+        
+        // Calculate preload range
+        guard let startDate = calendar.date(byAdding: .day, value: -preloadDays, to: normalizedCenter),
+              let endDate = calendar.date(byAdding: .day, value: preloadDays, to: normalizedCenter) else {
+            completion?(.failure(NSError(domain: "TaskCacheService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to calculate preload range"])))
+            return
+        }
+        
+        let normalizedStart = calendar.startOfDay(for: startDate)
+        let normalizedEnd = calendar.startOfDay(for: endDate)
+        
+        // Check which dates need to be loaded
+        let cachedTasks = loadCachedTasks(for: userId)
+        var datesToLoad: [Date] = []
+        
+        var currentDate = normalizedStart
+        while currentDate <= normalizedEnd {
+            // Check if date is in cache window and not already cached
+            let window = calculateCacheWindow(centerDate: normalizedCenter)
+            if isDateInCacheWindow(currentDate, windowMin: window.minDate, windowMax: window.maxDate) {
+                if cachedTasks[currentDate] == nil {
+                    datesToLoad.append(currentDate)
+                }
+            }
+            guard let nextDate = calendar.date(byAdding: .day, value: 1, to: currentDate) else { break }
+            currentDate = nextDate
+        }
+        
+        guard !datesToLoad.isEmpty else {
+            print("✅ TaskCacheService: All dates already cached, no preload needed")
+            completion?(.success(()))
+            return
+        }
+        
+        print("📥 TaskCacheService: Preloading \(datesToLoad.count) dates")
+        
+        // Load dates in parallel (batch)
+        let group = DispatchGroup()
+        var errors: [Error] = []
+        var loadedTasks: [Date: [TaskItem]] = [:]
+        
+        for date in datesToLoad {
+            group.enter()
+            databaseService.fetchTasksForDate(userId: userId, date: date) { result in
+                switch result {
+                case .success(let tasks):
+                    loadedTasks[date] = tasks
+                case .failure(let error):
+                    errors.append(error)
+                }
+                group.leave()
+            }
+        }
+        
+        group.notify(queue: .main) {
+            // Save all loaded tasks to cache
+            if !loadedTasks.isEmpty {
+                var allCachedTasks = self.loadCachedTasks(for: userId)
+                for (date, tasks) in loadedTasks {
+                    allCachedTasks[date] = tasks
+                }
+                self.saveCachedTasks(allCachedTasks, for: userId)
+                print("✅ TaskCacheService: Preloaded \(loadedTasks.count) dates")
+            }
+            
+            if errors.isEmpty {
+                completion?(.success(()))
+            } else {
+                completion?(.failure(errors.first!))
+            }
+        }
+    }
+    
+    // MARK: - Cache Statistics
+    
+    /// Get cache statistics
+    /// - Parameter userId: User ID
+    /// - Returns: Cache statistics (date count, total tasks, cache age)
+    func getCacheStatistics(for userId: String) -> (dateCount: Int, totalTasks: Int, cacheAge: TimeInterval?) {
+        let cachedTasks = loadCachedTasks(for: userId)
+        let dateCount = cachedTasks.count
+        let totalTasks = cachedTasks.values.reduce(0) { $0 + $1.count }
+        
+        let cacheAge: TimeInterval?
+        if let metadata = loadCacheMetadata(for: userId) {
+            cacheAge = Date().timeIntervalSince(metadata.lastUpdated)
+        } else {
+            cacheAge = nil
+        }
+        
+        return (dateCount: dateCount, totalTasks: totalTasks, cacheAge: cacheAge)
     }
     
     // MARK: - Task CRUD (Local Cache Only)

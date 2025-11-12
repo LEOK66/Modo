@@ -5,9 +5,18 @@ import FirebaseAuth
 ///
 /// This service coordinates task operations between local cache and Firebase database.
 /// It ensures data consistency by updating cache immediately and syncing to Firebase in the background.
-class TaskManagerService {
-    private let cacheService = TaskCacheService.shared
-    private let databaseService = DatabaseService.shared
+class TaskManagerService: TaskServiceProtocol {
+    private let cacheService: TaskCacheService
+    private let databaseService: DatabaseServiceProtocol
+    
+    /// Initialize TaskManagerService with dependencies
+    /// - Parameters:
+    ///   - cacheService: Cache service for local storage (defaults to shared instance)
+    ///   - databaseService: Database service for Firebase operations (required)
+    init(cacheService: TaskCacheService = TaskCacheService.shared, databaseService: DatabaseServiceProtocol) {
+        self.cacheService = cacheService
+        self.databaseService = databaseService
+    }
     
     /// Adds a task to local cache and Firebase database.
     ///

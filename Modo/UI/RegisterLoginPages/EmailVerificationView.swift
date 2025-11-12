@@ -156,14 +156,16 @@ struct EmailVerificationView: View {
             DispatchQueue.main.async {
                 if let error = error {
                     print("Error resending verification email: \(error.localizedDescription)")
-                    // Show error message using AuthErrorHandler
-                    resendErrorMessage = AuthErrorHandler.getMessage(for: error, context: .emailVerification)
-                    showResendError = true
-                    
-                    // Hide error message after 3 seconds
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                        withAnimation {
-                            showResendError = false
+                    let appError = AppError.from(error)
+                    if !appError.isUserCancellation {
+                        resendErrorMessage = appError.userMessage(context: .emailVerification)
+                        showResendError = true
+                        
+                        // Hide error message after 3 seconds
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                            withAnimation {
+                                showResendError = false
+                            }
                         }
                     }
                 } else {

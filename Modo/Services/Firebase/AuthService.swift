@@ -8,8 +8,11 @@ import AuthenticationServices
 import CryptoKit
 
 
-final class AuthService: ObservableObject {
-    static let shared = AuthService()
+final class AuthService: ObservableObject, AuthServiceProtocol {
+    // Optional dependency for challenge service (injected via dependency injection)
+    // This allows AuthService to reset challenge state on sign out without direct dependency
+    weak var challengeService: ChallengeServiceProtocol?
+    
     private var authStateListener: AuthStateDidChangeListenerHandle?
     @Published var isAuthenticated = false
     @Published var currentUser: User?
@@ -17,7 +20,11 @@ final class AuthService: ObservableObject {
     private var appleSignInDelegate: AppleSignInDelegate?
     private var appleSignInPresentationProvider: AppleSignInPresentationContextProvider?
     
-    private init() {
+    /// Initialize with optional challenge service dependency
+    /// This allows for dependency injection while maintaining backward compatibility
+    /// - Parameter challengeService: Optional challenge service for dependency injection
+    init(challengeService: ChallengeServiceProtocol? = nil) {
+        self.challengeService = challengeService
         setupAuthStateListener()
         if let user = Auth.auth().currentUser {
             self.currentUser = user
@@ -25,6 +32,15 @@ final class AuthService: ObservableObject {
             loadOnboardingStatus()
         }
     }
+    
+    /// Shared singleton instance (for backward compatibility)
+    /// Note: Uses ServiceContainer for dependency injection even in fallback case
+    static let shared: AuthService = {
+        // Use ServiceContainer to get challenge service (ensures proper dependency injection)
+        // This maintains backward compatibility while using the new architecture
+        let challengeService = ServiceContainer.shared.challengeService
+        return AuthService(challengeService: challengeService)
+    }()
     
     // MARK: - Email Verification Status
     /// Determines if the current user needs email verification
@@ -71,7 +87,9 @@ final class AuthService: ObservableObject {
 
     // MARK: - Sign Out
     func signOut() throws {
-        DailyChallengeService.shared.resetState()
+        // Reset challenge state if challenge service is available
+        // Note: challengeService should always be injected via ServiceContainer
+        challengeService?.resetState()
         
         try Auth.auth().signOut()
     }

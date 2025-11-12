@@ -1,7 +1,7 @@
 import Foundation
 import FirebaseDatabase
 
-final class DatabaseService {
+final class DatabaseService: DatabaseServiceProtocol {
     static let shared = DatabaseService()
     private let db: DatabaseReference
     private var taskListeners: [String: DatabaseHandle] = [:]
@@ -541,6 +541,117 @@ final class DatabaseService {
             
             completion(.success(result))
         }
+    }
+    
+    // MARK: - Daily Challenge Methods
+    
+    /// Save daily challenge to Firebase
+    func saveDailyChallenge(userId: String, challenge: DailyChallenge, date: Date, isCompleted: Bool, isLocked: Bool, completedAt: Date?, taskId: UUID?, completion: ((Result<Void, Error>) -> Void)?) {
+        let dateKey = dateToKey(date)
+        let challengeRef = db.child("users").child(userId).child("dailyChallenges").child(dateKey)
+        
+        var data: [String: Any] = [
+            "id": challenge.id.uuidString,
+            "title": challenge.title,
+            "subtitle": challenge.subtitle,
+            "emoji": challenge.emoji,
+            "type": challenge.type.rawValue,
+            "targetValue": challenge.targetValue,
+            "isCompleted": isCompleted,
+            "isLocked": isLocked,
+            "createdAt": Date().timeIntervalSince1970
+        ]
+        
+        if let completedAt = completedAt {
+            data["completedAt"] = completedAt.timeIntervalSince1970
+        }
+        
+        if let taskId = taskId {
+            data["taskId"] = taskId.uuidString
+        }
+        
+        challengeRef.setValue(data) { error, _ in
+            if let error = error {
+                print("❌ DatabaseService: Failed to save daily challenge - \(error.localizedDescription)")
+                completion?(.failure(error))
+            } else {
+                print("✅ DatabaseService: Daily challenge saved - Date: \(dateKey)")
+                completion?(.success(()))
+            }
+        }
+    }
+    
+    /// Fetch daily challenge from Firebase
+    func fetchDailyChallenge(userId: String, date: Date, completion: @escaping (Result<[String: Any]?, Error>) -> Void) {
+        let dateKey = dateToKey(date)
+        let challengeRef = db.child("users").child(userId).child("dailyChallenges").child(dateKey)
+        
+        challengeRef.observeSingleEvent(of: .value) { snapshot in
+            guard snapshot.exists(), let data = snapshot.value as? [String: Any] else {
+                completion(.success(nil))
+                return
+            }
+            completion(.success(data))
+        }
+    }
+    
+    /// Update daily challenge completion status
+    func updateDailyChallengeCompletion(userId: String, date: Date, isCompleted: Bool, isLocked: Bool, completedAt: Date?, completion: ((Result<Void, Error>) -> Void)?) {
+        let dateKey = dateToKey(date)
+        let challengeRef = db.child("users").child(userId).child("dailyChallenges").child(dateKey)
+        
+        var updates: [String: Any] = [
+            "isCompleted": isCompleted,
+            "isLocked": isLocked
+        ]
+        
+        if let completedAt = completedAt {
+            updates["completedAt"] = completedAt.timeIntervalSince1970
+        }
+        
+        challengeRef.updateChildValues(updates) { error, _ in
+            if let error = error {
+                print("❌ DatabaseService: Failed to update daily challenge completion - \(error.localizedDescription)")
+                completion?(.failure(error))
+            } else {
+                print("✅ DatabaseService: Daily challenge completion updated - Date: \(dateKey)")
+                completion?(.success(()))
+            }
+        }
+    }
+    
+    /// Update daily challenge task ID
+    func updateDailyChallengeTaskId(userId: String, date: Date, taskId: UUID?, completion: ((Result<Void, Error>) -> Void)?) {
+        let dateKey = dateToKey(date)
+        let challengeRef = db.child("users").child(userId).child("dailyChallenges").child(dateKey)
+        
+        let updates: [String: Any] = taskId != nil ? ["taskId": taskId!.uuidString] : ["taskId": NSNull()]
+        
+        challengeRef.updateChildValues(updates) { error, _ in
+            if let error = error {
+                print("❌ DatabaseService: Failed to update daily challenge taskId - \(error.localizedDescription)")
+                completion?(.failure(error))
+            } else {
+                print("✅ DatabaseService: Daily challenge taskId updated - Date: \(dateKey)")
+                completion?(.success(()))
+            }
+        }
+    }
+    
+    /// Listen to daily challenge changes in real-time
+    func listenToDailyChallenge(userId: String, date: Date, callback: @escaping ([String: Any]?) -> Void) -> DatabaseHandle? {
+        let dateKey = dateToKey(date)
+        let challengeRef = db.child("users").child(userId).child("dailyChallenges").child(dateKey)
+        
+        let handle = challengeRef.observe(.value) { snapshot in
+            if snapshot.exists(), let data = snapshot.value as? [String: Any] {
+                callback(data)
+            } else {
+                callback(nil)
+            }
+        }
+        
+        return handle
     }
 }
 

@@ -8,8 +8,14 @@ import FirebaseAuth
 /// the completion status to the database. It defers evaluation of the current day
 /// until midnight to ensure accurate completion status.
 class DayCompletionService {
-    private let progressService = ProgressCalculationService.shared
+    private let progressService: ProgressCalculationService
     private var midnightTimer: Timer?
+    
+    /// Initialize with progress service dependency
+    /// - Parameter progressService: Progress calculation service (defaults to shared instance)
+    init(progressService: ProgressCalculationService = ProgressCalculationService.shared) {
+        self.progressService = progressService
+    }
     
     /// Evaluates whether all tasks for a date are completed and syncs status.
     ///

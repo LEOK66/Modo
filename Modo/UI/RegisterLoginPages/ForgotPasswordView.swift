@@ -122,13 +122,15 @@ struct ForgotPasswordView: View {
                     case .failure(let error):
                         print("Password reset error: \(error.localizedDescription)")
                         
-                        // Use AuthErrorHandler for error processing
-                        errorMessage = AuthErrorHandler.getMessage(for: error, context: .passwordReset)
-                        showErrorMessage = true
-                        
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                            withAnimation {
-                                showErrorMessage = false
+                        let appError = AppError.from(error)
+                        if !appError.isUserCancellation {
+                            errorMessage = appError.userMessage(context: .passwordReset)
+                            showErrorMessage = true
+                            
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                                withAnimation {
+                                    showErrorMessage = false
+                                }
                             }
                         }
                     }

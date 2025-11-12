@@ -1,10 +1,7 @@
 import SwiftUI
 
 struct DailyChallengeDetailView: View {
-    let challenge: DailyChallenge?
-    let isCompleted: Bool
-    let isAddedToTasks: Bool
-    let onAddToTasks: () -> Void
+    @ObservedObject var viewModel: DailyChallengeViewModel
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
@@ -15,15 +12,15 @@ struct DailyChallengeDetailView: View {
                     HStack(spacing: 16) {
                         ZStack {
                             RoundedRectangle(cornerRadius: 16)
-                                .fill(isCompleted ? Color(hexString: "DCFCE7") : Color(hexString: "EDE9FE"))
+                                .fill(viewModel.isCompleted ? Color(hexString: "DCFCE7") : Color(hexString: "EDE9FE"))
                                 .frame(width: 80, height: 80)
                             
-                            if isCompleted {
+                            if viewModel.isCompleted {
                                 Image(systemName: "checkmark.circle.fill")
                                     .font(.system(size: 40))
                                     .foregroundColor(Color(hexString: "22C55E"))
                             } else {
-                                Text(challenge?.emoji ?? "👟")
+                                Text(viewModel.challenge?.emoji ?? "👟")
                                     .font(.system(size: 40))
                             }
                         }
@@ -33,7 +30,7 @@ struct DailyChallengeDetailView: View {
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(Color(hexString: "6B7280"))
                             
-                            if isCompleted {
+                            if viewModel.isCompleted {
                                 HStack(spacing: 8) {
                                     Image(systemName: "checkmark.circle.fill")
                                         .font(.system(size: 16))
@@ -42,7 +39,7 @@ struct DailyChallengeDetailView: View {
                                         .font(.system(size: 16, weight: .semibold))
                                         .foregroundColor(Color(hexString: "22C55E"))
                                 }
-                            } else if isAddedToTasks {
+                            } else if viewModel.isAddedToTasks {
                                 HStack(spacing: 8) {
                                     Image(systemName: "checkmark.circle")
                                         .font(.system(size: 16))
@@ -55,7 +52,7 @@ struct DailyChallengeDetailView: View {
                         }
                         
                         Spacer()
-                        if !isAddedToTasks && !isCompleted {
+                        if !viewModel.isAddedToTasks && !viewModel.isCompleted {
                             HStack(spacing: 6) {
                                 Image(systemName: "plus")
                                     .font(.system(size: 14, weight: .semibold))
@@ -75,7 +72,34 @@ struct DailyChallengeDetailView: View {
                             )
                             .clipShape(RoundedRectangle(cornerRadius: 8))
                             .contentShape(RoundedRectangle(cornerRadius: 8))
-                            .onTapGesture { onAddToTasks() }
+                            .onTapGesture {
+                                viewModel.addToTasks { taskId in
+                                    guard let taskId = taskId,
+                                          let challenge = viewModel.challenge else {
+                                        dismiss()
+                                        return
+                                    }
+                                    
+                                    // Post notification to MainPageView to create task
+                                    let userInfo: [String: Any] = [
+                                        "taskId": taskId.uuidString,
+                                        "title": challenge.title,
+                                        "subtitle": challenge.subtitle,
+                                        "emoji": challenge.emoji,
+                                        "category": "fitness",
+                                        "type": challenge.type.rawValue,
+                                        "targetValue": challenge.targetValue
+                                    ]
+                                    
+                                    NotificationCenter.default.post(
+                                        name: NSNotification.Name("AddDailyChallengeTask"),
+                                        object: nil,
+                                        userInfo: userInfo
+                                    )
+                                    
+                                    dismiss()
+                                }
+                            }
                         }
                     }
                     .padding(.horizontal, 24)
@@ -92,13 +116,13 @@ struct DailyChallengeDetailView: View {
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(Color(hexString: "6B7280"))
                             
-                            Text(challenge?.title ?? "Loading...")
+                            Text(viewModel.challenge?.title ?? "Loading...")
                                 .font(.system(size: 24, weight: .bold))
                                 .foregroundColor(Color(hexString: "111827"))
                         }
                         
                         // Subtitle/Description
-                        if let subtitle = challenge?.subtitle, !subtitle.isEmpty {
+                        if let subtitle = viewModel.challenge?.subtitle, !subtitle.isEmpty {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Description")
                                     .font(.system(size: 14, weight: .medium))
@@ -136,7 +160,7 @@ struct DailyChallengeDetailView: View {
                                 )
                                 
                                 // Target value
-                                if let targetValue = challenge?.targetValue, targetValue > 0 {
+                                if let targetValue = viewModel.challenge?.targetValue, targetValue > 0 {
                                     HStack(spacing: 8) {
                                         Image(systemName: "target")
                                             .font(.system(size: 14))
@@ -249,7 +273,7 @@ struct DailyChallengeDetailView: View {
     }
     
     private var typeText: String {
-        switch challenge?.type {
+        switch viewModel.challenge?.type {
         case .fitness: return "Fitness"
         case .diet: return "Nutrition"
         case .mindfulness: return "Mindfulness"
@@ -258,7 +282,7 @@ struct DailyChallengeDetailView: View {
     }
     
     private var typeIcon: String {
-        switch challenge?.type {
+        switch viewModel.challenge?.type {
         case .fitness: return "figure.run"
         case .diet: return "leaf.fill"
         case .mindfulness: return "brain.head.profile"
@@ -267,7 +291,7 @@ struct DailyChallengeDetailView: View {
     }
     
     private var typeColor: Color {
-        switch challenge?.type {
+        switch viewModel.challenge?.type {
         case .fitness: return Color(hexString: "8B5CF6")
         case .diet: return Color(hexString: "22C55E")
         case .mindfulness: return Color(hexString: "3B82F6")
@@ -276,7 +300,7 @@ struct DailyChallengeDetailView: View {
     }
     
     private var targetUnit: String {
-        guard let challenge = challenge else { return "" }
+        guard let challenge = viewModel.challenge else { return "" }
         switch challenge.type {
         case .diet:
             // Try to infer serving unit from title
@@ -297,7 +321,7 @@ struct DailyChallengeDetailView: View {
     
     // MARK: - Impact estimation helpers (mirrors logic used when adding to main page)
     private var estimatedImpact: (isDiet: Bool, calories: Int?, durationMinutes: Int?)? {
-        guard let challenge = challenge else { return nil }
+        guard let challenge = viewModel.challenge else { return nil }
         switch challenge.type {
         case .diet:
             let calories = estimateDietCalories(from: challenge.title, targetValue: challenge.targetValue)

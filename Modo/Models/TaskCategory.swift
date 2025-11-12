@@ -10,3 +10,5 @@ enum TaskCategory: String, CaseIterable, Identifiable, Codable {
     var id: String { rawValue }
 }
 
+
+

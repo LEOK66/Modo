@@ -7,9 +7,13 @@ extension Notification.Name {
 
 class ProgressCalculationService {
     static let shared = ProgressCalculationService()
-    private let databaseService = DatabaseService.shared
+    private let databaseService: DatabaseServiceProtocol
     
-    private init() {}
+    /// Initialize with database service dependency
+    /// - Parameter databaseService: Database service for Firebase operations (defaults to shared instance)
+    init(databaseService: DatabaseServiceProtocol = DatabaseService.shared) {
+        self.databaseService = databaseService
+    }
     
     // MARK: - Day Completion Check
     

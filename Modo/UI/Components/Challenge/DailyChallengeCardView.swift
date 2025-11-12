@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct DailyChallengeCardView: View {
-    @StateObject private var challengeService = DailyChallengeService.shared
+    @ObservedObject var viewModel: DailyChallengeViewModel
     @EnvironmentObject var userProfileService: UserProfileService
     @State private var showDetailView = false
     @State private var showCompletionToast = false
@@ -21,36 +21,34 @@ struct DailyChallengeCardView: View {
                     HStack(spacing: 12) {
                         // Add to tasks button
                         Button(action: {
-                            if !challengeService.isChallengeAddedToTasks {
+                            if !viewModel.isAddedToTasks {
                                 addChallengeToTasks()
                             }
                         }) {
-                            Image(systemName: challengeService.isChallengeAddedToTasks ? "checkmark" : "plus")
+                            Image(systemName: viewModel.isAddedToTasks ? "checkmark" : "plus")
                                 .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(challengeService.isChallengeAddedToTasks ? Color(hexString: "22C55E") : Color(hexString: "8B5CF6"))
+                                .foregroundColor(viewModel.isAddedToTasks ? Color(hexString: "22C55E") : Color(hexString: "8B5CF6"))
                         }
-                        .disabled(challengeService.isChallengeAddedToTasks || challengeService.isGeneratingChallenge || challengeService.isChallengeCompleted)
-                        .opacity((challengeService.isChallengeAddedToTasks || challengeService.isGeneratingChallenge || challengeService.isChallengeCompleted) ? 0.5 : 1.0)
+                        .disabled(viewModel.isAddedToTasks || viewModel.isGenerating || viewModel.isCompleted)
+                        .opacity((viewModel.isAddedToTasks || viewModel.isGenerating || viewModel.isCompleted) ? 0.5 : 1.0)
                         
                         // Refresh button
                         Button(action: {
-                            Task {
-                                await challengeService.generateAIChallenge(userProfile: userProfileService.currentProfile)
-                            }
+                            viewModel.refreshChallenge(userProfile: userProfileService.currentProfile)
                         }) {
-                            Image(systemName: challengeService.isChallengeCompleted ? "checkmark.circle.fill" : "arrow.clockwise")
+                            Image(systemName: viewModel.isCompleted ? "checkmark.circle.fill" : "arrow.clockwise")
                                 .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(challengeService.isChallengeCompleted ? Color(hexString: "22C55E") : Color(hexString: "8B5CF6"))
-                                .rotationEffect(.degrees(challengeService.isGeneratingChallenge ? 360 : 0))
+                                .foregroundColor(viewModel.isCompleted ? Color(hexString: "22C55E") : Color(hexString: "8B5CF6"))
+                                .rotationEffect(.degrees(viewModel.isGenerating ? 360 : 0))
                                 .animation(
-                                    challengeService.isGeneratingChallenge ?
+                                    viewModel.isGenerating ?
                                     Animation.linear(duration: 1).repeatForever(autoreverses: false) :
                                         .default,
-                                    value: challengeService.isGeneratingChallenge
+                                    value: viewModel.isGenerating
                                 )
                         }
-                        .disabled(challengeService.isGeneratingChallenge || challengeService.isChallengeCompleted || challengeService.isChallengeAddedToTasks)
-                        .opacity((challengeService.isGeneratingChallenge || challengeService.isChallengeCompleted || challengeService.isChallengeAddedToTasks) ? 0.5 : 1.0)
+                        .disabled(viewModel.isGenerating || viewModel.isCompleted || viewModel.isAddedToTasks)
+                        .opacity((viewModel.isGenerating || viewModel.isCompleted || viewModel.isAddedToTasks) ? 0.5 : 1.0)
                     }
                 }
                 .padding(.horizontal, 20)
@@ -61,34 +59,34 @@ struct DailyChallengeCardView: View {
                     // Challenge icon
                     ZStack {
                         RoundedRectangle(cornerRadius: 12)
-                            .fill(challengeService.isChallengeCompleted ? Color(hexString: "DCFCE7") : Color(hexString: "EDE9FE"))
+                            .fill(viewModel.isCompleted ? Color(hexString: "DCFCE7") : Color(hexString: "EDE9FE"))
                             .frame(width: 48, height: 48)
                         
-                        if challengeService.isChallengeCompleted {
+                        if viewModel.isCompleted {
                             Image(systemName: "checkmark.circle.fill")
                                 .font(.system(size: 24))
                                 .foregroundColor(Color(hexString: "22C55E"))
                         } else {
-                            Text(challengeService.currentChallenge?.emoji ?? "👟")
+                            Text(viewModel.challenge?.emoji ?? "👟")
                                 .font(.system(size: 24))
                         }
                     }
                     
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(challengeService.currentChallenge?.title ?? "Loading...")
+                        Text(viewModel.challenge?.title ?? "Loading...")
                             .font(.system(size: 20, weight: .semibold))
                             .foregroundColor(Color(hexString: "111827"))
                             .lineLimit(1)
                         
-                        if challengeService.isChallengeCompleted {
+                        if viewModel.isCompleted {
                             Text("Completed! Great job! 🎉")
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(Color(hexString: "22C55E"))
-                        } else if challengeService.isChallengeAddedToTasks {
+                        } else if viewModel.isAddedToTasks {
                             Text("Added to your tasks")
                                 .font(.system(size: 14))
                                 .foregroundColor(Color(hexString: "6B7280"))
-                        } else if let subtitle = challengeService.currentChallenge?.subtitle {
+                        } else if let subtitle = viewModel.challenge?.subtitle {
                             Text(subtitle)
                                 .font(.system(size: 14))
                                 .foregroundColor(Color(hexString: "6B7280"))
@@ -109,21 +107,21 @@ struct DailyChallengeCardView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 6)
-                .id(challengeService.currentChallenge?.id)
+                .id(viewModel.challenge?.id)
                 .transition(.asymmetric(
                     insertion: .scale.combined(with: .opacity),
                     removal: .scale.combined(with: .opacity)
                 ))
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    if challengeService.hasMinimumUserData && !challengeService.isGeneratingChallenge {
+                    if viewModel.hasMinimumUserData && !viewModel.isGenerating {
                         showDetailView = true
                     }
                 }
             }
-            .blur(radius: challengeService.hasMinimumUserData ? 0 : 8)
-            .opacity(challengeService.isGeneratingChallenge ? 0.5 : 1.0)
-            .disabled(!challengeService.hasMinimumUserData || challengeService.isGeneratingChallenge)
+            .blur(radius: viewModel.hasMinimumUserData ? 0 : 8)
+            .opacity(viewModel.isGenerating ? 0.5 : 1.0)
+            .disabled(!viewModel.hasMinimumUserData || viewModel.isGenerating)
             .background(
                 RoundedRectangle(cornerRadius: 22)
                     .fill(Color.white)
@@ -135,7 +133,7 @@ struct DailyChallengeCardView: View {
             )
             
             // Loading overlay with custom animation
-            if challengeService.isGeneratingChallenge {
+            if viewModel.isGenerating {
                 VStack(spacing: 16) {
                     // Custom loading animation
                     LoadingDotsView()
@@ -151,7 +149,7 @@ struct DailyChallengeCardView: View {
             }
             
             // Overlay for locked state
-            if !challengeService.hasMinimumUserData {
+            if !viewModel.hasMinimumUserData {
                 VStack(spacing: 10) {
                     Image(systemName: "lock.fill")
                         .font(.system(size: 32))
@@ -185,20 +183,20 @@ struct DailyChallengeCardView: View {
         }
         .frame(width: 327, height: cardHeight)
         .clipped()
-        .animation(.easeInOut(duration: 0.3), value: challengeService.hasMinimumUserData)
-        .animation(.easeInOut(duration: 0.3), value: challengeService.isGeneratingChallenge)
-        .animation(.spring(response: 0.5, dampingFraction: 0.7), value: challengeService.currentChallenge?.id)
+        .animation(.easeInOut(duration: 0.3), value: viewModel.hasMinimumUserData)
+        .animation(.easeInOut(duration: 0.3), value: viewModel.isGenerating)
+        .animation(.spring(response: 0.5, dampingFraction: 0.7), value: viewModel.challenge?.id)
         .onAppear {
             // Update data availability when view appears
-            challengeService.updateUserDataAvailability(profile: userProfileService.currentProfile)
+            viewModel.updateUserDataAvailability(profile: userProfileService.currentProfile)
             // Load daily challenge when view appears (like image loading)
-            challengeService.loadTodayChallenge()
+            viewModel.loadTodayChallenge()
         }
         .onChange(of: userProfileService.currentProfile) { _, newProfile in
             // Update when profile changes
-            challengeService.updateUserDataAvailability(profile: newProfile)
+            viewModel.updateUserDataAvailability(profile: newProfile)
         }
-        .onChange(of: challengeService.isChallengeCompleted) { oldValue, newValue in
+        .onChange(of: viewModel.isCompleted) { oldValue, newValue in
             // Show toast when challenge is completed
             if !previousCompletionState && newValue {
                 showCompletionToast = true
@@ -214,15 +212,7 @@ struct DailyChallengeCardView: View {
             previousCompletionState = newValue
         }
         .sheet(isPresented: $showDetailView) {
-            DailyChallengeDetailView(
-                challenge: challengeService.currentChallenge,
-                isCompleted: challengeService.isChallengeCompleted,
-                isAddedToTasks: challengeService.isChallengeAddedToTasks,
-                onAddToTasks: {
-                    showDetailView = false
-                    addChallengeToTasks()
-                }
-            )
+            DailyChallengeDetailView(viewModel: viewModel)
         }
         .overlay(alignment: .top) {
             // Completion Toast
@@ -261,19 +251,19 @@ struct DailyChallengeCardView: View {
     }
     
     private var cardHeight: CGFloat {
-        challengeService.hasMinimumUserData ? 120 : 150
+        viewModel.hasMinimumUserData ? 120 : 150
     }
     
     /// Add challenge to task list
     private func addChallengeToTasks() {
-        guard let challenge = challengeService.currentChallenge else {
+        guard let challenge = viewModel.challenge else {
             print("⚠️ No challenge to add")
             return
         }
         
         // Add animation
         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-            challengeService.addChallengeToTasks { taskId in
+            viewModel.addToTasks { taskId in
                 guard let taskId = taskId else {
                     print("❌ Failed to add challenge to tasks")
                     return

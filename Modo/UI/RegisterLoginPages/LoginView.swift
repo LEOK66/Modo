@@ -113,8 +113,9 @@ private struct LoginCard: View {
                     case .failure(let error):
                         isLoading = false
                         print("Sign in error: \(error.localizedDescription)")
-                        if !AuthErrorHandler.isUserCancellation(error) {
-                            errorMessage = AuthErrorHandler.getMessage(for: error, context: .signIn)
+                        let appError = AppError.from(error)
+                        if !appError.isUserCancellation {
+                            errorMessage = appError.userMessage(context: .signIn)
                             showErrorMessage = true
                             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                                 withAnimation {
@@ -136,8 +137,9 @@ private struct LoginCard: View {
                     break
                 case .failure(let error):
                     print("Apple sign in error: \(error.localizedDescription)")
-                    if !AuthErrorHandler.isUserCancellation(error) {
-                        errorMessage = AuthErrorHandler.getMessage(for: error, context: .signIn)
+                    let appError = AppError.from(error)
+                    if !appError.isUserCancellation {
+                        errorMessage = appError.userMessage(context: .signIn)
                         showErrorMessage = true
                         DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                             withAnimation {
@@ -158,8 +160,9 @@ private struct LoginCard: View {
                     print("Google sign in successful")
                 case .failure(let error):
                     print("Google sign in error: \(error.localizedDescription)")
-                    if !AuthErrorHandler.isUserCancellation(error) {
-                        errorMessage = AuthErrorHandler.getMessage(for: error, context: .signIn)
+                    let appError = AppError.from(error)
+                    if !appError.isUserCancellation {
+                        errorMessage = appError.userMessage(context: .signIn)
                         showErrorMessage = true
                         DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                             withAnimation {

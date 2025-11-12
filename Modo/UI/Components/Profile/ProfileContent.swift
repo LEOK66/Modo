@@ -12,6 +12,7 @@ struct ProfileContent: View {
     let onEditUsername: () -> Void
     let onLogoutTap: () -> Void
     let onEditAvatar: () -> Void
+    let challengeViewModel: DailyChallengeViewModel
     
     var body: some View {
         ScrollView {
@@ -39,7 +40,7 @@ struct ProfileContent: View {
                 .buttonStyle(PlainButtonStyle())
 
                 // MARK: - Daily Challenge
-                DailyChallengeCardView()
+                DailyChallengeCardView(viewModel: challengeViewModel)
                     .padding(.top, -16)
                     .frame(maxWidth: .infinity, alignment: .center)
 
