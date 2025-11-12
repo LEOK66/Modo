@@ -105,11 +105,6 @@ struct ModoApp: App {
             .environmentObject(userProgress)
             .environmentObject(dailyCaloriesService)
             .environmentObject(userProfileService)
-            .onChange(of: authService.isAuthenticated) { _, newValue in
-                if !newValue {
-                    stopVerificationPolling()
-                }
-            }
             .onOpenURL { url in
                 GIDSignIn.sharedInstance.handle(url)
             }
