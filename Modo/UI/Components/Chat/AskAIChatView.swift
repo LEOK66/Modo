@@ -191,22 +191,22 @@ struct AskAIChatView: View {
                 // ✅ Use AIPromptBuilder for unified prompt construction
                 let systemPrompt = promptBuilder.buildSystemPrompt(userProfile: userProfile)
                 
-                // Build conversation history using FirebaseFirebaseChatMessage
-                var apiMessages: [FirebaseFirebaseChatMessage] = [
-                    FirebaseFirebaseChatMessage(role: "system", content: systemPrompt)
+                // Build conversation history using ChatMessage
+                var apiMessages: [ChatMessage] = [
+                    ChatMessage(role: "system", content: systemPrompt)
                 ]
                 
                 // Add recent chat history (last 8 messages)
                 let recentMessages = messages.suffix(9).dropLast() // Exclude current message
                 for msg in recentMessages {
-                    apiMessages.append(FirebaseFirebaseChatMessage(
+                    apiMessages.append(ChatMessage(
                         role: msg.isFromUser ? "user" : "assistant",
                         content: msg.content
                     ))
                 }
                 
                 // Add current user message
-                apiMessages.append(FirebaseFirebaseChatMessage(
+                apiMessages.append(ChatMessage(
                     role: "user",
                     content: questionText
                 ))

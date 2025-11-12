@@ -3,6 +3,21 @@ import SwiftData
 import FirebaseAuth
 import FirebaseDatabase
 
+// MARK: - Task ID Tracker (Thread-safe)
+/// Thread-safe tracker to prevent duplicate task creation from same notification
+class TaskIdTracker {
+    private var processedIds: Set<String> = []
+    private let queue = DispatchQueue(label: "com.modo.taskIdTracker")
+    
+    func isProcessed(_ taskId: String) -> Bool {
+        queue.sync { processedIds.contains(taskId) }
+    }
+    
+    func markAsProcessed(_ taskId: String) {
+        queue.sync { processedIds.insert(taskId) }
+    }
+}
+
 struct MainPageView: View {
     @Binding var selectedTab: Tab
     @EnvironmentObject var dailyCaloriesService: DailyCaloriesService
@@ -148,8 +163,13 @@ struct MainPageView: View {
     @State private var newlyAddedTaskId: UUID? = nil
     // CRITICAL FIX #3: Track if view is actually visible
     @State private var isViewVisible = false
-    // Track notification observer to prevent duplicates
-    @State private var notificationObserver: NSObjectProtocol? = nil
+    // Track notification observers to prevent duplicates
+    // ⚠️ CRITICAL: Use static to survive View recreation cycles
+    private static var sharedWorkoutNotificationObserver: NSObjectProtocol? = nil
+    private static var sharedChallengeNotificationObserver: NSObjectProtocol? = nil
+    // Track processed task IDs to prevent duplicate creation from same notification
+    // Use a constant instance since it's thread-safe internally
+    private let taskIdTracker = TaskIdTracker()
     // Track recently deleted task IDs to suppress flicker from stale cache/listener payloads
     @State private var pendingDeletedTaskIds: Set<UUID> = []
     // Track AI tasks being replaced for smooth animation
@@ -490,7 +510,14 @@ struct MainPageView: View {
     private func setupDailyChallengeNotification() {
         print("🔔 MainPageView: Setting up daily challenge notification observer")
         
-        NotificationCenter.default.addObserver(
+        // ✅ CRITICAL: Check if global observer already exists
+        if MainPageView.sharedChallengeNotificationObserver != nil {
+            print("   ℹ️ Global challenge observer already exists, skipping setup to prevent duplicates")
+            return
+        }
+        
+        // Add new observer and store the token in static variable
+        MainPageView.sharedChallengeNotificationObserver = NotificationCenter.default.addObserver(
             forName: NSNotification.Name("AddDailyChallengeTask"),
             object: nil,
             queue: .main
@@ -762,19 +789,18 @@ struct MainPageView: View {
     private func setupWorkoutTaskNotification() {
         print("🔔 MainPageView: Setting up workout task notification observer")
         
-        // Remove existing observer first to prevent duplicates
-        if let existingObserver = notificationObserver {
-            print("   🗑️ Removing existing observer")
-            NotificationCenter.default.removeObserver(existingObserver)
-            notificationObserver = nil
+        // ✅ CRITICAL: Check if global observer already exists
+        if MainPageView.sharedWorkoutNotificationObserver != nil {
+            print("   ℹ️ Global observer already exists, skipping setup to prevent duplicates")
+            return
         }
         
-        // Add new observer and store the token
-        notificationObserver = NotificationCenter.default.addObserver(
+        // Add new observer and store the token in static variable
+        MainPageView.sharedWorkoutNotificationObserver = NotificationCenter.default.addObserver(
             forName: NSNotification.Name("CreateWorkoutTask"),
             object: nil,
             queue: .main
-        ) { notification in
+        ) { [self] notification in
             print("📬 ========== MainPageView: RECEIVED NOTIFICATION ==========")
             print("   Notification object: \(String(describing: notification.object))")
             print("   User info keys: \(notification.userInfo?.keys.map { String(describing: $0) } ?? [])")
@@ -786,9 +812,23 @@ struct MainPageView: View {
                 return
             }
             
-            // Check if this is a nutrition plan
+            // ✅ Create unique task ID to prevent duplicates
             let isNutrition = userInfo["isNutrition"] as? Bool ?? false
+            let mealName = userInfo["mealName"] as? String ?? ""
+            let taskType = isNutrition ? "nutrition" : "workout"
+            let taskId = "\(taskType)_\(dateString)_\(mealName.isEmpty ? goal : mealName)"
+            
+            // ✅ Check if we already processed this task
+            if self.taskIdTracker.isProcessed(taskId) {
+                print("   ⚠️ Task already processed: \(taskId), skipping to prevent duplicate")
+                return
+            }
+            
+            // Mark as processed
+            self.taskIdTracker.markAsProcessed(taskId)
+            
             print("   Task type: \(isNutrition ? "Nutrition" : "Workout")")
+            print("   Task ID: \(taskId)")
             
             // Parse date
             let dateFormatter = DateFormatter()
@@ -987,8 +1027,8 @@ struct MainPageView: View {
             // Add to tasks
             self.addTask(task)
             
-            let taskType = isNutrition ? "Nutrition" : "Workout"
-            print("✅ MainPageView: \(taskType) task created - \(taskTitle) at \(displayTime)")
+            let taskTypeDisplay = isNutrition ? "Nutrition" : "Workout"
+            print("✅ MainPageView: \(taskTypeDisplay) task created - \(taskTitle) at \(displayTime)")
             print("   Exercises: \(fitnessEntries.count), Total Calories: \(totalCalories)kcal")
         }
     }
@@ -1482,12 +1522,10 @@ struct MainPageView: View {
             isViewVisible = false
             stopCurrentListener()
             
-            // Remove notification observer to prevent memory leaks and duplicates
-            if let observer = notificationObserver {
-                print("🔕 MainPageView: Removing workout task notification observer")
-                NotificationCenter.default.removeObserver(observer)
-                notificationObserver = nil
-            }
+            // ✅ DO NOT remove notification observer
+            // Keep it active so we can receive task creation notifications
+            // even when MainPageView is not visible (e.g., user is in InsightPageView)
+            print("🔔 MainPageView: Keeping notification observer active for background task reception")
             
             cancelMidnightSettlement()
         }

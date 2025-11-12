@@ -187,7 +187,7 @@ final class DailyChallengeService: ObservableObject {
             let prompt = promptBuilder.buildDailyChallengePrompt(userProfile: userProfile)
             
             // Create message
-            let message = FirebaseFirebaseChatMessage(role: "user", content: prompt)
+            let message = ChatMessage(role: "user", content: prompt)
             
             // Call AI service
             let response = try await aiService.sendChatRequest(messages: [message], maxTokens: 300)

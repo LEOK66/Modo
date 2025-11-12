@@ -170,7 +170,7 @@ struct ChatBubble: View {
                                 HStack(spacing: 6) {
                                     Image(systemName: "checkmark")
                                         .font(.system(size: 16, weight: .semibold))
-                                    Text("Add to Tasks")
+                                    Text("Add")
                                         .font(.system(size: 14, weight: .medium))
                                 }
                                 .foregroundColor(.white)
@@ -352,7 +352,7 @@ struct ChatBubble: View {
                         HStack(spacing: 6) {
                             Image(systemName: "checkmark")
                                 .font(.system(size: 16, weight: .semibold))
-                            Text("Add to Tasks")
+                            Text("Add")
                                 .font(.system(size: 14, weight: .medium))
                         }
                         .foregroundColor(.white)
@@ -449,7 +449,7 @@ struct ChatBubble: View {
                         HStack(spacing: 6) {
                             Image(systemName: "checkmark")
                                 .font(.system(size: 16, weight: .semibold))
-                            Text("Add to Tasks")
+                            Text("Add")
                                 .font(.system(size: 14, weight: .medium))
                         }
                         .foregroundColor(.white)
