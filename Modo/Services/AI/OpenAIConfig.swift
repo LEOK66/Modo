@@ -158,6 +158,106 @@ struct NutritionPlanFunctionResponse: Codable {
     }
 }
 
+// MARK: - Multi-Day Plan Function Response
+struct MultiDayPlanFunctionResponse: Codable {
+    let startDate: String
+    let endDate: String
+    let planType: String
+    let days: [Day]
+    let notes: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case startDate = "start_date"
+        case endDate = "end_date"
+        case planType = "plan_type"
+        case days, notes
+    }
+    
+    struct Day: Codable {
+        let date: String
+        let dayName: String
+        let workout: Workout?
+        let nutrition: Nutrition?
+        
+        enum CodingKeys: String, CodingKey {
+            case date
+            case dayName = "day_name"
+            case workout, nutrition
+        }
+    }
+    
+    struct Workout: Codable {
+        let goal: String
+        let exercises: [Exercise]
+        let dailyKcalTarget: Int
+        let notes: String?
+        
+        enum CodingKeys: String, CodingKey {
+            case goal, exercises
+            case dailyKcalTarget = "daily_kcal_target"
+            case notes
+        }
+        
+        struct Exercise: Codable {
+            let name: String
+            let sets: Int
+            let reps: String
+            let restSec: Int
+            let targetRPE: Int
+            let alternatives: [String]
+            
+            enum CodingKeys: String, CodingKey {
+                case name, sets, reps
+                case restSec = "rest_sec"
+                case targetRPE = "target_RPE"
+                case alternatives
+            }
+        }
+    }
+    
+    struct Nutrition: Codable {
+        let goal: String
+        let meals: [Meal]
+        let dailyTotals: DailyTotals?
+        
+        enum CodingKeys: String, CodingKey {
+            case goal, meals
+            case dailyTotals = "daily_totals"
+        }
+        
+        struct Meal: Codable {
+            let mealType: String
+            let time: String
+            let foods: [Food]
+            let calories: Int
+            let protein: Double
+            let carbs: Double
+            let fat: Double
+            
+            enum CodingKeys: String, CodingKey {
+                case mealType = "meal_type"
+                case time, foods, calories, protein, carbs, fat
+            }
+        }
+        
+        struct Food: Codable {
+            let name: String
+            let portion: String
+            let calories: Int
+            let protein: Double
+            let carbs: Double
+            let fat: Double
+        }
+        
+        struct DailyTotals: Codable {
+            let calories: Int
+            let protein: Double
+            let carbs: Double
+            let fat: Double
+        }
+    }
+}
+
 // MARK: - Helper Extensions
 extension ChatCompletionResponse.Choice.Message {
     /// Get function call from either old format (function_call) or new format (tool_calls)

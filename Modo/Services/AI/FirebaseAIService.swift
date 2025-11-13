@@ -93,6 +93,7 @@ class FirebaseAIService {
                 name: "generate_nutrition_plan",
                 description: """
                 Generate a daily meal plan with specific foods and calorie information.
+                IMPORTANT: Only generate main meals (breakfast, lunch, dinner). Do NOT include snacks.
                 Call this function when user explicitly asks for a meal/nutrition plan.
                 """,
                 parameters: [
@@ -108,13 +109,14 @@ class FirebaseAIService {
                         ],
                         "meals": [
                             "type": "array",
-                            "description": "List of meals for the day",
+                            "description": "List of main meals for the day (breakfast, lunch, dinner only - no snacks)",
                             "items": [
                                 "type": "object",
                                 "properties": [
                                     "meal_type": [
                                         "type": "string",
-                                        "description": "Type of meal (breakfast, lunch, dinner, snack)"
+                                        "description": "Type of meal (ONLY: breakfast, lunch, or dinner - NO snacks)",
+                                        "enum": ["breakfast", "lunch", "dinner"]
                                     ],
                                     "time": [
                                         "type": "string",
@@ -186,6 +188,149 @@ class FirebaseAIService {
                         ]
                     ],
                     "required": ["date", "goal", "meals", "daily_totals"],
+                    "additionalProperties": false
+                ],
+                strict: true
+            ),
+            
+            // Generate Multi-Day Plan Function
+            FunctionDefinition(
+                name: "generate_multi_day_plan",
+                description: """
+                Generate a multi-day plan (2-7 days) for workout and/or nutrition.
+                Use this when user asks for: "this week", "next 3 days", "7-day plan", etc.
+                IMPORTANT: Maximum 7 days per plan. Each day should have varied content.
+                """,
+                parameters: [
+                    "type": "object",
+                    "properties": [
+                        "start_date": [
+                            "type": "string",
+                            "description": "Start date in YYYY-MM-DD format"
+                        ],
+                        "end_date": [
+                            "type": "string",
+                            "description": "End date in YYYY-MM-DD format"
+                        ],
+                        "plan_type": [
+                            "type": "string",
+                            "description": "Type of plan",
+                            "enum": ["workout", "nutrition", "both"]
+                        ],
+                        "days": [
+                            "type": "array",
+                            "description": "Array of daily plans (maximum 7 days)",
+                            "items": [
+                                "type": "object",
+                                "properties": [
+                                    "date": [
+                                        "type": "string",
+                                        "description": "Date in YYYY-MM-DD format"
+                                    ],
+                                    "day_name": [
+                                        "type": "string",
+                                        "description": "Day name (e.g., 'Monday', 'Day 1')"
+                                    ],
+                                    "workout": [
+                                        "type": "object",
+                                        "description": "Workout plan for this day (null if rest day or nutrition-only)",
+                                        "properties": [
+                                            "goal": [
+                                                "type": "string",
+                                                "description": "Workout goal for this day"
+                                            ],
+                                            "exercises": [
+                                                "type": "array",
+                                                "description": "List of exercises",
+                                                "items": [
+                                                    "type": "object",
+                                                    "properties": [
+                                                        "name": ["type": "string"],
+                                                        "sets": ["type": "integer"],
+                                                        "reps": ["type": "string"],
+                                                        "rest_sec": ["type": "integer"],
+                                                        "target_RPE": ["type": "integer"],
+                                                        "alternatives": [
+                                                            "type": "array",
+                                                            "items": ["type": "string"]
+                                                        ]
+                                                    ],
+                                                    "required": ["name", "sets", "reps", "rest_sec", "target_RPE", "alternatives"],
+                                                    "additionalProperties": false
+                                                ]
+                                            ],
+                                            "daily_kcal_target": ["type": "integer"],
+                                            "notes": ["type": "string"]
+                                        ],
+                                        "required": ["goal", "exercises", "daily_kcal_target", "notes"],
+                                        "additionalProperties": false
+                                    ],
+                                    "nutrition": [
+                                        "type": "object",
+                                        "description": "Nutrition plan for this day (null if workout-only)",
+                                        "properties": [
+                                            "goal": ["type": "string"],
+                                            "meals": [
+                                                "type": "array",
+                                                "items": [
+                                                    "type": "object",
+                                                    "properties": [
+                                                        "meal_type": [
+                                                            "type": "string",
+                                                            "enum": ["breakfast", "lunch", "dinner"]
+                                                        ],
+                                                        "time": ["type": "string"],
+                                                        "foods": [
+                                                            "type": "array",
+                                                            "items": [
+                                                                "type": "object",
+                                                                "properties": [
+                                                                    "name": ["type": "string"],
+                                                                    "portion": ["type": "string"],
+                                                                    "calories": ["type": "integer"],
+                                                                    "protein": ["type": "number"],
+                                                                    "carbs": ["type": "number"],
+                                                                    "fat": ["type": "number"]
+                                                                ],
+                                                                "required": ["name", "portion", "calories", "protein", "carbs", "fat"],
+                                                                "additionalProperties": false
+                                                            ]
+                                                        ],
+                                                        "calories": ["type": "integer"],
+                                                        "protein": ["type": "number"],
+                                                        "carbs": ["type": "number"],
+                                                        "fat": ["type": "number"]
+                                                    ],
+                                                    "required": ["meal_type", "time", "foods", "calories", "protein", "carbs", "fat"],
+                                                    "additionalProperties": false
+                                                ]
+                                            ],
+                                            "daily_totals": [
+                                                "type": "object",
+                                                "properties": [
+                                                    "calories": ["type": "integer"],
+                                                    "protein": ["type": "number"],
+                                                    "carbs": ["type": "number"],
+                                                    "fat": ["type": "number"]
+                                                ],
+                                                "required": ["calories", "protein", "carbs", "fat"],
+                                                "additionalProperties": false
+                                            ]
+                                        ],
+                                        "required": ["goal", "meals", "daily_totals"],
+                                        "additionalProperties": false
+                                    ]
+                                ],
+                                "required": ["date", "day_name"],
+                                "additionalProperties": false
+                            ]
+                        ],
+                        "notes": [
+                            "type": "string",
+                            "description": "Overall notes for the multi-day plan"
+                        ]
+                    ],
+                    "required": ["start_date", "end_date", "plan_type", "days"],
                     "additionalProperties": false
                 ],
                 strict: true

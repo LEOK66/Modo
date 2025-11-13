@@ -423,10 +423,31 @@ class ModoCoachService: ObservableObject {
             ))
             
             // Enable Function Calling with strict: true
+            // ✅ Detect if user is asking for a plan to use "required" mode
+            let userMessage = text.lowercased()
+            let isPlanRequest = userMessage.contains("plan") ||
+                               userMessage.contains("workout") ||
+                               userMessage.contains("exercise") ||
+                               userMessage.contains("meal") ||
+                               userMessage.contains("breakfast") ||
+                               userMessage.contains("lunch") ||
+                               userMessage.contains("dinner") ||
+                               userMessage.contains("diet") ||
+                               userMessage.contains("nutrition")
+            
+            let functionCallMode: String
+            if isPlanRequest && !userMessage.contains("?") {
+                // User is requesting a plan (not asking about it) → encourage function call
+                functionCallMode = "auto" // Still "auto" but prompt will enforce it
+            } else {
+                // General question → let AI decide freely
+                functionCallMode = "auto"
+            }
+            
             let response = try await firebaseAIService.sendChatRequest(
                 messages: apiMessages,
                 functions: firebaseAIService.buildFunctions(), // Add function definitions (including strict: true)
-                functionCall: "auto", // AI decides whether to call
+                functionCall: functionCallMode,
                 parallelToolCalls: false // Must be set to false (strict mode requires)
             )
             
@@ -474,7 +495,7 @@ class ModoCoachService: ObservableObject {
         }
     }
     
-    // MARK: - Handle Function Call (统一处理)
+    // MARK: - Handle Function Call
     private func handleFunctionCall(_ functionCall: ChatCompletionResponse.Choice.Message.FunctionCall, userProfile: UserProfile?) {
         guard let data = functionCall.arguments.data(using: .utf8) else {
             print("❌ Failed to convert arguments to data")
@@ -487,6 +508,9 @@ class ModoCoachService: ObservableObject {
             
         case "generate_nutrition_plan":
             handleNutritionPlanFunction(data: data, userProfile: userProfile)
+            
+        case "generate_multi_day_plan":
+            handleMultiDayPlanFunction(data: data, userProfile: userProfile)
             
         default:
             print("⚠️ Unknown function: \(functionCall.name)")
@@ -619,6 +643,113 @@ class ModoCoachService: ObservableObject {
             }
             
             sendErrorMessage("Had trouble generating that nutrition plan. Please try again.")
+        }
+    }
+    
+    // MARK: - Handle Multi-Day Plan Function
+    private func handleMultiDayPlanFunction(data: Data, userProfile: UserProfile?) {
+        do {
+            let decoder = JSONDecoder()
+            let functionResponse = try decoder.decode(MultiDayPlanFunctionResponse.self, from: data)
+            
+            print("✅ Successfully decoded multi-day plan with \(functionResponse.days.count) days")
+            print("   Type: \(functionResponse.planType)")
+            print("   Date range: \(functionResponse.startDate) to \(functionResponse.endDate)")
+            
+            // Convert to MultiDayPlanData
+            let convertedDays = functionResponse.days.map { day in
+                var workoutPlan: WorkoutPlanData? = nil
+                var nutritionPlan: NutritionPlanData? = nil
+                
+                // Convert workout if present
+                if let workout = day.workout {
+                    let convertedExercises = workout.exercises.map { exercise in
+                        WorkoutPlanData.Exercise(
+                            name: exercise.name,
+                            sets: exercise.sets,
+                            reps: exercise.reps,
+                            restSec: exercise.restSec,
+                            targetRPE: exercise.targetRPE,
+                            alternatives: exercise.alternatives
+                        )
+                    }
+                    
+                    workoutPlan = WorkoutPlanData(
+                        date: day.date,
+                        goal: workout.goal,
+                        dailyKcalTarget: workout.dailyKcalTarget,
+                        exercises: convertedExercises,
+                        notes: workout.notes
+                    )
+                }
+                
+                // Convert nutrition if present
+                if let nutrition = day.nutrition {
+                    let convertedMeals = nutrition.meals.map { meal in
+                        let foodNames = meal.foods.map { "\($0.name) (\($0.portion))" }
+                        return NutritionPlanData.Meal(
+                            name: meal.mealType.capitalized,
+                            time: meal.time,
+                            foods: foodNames,
+                            calories: meal.calories,
+                            protein: meal.protein,
+                            carbs: meal.carbs,
+                            fat: meal.fat
+                        )
+                    }
+                    
+                    let dailyCalories = nutrition.dailyTotals?.calories ?? convertedMeals.reduce(0) { $0 + $1.calories }
+                    
+                    nutritionPlan = NutritionPlanData(
+                        date: day.date,
+                        goal: nutrition.goal,
+                        dailyKcalTarget: dailyCalories,
+                        meals: convertedMeals,
+                        notes: nil
+                    )
+                }
+                
+                return MultiDayPlanData.DayPlan(
+                    date: day.date,
+                    dayName: day.dayName,
+                    workout: workoutPlan,
+                    nutrition: nutritionPlan
+                )
+            }
+            
+            let plan = MultiDayPlanData(
+                startDate: functionResponse.startDate,
+                endDate: functionResponse.endDate,
+                planType: functionResponse.planType,
+                days: convertedDays,
+                notes: functionResponse.notes
+            )
+            
+            print("   Created MultiDayPlanData with \(plan.days.count) days")
+            
+            let planTypeText = functionResponse.planType == "both" ? "workout & nutrition" : functionResponse.planType
+            let response = FirebaseChatMessage(
+                content: "Here's your \(plan.days.count)-day \(planTypeText) plan 📅",
+                isFromUser: false,
+                messageType: "multi_day_plan",
+                multiDayPlan: plan
+            )
+            
+            print("   Created message with type: \(response.messageType)")
+            print("   Message has multiDayPlan: \(response.multiDayPlan != nil)")
+            
+            messages.append(response)
+            saveMessage(response)
+            
+            print("   ✅ Multi-day plan message saved successfully")
+            
+        } catch {
+            print("❌ Failed to decode multi-day plan: \(error)")
+            if let jsonString = String(data: data, encoding: .utf8) {
+                print("Raw JSON: \(jsonString)")
+            }
+            
+            sendErrorMessage("Had trouble generating that multi-day plan. Please try again.")
         }
     }
     

@@ -363,6 +363,10 @@ class AIPromptBuilder {
         - When creating a plan, provide:
           * Text response: Friendly overview mentioning meal types and key foods
           * Function call: Structured data with meals, foods, portions, macros
+        - ⚠️ CRITICAL: ONLY generate main meals (Breakfast, Lunch, Dinner)
+        - ❌ DO NOT generate Snacks or between-meal foods
+        - If user asks for "full day meal plan", generate 3 meals: Breakfast, Lunch, Dinner
+        - If user asks for single meal (e.g., "breakfast"), generate only that meal
         - Vary protein sources: chicken, fish, beef, tofu, eggs, legumes
         - Vary carb sources: rice, quinoa, oats, sweet potato, pasta, bread
         - Include different vegetables and fruits
@@ -372,15 +376,15 @@ class AIPromptBuilder {
         - End text with encouraging message (NO "what do you think?" questions)
         
         Multi-day plans (ONLY when calling functions):
-        - If user asks for "this week", "next week", "7 days", etc.:
-          * Call function once for each day (7 times for 7-day plan)
-          * In text response, give overview: "I've created a 7-day workout plan for you!"
-        - If user asks for "these two days", "this weekend", etc.:
-          * Call function once for each day (2 times)
-          * In text response, give overview of both days
-        - Vary exercises/meals across days for variety
-        - Consider rest days for workout plans
-        - In text response, provide brief overview of the multi-day plan
+        ⚠️ NEW: Use generate_multi_day_plan() function for multi-day requests!
+        - If user asks for 2-7 days: "this week", "next 3 days", "5-day plan", etc.
+          * Call generate_multi_day_plan() ONCE with all days included
+          * Maximum 7 days per plan
+          * Each day should have varied content (different exercises/meals)
+          * In text response: "I've created your [X]-day [workout/nutrition] plan!"
+        - For workout plans: Include 1-2 rest days per week
+        - For nutrition plans: Vary meals across days (different proteins, carbs, recipes)
+        - Set plan_type: "workout", "nutrition", or "both" based on user request
         
         IMPORTANT REMINDERS:
         - For general questions: Only text response, NO function calls
@@ -407,10 +411,21 @@ class AIPromptBuilder {
            → Wait for user's time response, then go to STEP 3
         
         STEP 3 - Generate plan immediately:
-        - DO NOT ask for confirmation (e.g., "How about...", "Does this sound good?")
-        - DO NOT describe what you're going to create
-        - JUST CALL THE FUNCTION and provide a brief friendly message
-        - Example: "Great! I've created your breakfast plan for 9 AM 🍽️" (then call function)
+        ⚠️ CRITICAL: When generating a plan, you MUST do BOTH in the SAME response:
+        1. Call the function (generate_workout_plan or generate_nutrition_plan)
+        2. Provide a brief text message
+        
+        ❌ WRONG behaviors (DO NOT do these):
+        - Saying "ok, let me create that for you" then stopping → This is INCOMPLETE
+        - Saying "Let me create that for you" then waiting for user → This is INCOMPLETE
+        - Responding with ONLY text without calling function → This is INCOMPLETE
+        
+        ✅ CORRECT behavior:
+        - Text: "Great! I've created your breakfast plan for 9 AM 🍽️"
+        - Function: generate_nutrition_plan(...) 
+        - BOTH happen in the SAME response
+        
+        If you only respond with text and don't call the function, the user will think you're broken.
         
         Other rules:
         - DO NOT ask for goal (already in user profile)

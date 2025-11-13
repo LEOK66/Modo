@@ -144,44 +144,9 @@ struct ChatBubble: View {
                         .cornerRadius(20)
                         .frame(maxWidth: 260, alignment: .leading)
                     
-                    // Show action buttons if this looks like a plan suggestion and not already acted upon
-                    if shouldShowActionButtons(for: message.content) && !message.actionTaken {
-                        HStack(spacing: 16) {
-                            Button(action: {
-                                onReject?(message)
-                            }) {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "xmark")
-                                        .font(.system(size: 16, weight: .semibold))
-                                    Text("Reject")
-                                        .font(.system(size: 14, weight: .medium))
-                                }
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 10)
-                                .background(Color(hexString: "EF4444"))
-                                .cornerRadius(20)
-                            }
-                            .disabled(message.actionTaken)
-                            
-                            Button(action: {
-                                onAccept?(message)
-                            }) {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 16, weight: .semibold))
-                                    Text("Add")
-                                        .font(.system(size: 14, weight: .medium))
-                                }
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 10)
-                                .background(Color(hexString: "10B981"))
-                                .cornerRadius(20)
-                            }
-                        }
-                        .padding(.leading, 4)
-                    }
+                    // ✅ REMOVED: No longer show buttons for plain text messages
+                    // Buttons are only shown for structured plans (workout_plan, nutrition_plan, multi_day_plan)
+                    // This prevents false positives when AI is just asking questions (e.g., "What time?")
                 }
             }
             
@@ -191,58 +156,6 @@ struct ChatBubble: View {
                 .foregroundColor(Color(hexString: "9CA3AF"))
                 .padding(.leading, 4)
         }
-    }
-    
-    // MARK: - Check if should show action buttons
-    private func shouldShowActionButtons(for content: String) -> Bool {
-        let lowercaseContent = content.lowercased()
-        
-        // First check: Message must have a structured plan format (multiple exercises/meals listed)
-        // This is the strongest indicator of an actual plan
-        
-        // Check for structured workout plan (multiple exercises with sets x reps format)
-        // Look for patterns like "3 sets x 10 reps" or "4 sets x 8-10 reps"
-        let hasSetsXReps = lowercaseContent.contains("sets x") || lowercaseContent.contains("sets ×")
-        let setsXRepsCount = lowercaseContent.components(separatedBy: "sets x").count + 
-                             lowercaseContent.components(separatedBy: "sets ×").count
-        // Also check for number patterns that indicate multiple exercises
-        let hasMultipleSets = setsXRepsCount > 2
-        // Check for exercise names followed by sets/reps (strong indicator of structured plan)
-        let hasExerciseStructure = lowercaseContent.contains("sets") && 
-                                   (lowercaseContent.contains("reps") || lowercaseContent.contains("rest"))
-        let hasMultipleExercises = (hasSetsXReps && hasMultipleSets) || 
-                                   (hasExerciseStructure && setsXRepsCount >= 2)
-        
-        // Check for structured meal plan (multiple meals with specific foods)
-        let hasMultipleMeals = (lowercaseContent.contains("breakfast") && lowercaseContent.contains("lunch")) ||
-                               (lowercaseContent.contains("lunch") && lowercaseContent.contains("dinner")) ||
-                               (lowercaseContent.contains("breakfast") && lowercaseContent.contains("dinner"))
-        
-        // Check for multi-day plan structure
-        let hasMultiDayStructure = lowercaseContent.contains("day 1") || 
-                                   lowercaseContent.contains("day 2") ||
-                                   lowercaseContent.contains("monday") && lowercaseContent.contains("tuesday")
-        
-        // Second check: Must end with plan confirmation question
-        // Use flexible pattern matching instead of hardcoded phrases to support any language
-        // Check if message ends with a question mark and contains confirmation-related keywords
-        let hasQuestionMark = content.hasSuffix("?") || content.hasSuffix("？")
-        let confirmationKeywords = [
-            // English
-            "think", "plan", "work", "look", "ready", "start", "go",
-            // Chinese
-            "觉得", "如何", "怎么样", "可以", "开始", "计划"
-        ]
-        let hasConfirmationKeyword = confirmationKeywords.contains { keyword in
-            lowercaseContent.contains(keyword)
-        }
-        let endsWithQuestion = hasQuestionMark && hasConfirmationKeyword
-        
-        // Only show buttons if:
-        // 1. Has clear structured plan (multiple exercises OR multiple meals OR multi-day structure) AND
-        // 2. Ends with confirmation question
-        // This prevents showing buttons for general questions that just mention keywords
-        return (hasMultipleExercises || hasMultipleMeals || hasMultiDayStructure) && endsWithQuestion
     }
     
     // MARK: - Highlighted Text View (with purple numbers and red times)
