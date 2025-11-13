@@ -12,14 +12,11 @@ struct MainPageView: View {
     @State private var isShowingCalendar = false
     @State private var navigationPath = NavigationPath()
     @State private var isShowingProfile = false
-    @State private var isShowingDailyChallengeDetail = false
+    @State private var isShowingChallengeDetail = false
     
     // ViewModels - all business logic is handled here
     @StateObject private var taskListViewModel: TaskListViewModel
-    @StateObject private var challengeViewModel = DailyChallengeViewModel(
-        challengeService: ServiceContainer.shared.challengeService,
-        taskRepository: nil
-    )
+    @StateObject private var challengeViewModel: DailyChallengeViewModel
     
     init(selectedTab: Binding<Tab>) {
         self._selectedTab = selectedTab
@@ -35,6 +32,12 @@ struct MainPageView: View {
         // Repository and services will be created automatically using ServiceContainer
         self._taskListViewModel = StateObject(wrappedValue: TaskListViewModel(
             modelContext: tempModelContext
+        ))
+        
+        // Create ChallengeViewModel
+        self._challengeViewModel = StateObject(wrappedValue: DailyChallengeViewModel(
+            challengeService: ServiceContainer.shared.challengeService,
+            taskRepository: nil
         ))
     }
     
@@ -55,7 +58,7 @@ struct MainPageView: View {
     var body: some View {
         NavigationStack(path: $navigationPath) {
             ZStack {
-                Color.white.ignoresSafeArea()
+                Color(.systemBackground).ignoresSafeArea()
                 
                 VStack(spacing: 0) {
                     TopHeaderView(
@@ -71,9 +74,8 @@ struct MainPageView: View {
                             .padding(.horizontal, 24)
                         
                         TasksHeader(
-                            navigationPath: $navigationPath,
-                            selectedDate: taskListViewModel.selectedDate,
                             onAITaskTap: { taskListViewModel.generateAITask() },
+                            onAddTaskTap: { navigationPath.append(AddTaskDestination.addTask) },
                             isAITaskLoading: Binding(
                                 get: { taskListViewModel.isAITaskLoading },
                                 set: { _ in }
@@ -90,7 +92,7 @@ struct MainPageView: View {
                                 get: { taskListViewModel.replacingAITaskIds },
                                 set: { _ in }
                             ),
-                            isShowingChallengeDetail: $isShowingDailyChallengeDetail,
+                            isShowingChallengeDetail: $isShowingChallengeDetail,
                             onDeleteTask: { task in
                                 taskListViewModel.removeTask(task)
                             },
@@ -111,7 +113,7 @@ struct MainPageView: View {
                     
                     // MARK: - Bottom Bar with navigation
                     BottomBar(selectedTab: $selectedTab)
-                        .background(Color.white)
+                        .background(Color(.systemBackground))
                 }
                 
                 if isShowingCalendar {
@@ -129,7 +131,6 @@ struct MainPageView: View {
                             set: { newDate in
                                 let calendar = Calendar.current
                                 let normalizedDate = calendar.startOfDay(for: newDate)
-                                // Update selectedDate (this will trigger onChange)
                                 taskListViewModel.selectedDate = normalizedDate
                             }
                         ),
@@ -144,12 +145,18 @@ struct MainPageView: View {
                         .transition(.opacity)
                         .zIndex(1)
                 }
-            }
-            // Challenge detail sheet from main page
-            .sheet(isPresented: $isShowingDailyChallengeDetail) {
-                DailyChallengeDetailView(viewModel: challengeViewModel)
+
+                if isShowingChallengeDetail {
+                    DailyChallengeDetailView(
+                        viewModel: challengeViewModel,
+                        isPresented: $isShowingChallengeDetail
+                    )
+                    .transition(.opacity)
+                    .zIndex(1)
+                }
             }
             .animation(.easeInOut(duration: 0.2), value: isShowingProfile)
+            .animation(.easeInOut(duration: 0.2), value: isShowingChallengeDetail)
             .navigationDestination(for: AddTaskDestination.self) { _ in
                 AddTaskView(
                     selectedDate: taskListViewModel.selectedDate,
@@ -210,12 +217,6 @@ struct MainPageView: View {
         .onChange(of: taskListViewModel.selectedDate) { oldValue, newValue in
             // Handle date change in ViewModel
             taskListViewModel.handleDateChange()
-        }
-        // Refresh tasks when opening calendar
-        .onChange(of: isShowingCalendar) { _, newValue in
-            if newValue == true {
-                // Calendar will use tasksByDate from ViewModel directly
-            }
         }
     }
 }

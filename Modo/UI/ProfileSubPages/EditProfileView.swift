@@ -17,8 +17,41 @@ struct EditProfileView: View {
     }
 
     var body: some View {
-        Form {
-            Section(header: Text("Body Metrics")) {
+        ZStack(alignment: .top) {
+            Color(.systemBackground).ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                // Header
+                HStack {
+                    BackButton(action: { dismiss() })
+                        .frame(width: 66, height: 44)
+                    
+                    Spacer()
+                    
+                    Text("Edit Profile")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundColor(.primary)
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        viewModel.saveChanges()
+                        dismiss()
+                    }) {
+                        Text("Save")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(Color(hexString: "7C3AED"))
+                    }
+                    .frame(width: 66, height: 44)
+                }
+                .padding(.top, 12)
+                .padding(.horizontal, 24)
+                
+                Spacer().frame(height: 12)
+                
+                // Form content
+                Form {
+                    Section(header: Text("Body Metrics")) {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text("Height")
@@ -62,7 +95,7 @@ struct EditProfileView: View {
                             .multilineTextAlignment(.trailing)
                         Picker("Unit", selection: $viewModel.weightUnit) {
                             Text("kg").tag("kg")
-                            Text("lb").tag("lb")
+                            Text("lbs").tag("lbs")
                         }
                         .pickerStyle(.menu)
                     }
@@ -127,7 +160,7 @@ struct EditProfileView: View {
                             .multilineTextAlignment(.trailing)
                         Picker("Unit", selection: $viewModel.targetWeightLossUnit) {
                             Text("kg").tag("kg")
-                            Text("lb").tag("lb")
+                            Text("lbs").tag("lbs")
                         }
                         .pickerStyle(.menu)
                     }
@@ -179,17 +212,12 @@ struct EditProfileView: View {
                         .foregroundColor(.red)
                 }
             }
-        }
-        .navigationTitle("Edit Profile")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Save") {
-                    viewModel.saveChanges()
-                    dismiss()
                 }
+                .scrollContentBackground(.hidden)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .navigationBarBackButtonHidden(true)
         .onAppear {
             // Setup ViewModel with dependencies
             viewModel.setup(
@@ -206,9 +234,8 @@ struct EditProfileView: View {
                 viewModel.dailyProtein = String(rec)
             }
         }
-        .scrollContentBackground(.hidden)
         .background(
-            Color.white
+            Color(.systemBackground)
                 .contentShape(Rectangle())
                 .onTapGesture {
                     UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)

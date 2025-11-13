@@ -2,6 +2,7 @@ import SwiftUI
 
 struct DailyChallengeDetailView: View {
     @ObservedObject var viewModel: DailyChallengeViewModel
+    @Binding var isPresented: Bool
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
@@ -28,7 +29,7 @@ struct DailyChallengeDetailView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Today's Challenge")
                                 .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(Color(hexString: "6B7280"))
+                                .foregroundColor(.secondary)
                             
                             if viewModel.isCompleted {
                                 HStack(spacing: 8) {
@@ -76,7 +77,7 @@ struct DailyChallengeDetailView: View {
                                 viewModel.addToTasks { taskId in
                                     guard let taskId = taskId,
                                           let challenge = viewModel.challenge else {
-                                        dismiss()
+                                        isPresented = false
                                         return
                                     }
                                     
@@ -97,7 +98,7 @@ struct DailyChallengeDetailView: View {
                                         userInfo: userInfo
                                     )
                                     
-                                    dismiss()
+                                    isPresented = false
                                 }
                             }
                         }
@@ -114,11 +115,11 @@ struct DailyChallengeDetailView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Challenge")
                                 .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(Color(hexString: "6B7280"))
+                                .foregroundColor(.secondary)
                             
                             Text(viewModel.challenge?.title ?? "Loading...")
                                 .font(.system(size: 24, weight: .bold))
-                                .foregroundColor(Color(hexString: "111827"))
+                                .foregroundColor(.primary)
                         }
                         
                         // Subtitle/Description
@@ -126,11 +127,11 @@ struct DailyChallengeDetailView: View {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Description")
                                     .font(.system(size: 14, weight: .medium))
-                                    .foregroundColor(Color(hexString: "6B7280"))
+                                    .foregroundColor(.secondary)
                                 
                                 Text(subtitle)
                                     .font(.system(size: 16))
-                                    .foregroundColor(Color(hexString: "374151"))
+                                    .foregroundColor(.primary)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                         }
@@ -139,7 +140,7 @@ struct DailyChallengeDetailView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Details")
                                 .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(Color(hexString: "6B7280"))
+                                .foregroundColor(.secondary)
                             
                             HStack(spacing: 16) {
                                 // Type badge
@@ -150,7 +151,7 @@ struct DailyChallengeDetailView: View {
                                     
                                     Text(typeText)
                                         .font(.system(size: 14, weight: .medium))
-                                        .foregroundColor(Color(hexString: "374151"))
+                                        .foregroundColor(.primary)
                                 }
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 8)
@@ -168,7 +169,7 @@ struct DailyChallengeDetailView: View {
                                         
                                         Text("\(targetValue) \(targetUnit)")
                                             .font(.system(size: 14, weight: .medium))
-                                            .foregroundColor(Color(hexString: "374151"))
+                                            .foregroundColor(.primary)
                                     }
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 8)
@@ -185,7 +186,7 @@ struct DailyChallengeDetailView: View {
                             VStack(alignment: .leading, spacing: 12) {
                                 Text("Estimated Impact")
                                     .font(.system(size: 14, weight: .medium))
-                                    .foregroundColor(Color(hexString: "6B7280"))
+                                    .foregroundColor(.secondary)
                                 
                                 HStack(spacing: 12) {
                                     if impact.calories != nil {
@@ -195,7 +196,7 @@ struct DailyChallengeDetailView: View {
                                                 .foregroundColor(impact.isDiet ? Color(hexString: "10B981") : Color(hexString: "EF4444"))
                                             Text("\(impact.isDiet ? "+" : "-")\(impact.calories!) cal")
                                                 .font(.system(size: 14, weight: .medium))
-                                                .foregroundColor(Color(hexString: "374151"))
+                                                .foregroundColor(.primary)
                                         }
                                         .padding(.horizontal, 12)
                                         .padding(.vertical, 8)
@@ -212,7 +213,7 @@ struct DailyChallengeDetailView: View {
                                                 .foregroundColor(Color(hexString: "8B5CF6"))
                                             Text("\(minutes) min")
                                                 .font(.system(size: 14, weight: .medium))
-                                                .foregroundColor(Color(hexString: "374151"))
+                                                .foregroundColor(.primary)
                                         }
                                         .padding(.horizontal, 12)
                                         .padding(.vertical, 8)
@@ -234,7 +235,7 @@ struct DailyChallengeDetailView: View {
                                 
                                 Text("Tips")
                                     .font(.system(size: 14, weight: .medium))
-                                    .foregroundColor(Color(hexString: "6B7280"))
+                                    .foregroundColor(.secondary)
                             }
                             
                             VStack(alignment: .leading, spacing: 8) {
@@ -246,7 +247,7 @@ struct DailyChallengeDetailView: View {
                         .padding(16)
                         .background(
                             RoundedRectangle(cornerRadius: 12)
-                                .fill(Color(hexString: "FFFBEB"))
+                                .fill(Color(.secondarySystemBackground))
                         )
                     }
                     .padding(.horizontal, 24)
@@ -255,20 +256,32 @@ struct DailyChallengeDetailView: View {
                 }
                 .padding(.vertical, 16)
             }
-            .background(Color(hexString: "F9FAFB"))
+            .background(Color(.systemBackground))
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button {
-                        dismiss()
+                        isPresented = false
                     } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(Color(hexString: "6B7280"))
+                            .foregroundColor(.secondary)
                     }
                 }
             }
+            .gesture(
+                DragGesture(minimumDistance: 50)
+                    .onEnded { value in
+                        let horizontalAmount = value.translation.width
+                        let verticalAmount = value.translation.height
+                        
+                        // Only handle horizontal swipes (ignore vertical)
+                        if abs(horizontalAmount) > abs(verticalAmount) && horizontalAmount > 0 {
+                            isPresented = false
+                        }
+                    }
+            )
         }
     }
     
@@ -426,7 +439,7 @@ struct TipRow: View {
             
             Text(text)
                 .font(.system(size: 14))
-                .foregroundColor(Color(hexString: "374151"))
+                .foregroundColor(.primary)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }

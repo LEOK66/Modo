@@ -11,17 +11,17 @@ struct StatsCardView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Progress")
                     .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(Color(hexString: "101828"))
+                    .foregroundColor(.primary)
                 Text(daysCompletedText)
                     .font(.system(size: 10))
-                    .foregroundColor(Color(hexString: "6A7282"))
+                    .foregroundColor(.secondary)
             }
             .frame(width: 66, alignment: .leading)
             .padding(.leading, 8)
 
             ZStack {
                 Circle()
-                    .stroke(Color(hexString: "E5E7EB"), lineWidth: 8)
+                    .stroke(Color(.separator), lineWidth: 8)
                     .frame(width: 56, height: 56)
                 Circle()
                     .trim(from: 0, to: progressPercent)
@@ -31,29 +31,29 @@ struct StatsCardView: View {
                     .animation(.easeInOut(duration: 0.5), value: progressPercent)
                 Text("\(Int(progressPercent * 100))%")
                     .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(Color(hexString: "101828"))
+                    .foregroundColor(.primary)
             }
             .frame(width: 56, height: 88)
             .padding(.horizontal, 0)
 
             Rectangle()
-                .fill(Color(hexString: "E5E7EB"))
+                .fill(Color(.separator))
                 .frame(width: 1, height: 64)
                 .padding(.horizontal, 12)
 
             VStack(alignment: .center, spacing: 10) {
                 Text("Calories")
                     .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(Color(hexString: "101828"))
+                    .foregroundColor(.primary)
                 HStack(spacing: 0) {
                     VStack(alignment: .center, spacing: 2) {
                         Text("Expected")
                             .font(.system(size: 11))
-                            .foregroundColor(Color(hexString: "6A7282"))
+                            .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
                         Text(expectedCaloriesText)
                             .font(.system(size: 22, weight: .semibold))
-                            .foregroundColor(Color(hexString: "101828"))
+                            .foregroundColor(.primary)
                             .multilineTextAlignment(.center)
                     }
                     .frame(width: 65)
@@ -61,11 +61,11 @@ struct StatsCardView: View {
                     VStack(alignment: .center, spacing: 2) {
                         Text("Currently")
                             .font(.system(size: 11))
-                            .foregroundColor(Color(hexString: "6A7282"))
+                            .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
                         Text(currentlyCaloriesText)
                             .font(.system(size: 22, weight: .semibold))
-                            .foregroundColor(Color(hexString: "101828"))
+                            .foregroundColor(.primary)
                             .multilineTextAlignment(.center)
                     }
                     .frame(width: 65)
@@ -76,11 +76,11 @@ struct StatsCardView: View {
         }
         .background(
             RoundedRectangle(cornerRadius: 22)
-                .fill(Color.white)
-                .shadow(color: Color.black.opacity(0.04), radius: 2, x: 0, y: 1)
+                .fill(Color(.systemBackground))
+                .shadow(color: Color.primary.opacity(0.04), radius: 2, x: 0, y: 1)
                 .overlay(
                     RoundedRectangle(cornerRadius: 22)
-                        .stroke(Color(hexString: "E5E7EB"), lineWidth: 1)
+                        .stroke(Color(.separator), lineWidth: 1)
                 )
         )
         .frame(width: 327, height: 124)

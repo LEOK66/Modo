@@ -108,13 +108,13 @@ extension String {
         return value >= 20 && value <= 96 // default inches
     }
     
-    /// Validates weight by unit: lb (44-1100) or kg (20-500)
+    /// Validates weight by unit: lbs (44-1100) or kg (20-500)
     func isValidWeight(unit: String) -> Bool {
         guard let value = Double(self.trimmingCharacters(in: .whitespacesAndNewlines)) else { return false }
         if unit.lowercased() == "kg" {
             return value >= 20 && value <= 500
         }
-        return value >= 44 && value <= 1100 // default lb
+        return value >= 44 && value <= 1100 // default lbs
     }
     
     /// Validates if string is a valid age (10-120 years)
@@ -125,13 +125,13 @@ extension String {
         return age >= 10 && age <= 120
     }
     
-    /// Validates target weight loss by unit: lb (0.5-220) or kg (0.2-100)
+    /// Validates target weight loss by unit: lbs (0.5-220) or kg (0.2-100)
     func isValidTargetWeight(unit: String) -> Bool {
         guard let value = Double(self.trimmingCharacters(in: .whitespacesAndNewlines)) else { return false }
         if unit.lowercased() == "kg" {
             return value >= 0.2 && value <= 100
         }
-        return value >= 0.5 && value <= 220 // default lb
+        return value >= 0.5 && value <= 220 // default lbs
     }
     
     /// Validates if string is a valid target days (1-365 days)
@@ -139,7 +139,7 @@ extension String {
         guard let days = Int(self.trimmingCharacters(in: .whitespacesAndNewlines)) else {
             return false
         }
-        return days >= 1 && days <= 365
+        return (1...365).contains(days)
     }
 }
 

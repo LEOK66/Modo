@@ -16,9 +16,9 @@ final class EditProfileViewModel: ObservableObject {
     
     /// Local editable states (initialized from existing profile)
     @Published var heightValue: String = ""
-    @Published var heightUnit: String = "cm"
+    @Published var heightUnit: String = "in"
     @Published var weightValue: String = ""
-    @Published var weightUnit: String = "kg"
+    @Published var weightUnit: String = "lbs"
     @Published var ageValue: String = ""
     @Published var genderCode: String? = nil
     @Published var lifestyleCode: String? = nil
@@ -26,7 +26,7 @@ final class EditProfileViewModel: ObservableObject {
     @Published var dailyCalories: String = ""
     @Published var dailyProtein: String = ""
     @Published var targetWeightLoss: String = ""
-    @Published var targetWeightLossUnit: String = "kg"
+    @Published var targetWeightLossUnit: String = "lbs"
     @Published var targetDays: String = ""
     
     // MARK: - Published Properties - Validation State

@@ -14,7 +14,7 @@ struct DailyChallengeCardView: View {
                 HStack {
                     Text("Today's Challenge")
                         .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(Color(hexString: "6B7280"))
+                        .foregroundColor(.secondary)
                     
                     Spacer()
                     
@@ -75,7 +75,7 @@ struct DailyChallengeCardView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(viewModel.challenge?.title ?? "Loading...")
                             .font(.system(size: 20, weight: .semibold))
-                            .foregroundColor(Color(hexString: "111827"))
+                            .foregroundColor(.primary)
                             .lineLimit(1)
                         
                         if viewModel.isCompleted {
@@ -85,16 +85,16 @@ struct DailyChallengeCardView: View {
                         } else if viewModel.isAddedToTasks {
                             Text("Added to your tasks")
                                 .font(.system(size: 14))
-                                .foregroundColor(Color(hexString: "6B7280"))
+                                .foregroundColor(.secondary)
                         } else if let subtitle = viewModel.challenge?.subtitle {
                             Text(subtitle)
                                 .font(.system(size: 14))
-                                .foregroundColor(Color(hexString: "6B7280"))
+                                .foregroundColor(.secondary)
                                 .lineLimit(2)
                         } else {
                             Text("Tap + to add to tasks")
                                 .font(.system(size: 14))
-                                .foregroundColor(Color(hexString: "6B7280"))
+                                .foregroundColor(.secondary)
                         }
                     }
                     
@@ -103,7 +103,7 @@ struct DailyChallengeCardView: View {
                     // Chevron indicator for detail view
                     Image(systemName: "chevron.right")
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(Color(hexString: "9CA3AF"))
+                        .foregroundColor(.secondary)
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 6)
@@ -124,11 +124,11 @@ struct DailyChallengeCardView: View {
             .disabled(!viewModel.hasMinimumUserData || viewModel.isGenerating)
             .background(
                 RoundedRectangle(cornerRadius: 22)
-                    .fill(Color.white)
-                    .shadow(color: Color.black.opacity(0.04), radius: 2, x: 0, y: 1)
+                    .fill(Color(.systemBackground))
+                    .shadow(color: Color.primary.opacity(0.04), radius: 2, x: 0, y: 1)
                     .overlay(
                         RoundedRectangle(cornerRadius: 22)
-                            .stroke(Color(hexString: "E5E7EB"), lineWidth: 1)
+                            .stroke(Color(.separator), lineWidth: 1)
                     )
             )
             
@@ -143,7 +143,7 @@ struct DailyChallengeCardView: View {
                         .foregroundColor(Color(hexString: "8B5CF6"))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.white.opacity(0.95))
+                .background(Color(.systemBackground).opacity(0.95))
                 .cornerRadius(22)
                 .transition(.opacity)
             }
@@ -157,11 +157,11 @@ struct DailyChallengeCardView: View {
                     
                     Text("Start Your Challenge")
                         .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(Color(hexString: "111827"))
+                        .foregroundColor(.primary)
                     
                     Text("Please add your health data in Progress")
                         .font(.system(size: 14))
-                        .foregroundColor(Color(hexString: "6B7280"))
+                        .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                     
                     NavigationLink(destination: ProgressView()) {
@@ -176,7 +176,7 @@ struct DailyChallengeCardView: View {
                     .buttonStyle(PlainButtonStyle())
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.white.opacity(0.95))
+                .background(Color(.systemBackground).opacity(0.95))
                 .cornerRadius(22)
                 .transition(.opacity)
             }
@@ -212,7 +212,7 @@ struct DailyChallengeCardView: View {
             previousCompletionState = newValue
         }
         .sheet(isPresented: $showDetailView) {
-            DailyChallengeDetailView(viewModel: viewModel)
+            DailyChallengeDetailView(viewModel: viewModel, isPresented: $showDetailView)
         }
         .overlay(alignment: .top) {
             // Completion Toast
@@ -226,18 +226,18 @@ struct DailyChallengeCardView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("挑战完成！")
                                 .font(.system(size: 16, weight: .bold))
-                                .foregroundColor(Color(hexString: "111827"))
+                                .foregroundColor(.primary)
                             
                             Text("太棒了！你完成了今日挑战！🎉")
                                 .font(.system(size: 13))
-                                .foregroundColor(Color(hexString: "6B7280"))
+                                .foregroundColor(.secondary)
                         }
                     }
                     .padding(16)
                     .background(
                         RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.white)
-                            .shadow(color: Color.black.opacity(0.15), radius: 15, x: 0, y: 5)
+                            .fill(Color(.systemBackground))
+                            .shadow(color: Color.primary.opacity(0.15), radius: 15, x: 0, y: 5)
                     )
                 }
                 .padding(.top, -80)

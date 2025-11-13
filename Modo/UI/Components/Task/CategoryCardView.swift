@@ -18,7 +18,7 @@ struct CategoryCardView: View {
                 if selectedCategory == nil {
                     Text("Required")
                         .font(.system(size: 12))
-                        .foregroundColor(Color(hexString: "9CA3AF"))
+                        .foregroundColor(.secondary)
                 }
                 // AI suggestions row (placeholder)
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -36,7 +36,7 @@ struct CategoryCardView: View {
     private func label(_ text: String) -> some View {
         Text(text)
             .font(.system(size: 14))
-            .foregroundColor(Color(hexString: "4A5565"))
+            .foregroundColor(.secondary)
     }
     
     private func categoryChip(_ category: TaskCategory) -> some View {
@@ -53,11 +53,11 @@ struct CategoryCardView: View {
             HStack(spacing: 8) {
                 Text(category.rawValue)
                     .font(.system(size: 16))
-                    .foregroundColor(Color(hexString: "0A0A0A"))
+                    .foregroundColor(.primary)
             }
             .frame(height: 48)
             .frame(maxWidth: .infinity)
-            .background(isSelected ? Color(hexString: "F3E8FF") : Color(hexString: "F9FAFB"))
+            .background(isSelected ? Color(.tertiarySystemBackground) : Color(.secondarySystemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -70,10 +70,10 @@ struct CategoryCardView: View {
         Button(action: { /* placeholder */ }) {
             Text(title)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundColor(Color(hexString: "101828"))
+                .foregroundColor(.primary)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .background(Color(hexString: "F3F4F6"))
+                .background(Color(.tertiarySystemBackground))
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -83,9 +83,9 @@ struct CategoryCardView: View {
     private func card<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         content()
             .padding(16)
-            .background(Color.white)
+            .background(Color(.systemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
+            .shadow(color: Color.primary.opacity(0.1), radius: 8, x: 0, y: 2)
     }
 }
 

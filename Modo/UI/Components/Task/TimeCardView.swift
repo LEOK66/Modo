@@ -16,15 +16,19 @@ struct TimeCardView: View {
                 }) {
                     HStack {
                         Text(formattedTime)
-                            .foregroundColor(Color(hexString: "0A0A0A"))
+                            .foregroundColor(.primary)
                         Spacer()
                         Image(systemName: "clock")
-                            .foregroundColor(Color(hexString: "6A7282"))
+                            .foregroundColor(.secondary)
                     }
                     .padding(.horizontal, 16)
                     .frame(height: 48)
-                    .background(Color(hexString: "F9FAFB"))
+                    .background(Color(.secondarySystemBackground))
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(Color(.separator), lineWidth: 0.5)
+                    )
                 }
                 .buttonStyle(.plain)
                 .sheet(isPresented: $isTimeSheetPresented, onDismiss: {
@@ -60,16 +64,16 @@ struct TimeCardView: View {
     private func label(_ text: String) -> some View {
         Text(text)
             .font(.system(size: 14))
-            .foregroundColor(Color(hexString: "4A5565"))
+            .foregroundColor(.secondary)
     }
     
     @ViewBuilder
     private func card<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         content()
             .padding(16)
-            .background(Color.white)
+            .background(Color(.systemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
+            .shadow(color: Color.primary.opacity(0.1), radius: 8, x: 0, y: 2)
     }
 }
 

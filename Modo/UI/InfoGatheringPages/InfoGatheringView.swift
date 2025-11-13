@@ -6,7 +6,6 @@ struct InfoGatheringView: View {
     @EnvironmentObject var authService: AuthService
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    @Query private var profiles: [UserProfile]
     
     // ViewModel - manages all business logic and state
     @StateObject private var viewModel = InfoGatheringViewModel()
@@ -14,7 +13,7 @@ struct InfoGatheringView: View {
     
     var body: some View {
         ZStack {
-            Color.white
+            Color(.systemBackground)
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
                 .onTapGesture {
@@ -76,11 +75,9 @@ struct InfoGatheringView: View {
             }
         }
         .onAppear {
-            // Setup ViewModel with dependencies
             viewModel.setup(
                 modelContext: modelContext,
-                authService: authService,
-                profiles: profiles
+                authService: authService
             )
         }
     }
@@ -96,24 +93,15 @@ private struct HeightStepView: View {
     let onSkip: () -> Void
     let onBack: (() -> Void)?
     
-    private func heightRange(for unit: String) -> (Double, Double) {
-        unit == "cm" ? (50, 250) : (20, 96)
-    }
-
-    private func isValidNumberInRange(_ text: String, range: (Double, Double)) -> Bool {
-        guard let v = Double(text) else { return false }
-        return v >= range.0 && v <= range.1
-    }
-
     var body: some View {
-        let range = heightRange(for: heightUnit)
+        let range = heightUnit == "cm" ? (50, 250) : (20, 96)
         StepTemplate(
             title: "What's your height?",
             subtitle: "This helps us personalize your experience",
             buttonTitle: "Continue",
             buttonEnabled: !height.isEmpty,
             onButtonTap: {
-                let valid = isValidNumberInRange(height, range: range)
+                let valid = height.isValidHeight(unit: heightUnit)
                 showError = !valid && !height.isEmpty
                 if height.isEmpty || valid {
                     showError = false
@@ -131,11 +119,11 @@ private struct HeightStepView: View {
                     trailingAccessory: AnyView(UnitSelector(selection: $heightUnit, options: ["in", "cm"]))
                 )
                 .onChange(of: height) {
-                    let valid = isValidNumberInRange(height, range: heightRange(for: heightUnit))
+                    let valid = height.isValidHeight(unit: heightUnit)
                     showError = !valid && !height.isEmpty
                 }
                 .onChange(of: heightUnit) {
-                    let valid = isValidNumberInRange(height, range: heightRange(for: heightUnit))
+                    let valid = height.isValidHeight(unit: heightUnit)
                     showError = !valid && !height.isEmpty
                 }
                 if showError {
@@ -162,11 +150,6 @@ private struct WeightStepView: View {
         unit == "kg" ? (20, 500) : (44, 1100) // kg/lb
     }
 
-    private func isValidNumberInRange(_ text: String, range: (Double, Double)) -> Bool {
-        guard let v = Double(text) else { return false }
-        return v >= range.0 && v <= range.1
-    }
-
     var body: some View {
         let range = weightRange(for: weightUnit)
         StepTemplate(
@@ -175,7 +158,7 @@ private struct WeightStepView: View {
             buttonTitle: "Continue",
             buttonEnabled: !weight.isEmpty,
             onButtonTap: {
-                let valid = isValidNumberInRange(weight, range: range)
+                let valid = weight.isValidWeight(unit: weightUnit)
                 showError = !valid && !weight.isEmpty
                 if weight.isEmpty || valid {
                     showError = false
@@ -190,14 +173,14 @@ private struct WeightStepView: View {
                     placeholder: "Enter weight",
                     text: $weight,
                     keyboardType: .decimalPad,
-                    trailingAccessory: AnyView(UnitSelector(selection: $weightUnit, options: ["lb", "kg"]))
+                    trailingAccessory: AnyView(UnitSelector(selection: $weightUnit, options: ["lbs", "kg"]))
                 )
                 .onChange(of: weight) {
-                    let valid = isValidNumberInRange(weight, range: weightRange(for: weightUnit))
+                    let valid = weight.isValidWeight(unit: weightUnit)
                     showError = !valid && !weight.isEmpty
                 }
                 .onChange(of: weightUnit) {
-                    let valid = isValidNumberInRange(weight, range: weightRange(for: weightUnit))
+                    let valid = weight.isValidWeight(unit: weightUnit)
                     showError = !valid && !weight.isEmpty
                 }
                 if showError {
@@ -226,7 +209,7 @@ private struct AgeStepView: View {
             buttonTitle: "Continue",
             buttonEnabled: !age.isEmpty,
             onButtonTap: {
-                if let ageValue = Int(age), ageValue >= 10 && ageValue <= 120 {
+                if age.isValidAge {
                     showError = false
                     onContinue()
                 } else if !age.isEmpty {
@@ -247,7 +230,7 @@ private struct AgeStepView: View {
                     suffix: "years"
                 )
                 .onChange(of: age) {
-                    if let ageValue = Int(age), ageValue >= 10 && ageValue <= 120 {
+                    if age.isValidAge {
                         showError = false
                     } else if !age.isEmpty {
                         showError = true
@@ -435,11 +418,6 @@ private struct FinalStepView: View {
     private func lossRange(for unit: String) -> (Double, Double) {
         unit == "kg" ? (0.2, 100) : (0.5, 220)
     }
-    // 校验/非空 Helper
-    private func isValidNumberInRange(_ text: String, range: (Double, Double)) -> Bool {
-        guard let v = Double(text) else { return false }
-        return v >= range.0 && v <= range.1
-    }
 
     var body: some View {
         if goal == nil {
@@ -490,24 +468,24 @@ private struct FinalStepView: View {
           default: return ""
         }
     }
-    // 校验逻辑
+
     private var isCurrentInputValid: Bool {
         switch goal {
         case .loseWeight:
             let range = lossRange(for: lossUnit)
-            let validWeight = isValidNumberInRange(targetWeightLoss, range: range)
-            let validDays = (Int(targetDays) ?? 0) >= 1 && (Int(targetDays) ?? 0) <= 365
+            let validWeight = targetWeightLoss.isValidTargetWeight(unit: lossUnit)
+            let validDays = targetDays.isValidTargetDays
             return (!targetWeightLoss.isEmpty && validWeight) && (!targetDays.isEmpty && validDays)
         case .keepHealthy:
-            let validDays = (Int(targetDays) ?? 0) >= 1 && (Int(targetDays) ?? 0) <= 365
+            let validDays = targetDays.isValidTargetDays
             return (!actualCalories.isEmpty && Int(actualCalories) ?? 0 > 600) && (!targetDays.isEmpty && validDays)
         case .gainMuscle:
-            let validDays = (Int(targetDays) ?? 0) >= 1 && (Int(targetDays) ?? 0) <= 365
+            let validDays = targetDays.isValidTargetDays
             return (!actualProtein.isEmpty && Int(actualProtein) ?? 0 >= 20) && (!targetDays.isEmpty && validDays)
         default: return false
         }
     }
-    // lose weight
+
     private var weightLossBlock: some View {
         let range = lossRange(for: lossUnit)
         let errorView: some View = Group {
@@ -528,14 +506,14 @@ private struct FinalStepView: View {
                     placeholder: "Target weight",
                     text: $targetWeightLoss,
                     keyboardType: .decimalPad,
-                    trailingAccessory: AnyView(UnitSelector(selection: $lossUnit, options: ["lb", "kg"]))
+                    trailingAccessory: AnyView(UnitSelector(selection: $lossUnit, options: ["lbs", "kg"]))
                 )
                 .onChange(of: targetWeightLoss) {
-                    let valid = isValidNumberInRange(targetWeightLoss, range: lossRange(for: lossUnit))
+                    let valid = targetWeightLoss.isValidTargetWeight(unit: lossUnit)
                     showWeightError = !valid && !targetWeightLoss.isEmpty
                 }
                 .onChange(of: lossUnit) {
-                    let valid = isValidNumberInRange(targetWeightLoss, range: lossRange(for: lossUnit))
+                    let valid = targetWeightLoss.isValidTargetWeight(unit: lossUnit)
                     showWeightError = !valid && !targetWeightLoss.isEmpty
                 }
                 errorView
@@ -543,7 +521,7 @@ private struct FinalStepView: View {
             timeframeBlock
         }
     }
-    // keep healthy
+
     @State var showInfoTip = false
     private var healthyBlock: some View {
         let errorView: some View = Group {
@@ -673,7 +651,7 @@ private struct FinalStepView: View {
                 suffix: "days"
             )
             .onChange(of: targetDays) {
-                let valid = (Int(targetDays) ?? 0) >= 1 && (Int(targetDays) ?? 0) <= 365
+                let valid = targetDays.isValidTargetDays
                 showDaysError = !valid && !targetDays.isEmpty
             }
             if showDaysError {

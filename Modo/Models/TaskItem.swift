@@ -53,6 +53,29 @@ struct TaskItem: Identifiable, Codable {
         }
     }
     
+    /// Create a copy of this task with updated isDone status
+    /// Automatically updates the updatedAt timestamp
+    func with(isDone: Bool) -> TaskItem {
+        return TaskItem(
+            id: id,
+            title: title,
+            subtitle: subtitle,
+            time: time,
+            timeDate: timeDate,
+            endTime: endTime,
+            meta: meta,
+            isDone: isDone,
+            emphasisHex: emphasisHex,
+            category: category,
+            dietEntries: dietEntries,
+            fitnessEntries: fitnessEntries,
+            createdAt: createdAt,
+            updatedAt: Date(),
+            isAIGenerated: isAIGenerated,
+            isDailyChallenge: isDailyChallenge
+        )
+    }
+    
     // Custom Codable implementation to handle Date serialization
     private enum CodingKeys: String, CodingKey {
         case id, title, subtitle, time, timeDate, endTime, meta, isDone, emphasisHex, category, dietEntries, fitnessEntries, createdAt, updatedAt, isAIGenerated, isDailyChallenge

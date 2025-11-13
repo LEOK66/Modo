@@ -44,15 +44,19 @@ struct DescriptionCardView: View {
                     if !descriptionText.isEmpty {
                         Button(action: { descriptionText = "" }) {
                             Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(Color(hexString: "9CA3AF"))
+                                .foregroundColor(.secondary)
                         }
                         .padding(.trailing, 12)
                         .padding(.top, 12)
                         .buttonStyle(.plain)
                     }
                 }
-                .background(Color(hexString: "F9FAFB"))
+                .background(Color(.secondarySystemBackground))
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color(.separator), lineWidth: 0.5)
+                )
             }
         }
     }
@@ -60,16 +64,16 @@ struct DescriptionCardView: View {
     private func label(_ text: String) -> some View {
         Text(text)
             .font(.system(size: 14))
-            .foregroundColor(Color(hexString: "4A5565"))
+            .foregroundColor(.secondary)
     }
     
     @ViewBuilder
     private func card<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         content()
             .padding(16)
-            .background(Color.white)
+            .background(Color(.systemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
+            .shadow(color: Color.primary.opacity(0.1), radius: 8, x: 0, y: 2)
     }
 }
 

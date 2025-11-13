@@ -28,15 +28,15 @@ struct CombinedStatsCard: View {
     
     var body: some View {
         RoundedRectangle(cornerRadius: 16, style: .continuous)
-            .fill(Color.white)
+            .fill(Color(.systemBackground))
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color(hexString: "E5E7EB"), lineWidth: 1)
+                    .stroke(Color(.separator), lineWidth: 1)
             )
             .shadow(color: Color.black.opacity(0.04), radius: 2, x: 0, y: 1)
             .overlay(
                 HStack(spacing: 0) {
-                    StatItem(value: "\(completedCount)/\(totalCount)", label: "Completed", tint: Color(hexString: "101828"))
+                    StatItem(value: "\(completedCount)/\(totalCount)", label: "Completed", tint: .primary)
                     StatItem(value: "\(dietCount)", label: "Diet", tint: Color(hexString: "00A63E"))
                     StatItem(value: "\(fitnessCount)", label: "Fitness", tint: Color(hexString: "155DFC"))
                     StatItem(value: "\(totalCalories)", label: "Calories", tint: Color(hexString: "4ECDC4"))
@@ -61,7 +61,7 @@ struct CombinedStatsCard: View {
                     .contentTransition(.numericText())
                 Text(label)
                     .font(.system(size: 12))
-                    .foregroundColor(Color(hexString: "6A7282"))
+                    .foregroundColor(.secondary)
             }
             .frame(maxWidth: .infinity)
         }

@@ -6,8 +6,20 @@ struct SettingsView: View {
     @State private var notificationsEnabled = true
     
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+        ZStack(alignment: .top) {
+            Color(.systemBackground).ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                // Header
+                PageHeader(title: "Settings")
+                    .padding(.top, 12)
+                    .padding(.horizontal, 24)
+                
+                Spacer().frame(height: 12)
+                
+                // Content
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
                 // Appearance Section
                 settingsSection(title: "Appearance") {
                     SettingsToggleRow(
@@ -97,22 +109,22 @@ struct SettingsView: View {
                     HStack(spacing: 16) {
                         ZStack {
                             RoundedRectangle(cornerRadius: 14)
-                                .fill(Color(hexString: "F3F4F6"))
+                                .fill(Color(.secondarySystemBackground))
                                 .frame(width: 40, height: 40)
                             
                             Image(systemName: "info.circle")
                                 .font(.system(size: 20))
-                                .foregroundColor(Color(hexString: "364153"))
+                                .foregroundColor(.primary)
                         }
                         
                         VStack(alignment: .leading, spacing: 2) {
                             Text("App Version")
                                 .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(Color(hexString: "101828"))
+                                .foregroundColor(.primary)
                             
                             Text("1.0.0 (Build 2025)")
                                 .font(.system(size: 12))
-                                .foregroundColor(Color(hexString: "6A7282"))
+                                .foregroundColor(.secondary)
                         }
                         
                         Spacer()
@@ -127,12 +139,13 @@ struct SettingsView: View {
                     }
                     .padding(20)
                 }
+                    }
+                    .padding(.vertical, 16)
+                }
+                .background(Color(.secondarySystemBackground))
             }
-            .padding(.vertical, 16)
         }
-        .background(Color(hexString: "F3F4F6"))
-        .navigationTitle("Settings")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
     }
     
     // MARK: - Helper Views
@@ -144,14 +157,14 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title)
                 .font(.system(size: 14, weight: .medium))
-                .foregroundColor(Color(hexString: "6A7282"))
+                .foregroundColor(.secondary)
                 .padding(.leading, 4)
             
             content()
-                .background(Color.white)
+                .background(Color(.systemBackground))
                 .cornerRadius(16)
-                .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 1)
-                .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+                .shadow(color: Color.primary.opacity(0.1), radius: 3, x: 0, y: 1)
+                .shadow(color: Color.primary.opacity(0.1), radius: 2, x: 0, y: 1)
         }
         .padding(.horizontal, 24)
     }

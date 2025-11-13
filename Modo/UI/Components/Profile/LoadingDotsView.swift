@@ -1,26 +1,61 @@
 import SwiftUI
 
+/// Reusable loading dots animation component
+/// Uses scale effect animation similar to TasksHeader
 struct LoadingDotsView: View {
-    @State private var animationOffset: CGFloat = 0
+    let dotSize: CGFloat
+    let dotColor: Color
+    let spacing: CGFloat
+    let isAnimating: Bool
+    
+    @State private var animateDots = false
+    
+    init(
+        dotSize: CGFloat = 12,
+        dotColor: Color = Color(hexString: "8B5CF6"),
+        spacing: CGFloat = 8,
+        isAnimating: Bool = true
+    ) {
+        self.dotSize = dotSize
+        self.dotColor = dotColor
+        self.spacing = spacing
+        self.isAnimating = isAnimating
+    }
     
     var body: some View {
-        HStack(spacing: 8) {
-            ForEach(0..<3) { index in
-                Circle()
-                    .fill(Color(hexString: "8B5CF6"))
-                    .frame(width: 12, height: 12)
-                    .offset(y: animationOffset)
-                    .animation(
-                        Animation
-                            .easeInOut(duration: 0.6)
-                            .repeatForever(autoreverses: true)
-                            .delay(Double(index) * 0.2),
-                        value: animationOffset
-                    )
-            }
+        HStack(spacing: spacing) {
+            Circle()
+                .fill(dotColor)
+                .frame(width: dotSize, height: dotSize)
+                .scaleEffect(animateDots ? 1.2 : 0.6)
+                .animation(.easeInOut(duration: 0.6).repeatForever(), value: animateDots)
+            
+            Circle()
+                .fill(dotColor)
+                .frame(width: dotSize, height: dotSize)
+                .scaleEffect(animateDots ? 1.2 : 0.6)
+                .animation(.easeInOut(duration: 0.6).repeatForever().delay(0.2), value: animateDots)
+            
+            Circle()
+                .fill(dotColor)
+                .frame(width: dotSize, height: dotSize)
+                .scaleEffect(animateDots ? 1.2 : 0.6)
+                .animation(.easeInOut(duration: 0.6).repeatForever().delay(0.4), value: animateDots)
         }
         .onAppear {
-            animationOffset = -10
+            if isAnimating {
+                animateDots = true
+            }
+        }
+        .onDisappear {
+            animateDots = false
+        }
+        .onChange(of: isAnimating) { _, newValue in
+            if newValue {
+                animateDots = true
+            } else {
+                animateDots = false
+            }
         }
     }
 }

@@ -20,7 +20,7 @@ struct InsightsPageView: View {
     var body: some View {
         VStack(spacing: 0) {
             headerView
-            Divider().background(Color(hexString: "E5E7EB"))
+            Divider().background(Color(.separator))
             FirebaseChatMessagesView
             inputFieldView
             if viewModel.keyboardHeight == 0 {
@@ -29,7 +29,7 @@ struct InsightsPageView: View {
             }
         }
         .animation(.easeOut(duration: 0.3), value: viewModel.keyboardHeight)
-        .background(Color(hexString: "F9FAFB").ignoresSafeArea())
+        .background(Color(.systemBackground).ignoresSafeArea())
         .onTapGesture {
             // Dismiss keyboard when tapping outside input field
             if isInputFocused {
@@ -140,10 +140,10 @@ struct InsightsPageView: View {
             VStack(spacing: 2) {
                 Text("Modor")
                     .font(.system(size: 22, weight: .bold))
-                    .foregroundColor(Color(hexString: "101828"))
+                    .foregroundColor(.primary)
                 Text("Your wellness assistant")
                     .font(.system(size: 13))
-                    .foregroundColor(Color(hexString: "6B7280"))
+                    .foregroundColor(.secondary)
             }
             
             // Clear History Button (positioned on right)
@@ -154,7 +154,7 @@ struct InsightsPageView: View {
                 }) {
                     Image(systemName: "trash")
                         .font(.system(size: 16))
-                        .foregroundColor(Color(hexString: "6B7280"))
+                        .foregroundColor(.secondary)
                         .frame(width: 36, height: 36)
                 }
                 .padding(.trailing, 16)
@@ -162,7 +162,7 @@ struct InsightsPageView: View {
         }
         .frame(height: 60)
         .padding(.top, 12)
-        .background(Color.white)
+        .background(Color(.systemBackground))
     }
     
     private var FirebaseChatMessagesView: some View {
@@ -217,7 +217,7 @@ struct InsightsPageView: View {
                     }
             )
         }
-        .background(Color.white)
+        .background(Color(.systemBackground))
     }
     
     private var loadingIndicator: some View {
@@ -240,7 +240,7 @@ struct InsightsPageView: View {
             HStack(spacing: 8) {
                 ForEach(0..<3) { index in
                     Circle()
-                        .fill(Color(hexString: "9CA3AF"))
+                        .fill(.secondary)
                         .frame(width: 8, height: 8)
                         .scaleEffect(viewModel.isProcessing ? 1 : 0.5)
                         .animation(
@@ -253,7 +253,7 @@ struct InsightsPageView: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .background(Color(hexString: "F3F4F6"))
+            .background(Color(.secondarySystemBackground))
             .cornerRadius(20)
             
             Spacer()
@@ -266,7 +266,7 @@ struct InsightsPageView: View {
         ZStack(alignment: .bottomLeading) {
             VStack(spacing: 0) {
                 Divider()
-                    .background(Color(hexString: "E5E7EB"))
+                    .background(Color(.separator))
                 
                 HStack(spacing: 12) {
                     // Placeholder for plus button space
@@ -287,7 +287,7 @@ struct InsightsPageView: View {
                             .foregroundColor(.white)
                             .frame(width: 40, height: 40)
                             .background(
-                                viewModel.inputText.isEmpty ? Color.gray.opacity(0.5) : Color.purple.opacity(0.7)
+                                viewModel.inputText.isEmpty ? Color(.tertiarySystemBackground) : Color(hexString: "8B5CF6").opacity(0.7)
                             )
                             .clipShape(Circle())
                     }
@@ -295,7 +295,7 @@ struct InsightsPageView: View {
                 }
                 .padding(.horizontal, 24)
                 .padding(.vertical, 16)
-                .background(Color.white)
+                .background(Color(.systemBackground))
             }
             
             plusButtonMenu
@@ -346,7 +346,7 @@ struct InsightsPageView: View {
                     .overlay(
                         Image(systemName: "plus")
                             .font(.system(size: 18))
-                            .foregroundColor(.black)
+                            .foregroundColor(.primary)
                             .rotationEffect(.degrees(viewModel.showAttachmentMenu ? 45 : 0))
                     )
                     .onTapGesture {
@@ -356,9 +356,9 @@ struct InsightsPageView: View {
                     }
             }
         }
-        .background(Color.white)
+        .background(Color(.systemBackground))
         .clipShape(Capsule())
-        .overlay(Capsule().stroke(Color(hexString: "E5E7EB"), lineWidth: 1))
+        .overlay(Capsule().stroke(Color(.separator), lineWidth: 1))
         .padding(.leading, 24)
         .padding(.bottom, 16)
     }

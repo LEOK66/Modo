@@ -106,6 +106,13 @@ final class DailyChallengeViewModel: ObservableObject {
         // We observe those changes in setupObservers()
     }
     
+    /// Check if it's a new day and reset challenge if needed
+    func checkAndResetForNewDay() {
+        if let service = challengeService as? DailyChallengeService {
+            service.checkAndResetForNewDay()
+        }
+    }
+    
     /// Update challenge completion status
     /// - Parameter completed: Whether the challenge is completed
     func updateCompletion(_ completed: Bool) {

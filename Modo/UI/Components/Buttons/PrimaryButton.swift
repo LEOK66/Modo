@@ -20,25 +20,12 @@ struct PrimaryButton: View {
                     .opacity(isLoading ? 0 : 1)
                 
                 if isLoading {
-                    HStack(spacing: 8) {
-                        Circle()
-                            .fill(Color(.systemBackground)) // Inverted: white in light mode, black in dark mode
-                            .frame(width: 8, height: 8)
-                            .scaleEffect(isLoading ? 1 : 0.5)
-                            .animation(.easeInOut(duration: 0.6).repeatForever(), value: isLoading)
-                        
-                        Circle()
-                            .fill(Color(.systemBackground)) // Inverted: white in light mode, black in dark mode
-                            .frame(width: 8, height: 8)
-                            .scaleEffect(isLoading ? 1 : 0.5)
-                            .animation(.easeInOut(duration: 0.6).repeatForever().delay(0.2), value: isLoading)
-                        
-                        Circle()
-                            .fill(Color(.systemBackground)) // Inverted: white in light mode, black in dark mode
-                            .frame(width: 8, height: 8)
-                            .scaleEffect(isLoading ? 1 : 0.5)
-                            .animation(.easeInOut(duration: 0.6).repeatForever().delay(0.4), value: isLoading)
-                    }
+                    LoadingDotsView(
+                        dotSize: 8,
+                        dotColor: Color(.systemBackground),
+                        spacing: 8,
+                        isAnimating: isLoading
+                    )
                 }
             }
             .frame(maxWidth: .infinity, minHeight: 52)

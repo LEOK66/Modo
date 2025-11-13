@@ -13,11 +13,11 @@ struct TaskDetailDisplayView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text(task.title)
                                 .font(.system(size: 24, weight: .bold))
-                                .foregroundColor(Color(hexString: "101828"))
+                                .foregroundColor(.primary)
                             if !task.subtitle.isEmpty {
                                 Text(task.subtitle)
                                     .font(.system(size: 16))
-                                    .foregroundColor(Color(hexString: "6A7282"))
+                                    .foregroundColor(.secondary)
                             }
                         }
                         Spacer()
@@ -30,7 +30,7 @@ struct TaskDetailDisplayView: View {
                             Text(task.time)
                                 .font(.system(size: 14))
                         }
-                        .foregroundColor(Color(hexString: "364153"))
+                        .foregroundColor(.secondary)
                         if let endTime = task.endTime {
                             HStack(spacing: 4) {
                                 Image(systemName: "timer")
@@ -38,17 +38,17 @@ struct TaskDetailDisplayView: View {
                                 Text(endTime)
                                     .font(.system(size: 14))
                             }
-                            .foregroundColor(Color(hexString: "364153"))
+                            .foregroundColor(.secondary)
                         }
                         Spacer()
                         // Status badge
                         HStack(spacing: 4) {
                             Circle()
-                                .fill(task.isDone ? Color(hexString: task.emphasisHex) : Color(hexString: "E5E7EB"))
+                                .fill(task.isDone ? Color(hexString: task.emphasisHex) : Color(UIColor.separator))
                                 .frame(width: 8, height: 8)
                             Text(task.isDone ? "Done" : "Pending")
                                 .font(.system(size: 12))
-                                .foregroundColor(Color(hexString: "6A7282"))
+                                .foregroundColor(.secondary)
                         }
                     }
                 }
@@ -71,10 +71,10 @@ struct TaskDetailDisplayView: View {
             content()
                 .padding(16)
         }
-        .background(Color.white)
+        .background(Color(.systemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 1)
-        .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+        .shadow(color: Color.primary.opacity(0.05), radius: 3, x: 0, y: 1)
+        .shadow(color: Color.primary.opacity(0.05), radius: 2, x: 0, y: 1)
     }
 }
 

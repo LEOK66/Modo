@@ -46,7 +46,7 @@ struct DietEntriesCardView: View {
                         }
                         .padding(.vertical, 12)
                         .padding(.horizontal, 16)
-                        .background(Color(hexString: "F0FDF4"))
+                        .background(Color(hexString: "16A34A").opacity(0.1))
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .overlay(
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -63,7 +63,7 @@ struct DietEntriesCardView: View {
                         HStack {
                             Text("Total Calories")
                                 .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(Color(hexString: "0A0A0A"))
+                                .foregroundColor(.primary)
                             Spacer()
                             Text("\(totalDietCalories) cal")
                                 .font(.system(size: 16, weight: .semibold))
@@ -74,13 +74,13 @@ struct DietEntriesCardView: View {
                     VStack(spacing: 8) {
                         Image(systemName: "fork.knife.circle")
                             .font(.system(size: 32))
-                            .foregroundColor(Color(hexString: "D1D5DB"))
+                            .foregroundColor(.secondary)
                         Text("No food items added yet")
                             .font(.system(size: 14))
-                            .foregroundColor(Color(hexString: "6B7280"))
+                            .foregroundColor(.secondary)
                         Text("Tap 'Add Food Item' to get started")
                             .font(.system(size: 12))
-                            .foregroundColor(Color(hexString: "9CA3AF"))
+                            .foregroundColor(.secondary)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 24)
@@ -103,20 +103,24 @@ struct DietEntriesCardView: View {
                 }) {
                     HStack {
                         Image(systemName: "magnifyingglass")
-                            .foregroundColor(Color(hexString: "6B7280"))
+                            .foregroundColor(.secondary)
                         Text(entry.food?.name ?? (entry.customName.isEmpty ? "Choose Food" : entry.customName))
-                            .foregroundColor(entry.food != nil ? Color(hexString: "0A0A0A") : Color(hexString: "6B7280"))
+                            .foregroundColor(entry.food != nil ? .primary : .secondary)
                             .lineLimit(1)
                         
                         Spacer()
                         Image(systemName: "chevron.right")
-                            .foregroundColor(Color(hexString: "9CA3AF"))
+                            .foregroundColor(.secondary)
                             .font(.system(size: 12))
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
-                    .background(Color(hexString: "F9FAFB"))
+                    .background(Color(.tertiarySystemBackground))
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(Color(.separator), lineWidth: 0.5)
+                    )
                 }
                 .buttonStyle(.plain)
                 
@@ -134,7 +138,7 @@ struct DietEntriesCardView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Quantity")
                         .font(.system(size: 12))
-                        .foregroundColor(Color(hexString: "6B7280"))
+                        .foregroundColor(.secondary)
                     TextField(placeholderForUnit(entry.unit), text: Binding(
                         get: { dietEntries[index].quantityText },
                         set: { newValue in
@@ -152,15 +156,19 @@ struct DietEntriesCardView: View {
                     .textFieldStyle(.plain)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 8)
-                    .background(Color.white)
+                    .background(Color(.systemBackground))
                     .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .stroke(Color(.separator), lineWidth: 0.5)
+                    )
                 }
                 
                 // Dynamically show unit options based on food data
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Unit")
                         .font(.system(size: 12))
-                        .foregroundColor(Color(hexString: "6B7280"))
+                        .foregroundColor(.secondary)
                     
                     let hasGrams = entry.food?.hasPer100g == true
                     let hasServing = entry.food?.servingCalories != nil
@@ -217,7 +225,7 @@ struct DietEntriesCardView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Calories")
                         .font(.system(size: 12))
-                        .foregroundColor(Color(hexString: "6B7280"))
+                        .foregroundColor(.secondary)
                     HStack(spacing: 4) {
                         TextField("0", text: Binding(
                             get: { dietEntries[index].caloriesText },
@@ -229,11 +237,15 @@ struct DietEntriesCardView: View {
                         .textFieldStyle(.plain)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 8)
-                        .background(Color.white)
+                        .background(Color(.systemBackground))
                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .stroke(Color(.separator), lineWidth: 0.5)
+                        )
                         Text("cal")
                             .font(.system(size: 12))
-                            .foregroundColor(Color(hexString: "6B7280"))
+                            .foregroundColor(.secondary)
                     }
                 }
             }
@@ -242,7 +254,7 @@ struct DietEntriesCardView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Customize Diet")
                         .font(.system(size: 12))
-                        .foregroundColor(Color(hexString: "6B7280"))
+                        .foregroundColor(.secondary)
                     TextField("e.g., Homemade smoothie", text: Binding(
                         get: { dietEntries[index].customName },
                         set: { newValue in dietEntries[index].customName = newValue }
@@ -251,20 +263,24 @@ struct DietEntriesCardView: View {
                     .textFieldStyle(.plain)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 8)
-                    .background(Color.white)
+                    .background(Color(.systemBackground))
                     .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .stroke(Color(.separator), lineWidth: 0.5)
+                    )
                 }
             }
         }
         .padding(12)
-        .background(Color(hexString: "F9FAFB"))
+        .background(Color(.tertiarySystemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
     
     private func label(_ text: String) -> some View {
         Text(text)
             .font(.system(size: 14))
-            .foregroundColor(Color(hexString: "4A5565"))
+            .foregroundColor(.secondary)
     }
     
     private func placeholderForUnit(_ unit: String) -> String {
@@ -289,9 +305,9 @@ struct DietEntriesCardView: View {
     private func card<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         content()
             .padding(16)
-            .background(Color.white)
+            .background(Color(.systemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
+            .shadow(color: Color.primary.opacity(0.1), radius: 8, x: 0, y: 2)
     }
 }
 

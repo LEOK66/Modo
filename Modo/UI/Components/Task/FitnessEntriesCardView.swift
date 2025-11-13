@@ -50,7 +50,7 @@ struct FitnessEntriesCardView: View {
                         }
                         .padding(.vertical, 12)
                         .padding(.horizontal, 16)
-                        .background(Color(hexString: "F3F4F6"))
+                        .background(Color(.tertiarySystemBackground))
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .overlay(
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -67,7 +67,7 @@ struct FitnessEntriesCardView: View {
                         HStack {
                             Text("Total Calories")
                                 .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(Color(hexString: "0A0A0A"))
+                                .foregroundColor(.primary)
                             Spacer()
                             Text("\(totalFitnessCalories) cal")
                                 .font(.system(size: 16, weight: .semibold))
@@ -78,13 +78,13 @@ struct FitnessEntriesCardView: View {
                     VStack(spacing: 8) {
                         Image(systemName: "figure.run.circle")
                             .font(.system(size: 32))
-                            .foregroundColor(Color(hexString: "D1D5DB"))
+                            .foregroundColor(.secondary)
                         Text("No exercise added yet")
                             .font(.system(size: 14))
-                            .foregroundColor(Color(hexString: "6B7280"))
+                            .foregroundColor(.secondary)
                         Text("Tap 'Add Exercise' to get started")
                             .font(.system(size: 12))
-                            .foregroundColor(Color(hexString: "9CA3AF"))
+                            .foregroundColor(.secondary)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 24)
@@ -107,19 +107,23 @@ struct FitnessEntriesCardView: View {
                 }) {
                     HStack {
                         Image(systemName: "magnifyingglass")
-                            .foregroundColor(Color(hexString: "6B7280"))
+                            .foregroundColor(.secondary)
                         Text(entry.exercise?.name ?? (entry.customName.isEmpty ? "Choose Exercise" : entry.customName))
-                            .foregroundColor(entry.exercise != nil ? Color(hexString: "0A0A0A") : Color(hexString: "6B7280"))
+                            .foregroundColor(entry.exercise != nil ? .primary : .secondary)
                             .lineLimit(1)
                         Spacer()
                         Image(systemName: "chevron.right")
-                            .foregroundColor(Color(hexString: "9CA3AF"))
+                            .foregroundColor(.secondary)
                             .font(.system(size: 12))
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
-                    .background(Color(hexString: "F9FAFB"))
+                    .background(Color(.tertiarySystemBackground))
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(Color(.separator), lineWidth: 0.5)
+                    )
                 }
                 .buttonStyle(.plain)
                 
@@ -137,7 +141,7 @@ struct FitnessEntriesCardView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Duration")
                         .font(.system(size: 12))
-                        .foregroundColor(Color(hexString: "6B7280"))
+                        .foregroundColor(.secondary)
                     Button(action: {
                         let total = max(0, entry.minutesInt)
                         durationHoursInt = total / 60
@@ -150,15 +154,19 @@ struct FitnessEntriesCardView: View {
                     }) {
                         HStack {
                             Text(entry.minutesInt > 0 ? formattedDuration(entry.minutesInt / 60, entry.minutesInt % 60) : "-")
-                                .foregroundColor(Color(hexString: "0A0A0A"))
+                                .foregroundColor(.primary)
                             Spacer()
                             Image(systemName: "timer")
-                                .foregroundColor(Color(hexString: "6A7282"))
+                                .foregroundColor(.secondary)
                         }
                         .padding(.horizontal, 8)
                         .padding(.vertical, 8)
-                        .background(Color.white)
+                        .background(Color(.systemBackground))
                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .stroke(Color(.separator), lineWidth: 0.5)
+                        )
                     }
                     .buttonStyle(.plain)
                 }
@@ -166,7 +174,7 @@ struct FitnessEntriesCardView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Calories")
                         .font(.system(size: 12))
-                        .foregroundColor(Color(hexString: "6B7280"))
+                        .foregroundColor(.secondary)
                     HStack(spacing: 4) {
                         TextField("0", text: Binding(
                             get: { fitnessEntries[index].caloriesText },
@@ -178,11 +186,15 @@ struct FitnessEntriesCardView: View {
                         .textFieldStyle(.plain)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 8)
-                        .background(Color.white)
+                        .background(Color(.systemBackground))
                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .stroke(Color(.separator), lineWidth: 0.5)
+                        )
                         Text("cal")
                             .font(.system(size: 12))
-                            .foregroundColor(Color(hexString: "6B7280"))
+                            .foregroundColor(.secondary)
                     }
                 }
             }
@@ -191,7 +203,7 @@ struct FitnessEntriesCardView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Customize Exercise")
                         .font(.system(size: 12))
-                        .foregroundColor(Color(hexString: "6B7280"))
+                        .foregroundColor(.secondary)
                     TextField("e.g., Stretching", text: Binding(
                         get: { fitnessEntries[index].customName },
                         set: { newValue in fitnessEntries[index].customName = newValue }
@@ -200,8 +212,12 @@ struct FitnessEntriesCardView: View {
                     .textFieldStyle(.plain)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 8)
-                    .background(Color.white)
+                    .background(Color(.systemBackground))
                     .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .stroke(Color(.separator), lineWidth: 0.5)
+                    )
                 }
             }
         }
@@ -214,23 +230,23 @@ struct FitnessEntriesCardView: View {
             }
         }
         .padding(12)
-        .background(Color(hexString: "F9FAFB"))
+        .background(Color(.tertiarySystemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
     
     private func label(_ text: String) -> some View {
         Text(text)
             .font(.system(size: 14))
-            .foregroundColor(Color(hexString: "4A5565"))
+            .foregroundColor(.secondary)
     }
     
     @ViewBuilder
     private func card<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         content()
             .padding(16)
-            .background(Color.white)
+            .background(Color(.systemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
+            .shadow(color: Color.primary.opacity(0.1), radius: 8, x: 0, y: 2)
     }
 }
 

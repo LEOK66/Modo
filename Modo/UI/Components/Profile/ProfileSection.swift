@@ -14,7 +14,7 @@ struct ProfileSection<Content: View>: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title)
                 .font(.system(size: 14))
-                .foregroundColor(Color(hexString: "6A7282"))
+                .foregroundColor(.secondary)
                 .padding(.horizontal, 24)
 
             VStack(spacing: 12, content: content)

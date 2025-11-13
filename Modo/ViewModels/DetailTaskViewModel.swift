@@ -69,6 +69,38 @@ final class DetailTaskViewModel: ObservableObject {
     /// Currently editing fitness entry index
     @Published var editingFitnessEntryIndex: Int? = nil
     
+    // MARK: - Published Properties - UI State
+    
+    /// Whether time sheet is presented
+    @Published var isTimeSheetPresented: Bool = false
+    
+    /// Whether duration sheet is presented
+    @Published var isDurationSheetPresented: Bool = false
+    
+    /// Whether quick pick sheet is presented
+    @Published var isQuickPickPresented: Bool = false
+    
+    /// Quick pick mode
+    @Published var quickPickMode: QuickPickSheetView.QuickPickMode? = nil
+    
+    /// Quick pick search text
+    @Published var quickPickSearch: String = ""
+    
+    /// Recent foods (in-memory per session)
+    @Published var recentFoods: [MenuData.FoodItem] = []
+    
+    /// Recent exercises (in-memory per session)
+    @Published var recentExercises: [MenuData.ExerciseItem] = []
+    
+    /// Online foods
+    @Published var onlineFoods: [MenuData.FoodItem] = []
+    
+    /// Whether online loading
+    @Published var isOnlineLoading: Bool = false
+    
+    /// Pending scroll ID
+    @Published var pendingScrollId: String? = nil
+    
     // MARK: - Private Properties
     
     /// Task repository for data access
@@ -459,6 +491,65 @@ final class DetailTaskViewModel: ObservableObject {
             self.originalTask = task
             loadTaskData(from: task)
         }
+    }
+    
+    /// Dismiss keyboard
+    func dismissKeyboard() {
+        // Note: Focus states are managed in View, but we can clear editing indices
+        editingDietEntryIndex = nil
+        editingFitnessEntryIndex = nil
+    }
+    
+    /// Add diet entry and open quick pick
+    func addDietEntry() {
+        dietEntries.append(DietEntry(quantityText: "1", unit: "serving", caloriesText: ""))
+        editingDietEntryIndex = dietEntries.count - 1
+        quickPickMode = .food
+        quickPickSearch = ""
+        isQuickPickPresented = true
+    }
+    
+    /// Edit diet entry at index
+    func editDietEntry(at index: Int) {
+        editingDietEntryIndex = index
+        quickPickMode = .food
+        quickPickSearch = ""
+        isQuickPickPresented = true
+    }
+    
+    /// Delete diet entry at index
+    func deleteDietEntry(at index: Int) {
+        guard index < dietEntries.count else { return }
+        dietEntries.remove(at: index)
+    }
+    
+    /// Add fitness entry and open quick pick
+    func addFitnessEntry() {
+        fitnessEntries.append(FitnessEntry())
+        editingFitnessEntryIndex = fitnessEntries.count - 1
+        quickPickMode = .exercise
+        quickPickSearch = ""
+        isQuickPickPresented = true
+    }
+    
+    /// Edit fitness entry at index
+    func editFitnessEntry(at index: Int) {
+        editingFitnessEntryIndex = index
+        quickPickMode = .exercise
+        quickPickSearch = ""
+        isQuickPickPresented = true
+    }
+    
+    /// Delete fitness entry at index
+    func deleteFitnessEntry(at index: Int) {
+        guard index < fitnessEntries.count else { return }
+        fitnessEntries.remove(at: index)
+    }
+    
+    /// Clear editing indices when quick pick is dismissed
+    func clearEditingIndices() {
+        editingDietEntryIndex = nil
+        editingFitnessEntryIndex = nil
     }
 }
 

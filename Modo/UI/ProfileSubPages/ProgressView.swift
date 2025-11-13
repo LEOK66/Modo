@@ -26,16 +26,17 @@ struct ProgressView: View {
     
     var body: some View {
         ZStack {
-            Color(hexString: "F9FAFB").ignoresSafeArea()
+            Color(.systemBackground).ignoresSafeArea()
             ScrollView {
                 VStack(spacing: 16) {
                     // Header
                     HStack(spacing: 12) {
                         BackButton(action: { dismiss() })
+                            .frame(width: 66, height: 44)
                         Spacer()
                         Text("Progress")
                             .font(.system(size: 20, weight: .semibold))
-                            .foregroundColor(Color(hexString: "101828"))
+                            .foregroundColor(.primary)
                         Spacer()
                         NavigationLink(destination: EditProfileView().environmentObject(authService)) {
                             Text("Change")
@@ -51,7 +52,7 @@ struct ProgressView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Body Metrics")
                             .font(.system(size: 14))
-                            .foregroundColor(Color(hexString: "6A7282"))
+                            .foregroundColor(.secondary)
                             .padding(.horizontal, 24)
                         HStack(spacing: 12) {
                             MetricCard(
@@ -78,7 +79,7 @@ struct ProgressView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Daily Nutrition Recommend")
                             .font(.system(size: 14))
-                            .foregroundColor(Color(hexString: "6A7282"))
+                            .foregroundColor(.secondary)
                             .padding(.horizontal, 24)
                         VStack(spacing: 12) {
                             NutritionRow(color: Color(hexString: "2E90FA"), title: "Protein", amount: viewModel.proteinText, icon: "shield")
@@ -92,7 +93,7 @@ struct ProgressView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Current Goal")
                             .font(.system(size: 14))
-                            .foregroundColor(Color(hexString: "6A7282"))
+                            .foregroundColor(.secondary)
                             .padding(.horizontal, 24)
                         GoalCard(
                             percent: userProgress.progressPercent,
@@ -179,21 +180,21 @@ private struct MetricCard: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
                 .font(.system(size: 14))
-                .foregroundColor(Color(hexString: "6A7282"))
+                .foregroundColor(.secondary)
             Text(value)
                 .font(.system(size: 28, weight: .semibold))
-                .foregroundColor(Color(hexString: "101828"))
+                .foregroundColor(.primary)
             Text(unit)
                 .font(.system(size: 12))
-                .foregroundColor(Color(hexString: "6A7282"))
+                .foregroundColor(.secondary)
         }
         .padding(16)
         .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
-        .background(Color.white)
+        .background(Color(.systemBackground))
         .cornerRadius(16)
         .overlay(
             RoundedRectangle(cornerRadius: 16)
-                .stroke(Color(hexString: "E5E7EB"), lineWidth: 1)
+                .stroke(Color(.separator), lineWidth: 1)
         )
     }
 }
@@ -220,18 +221,18 @@ private struct NutritionRow: View {
                     .foregroundColor(color)
                 Text(amount)
                     .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(Color(hexString: "101828"))
+                    .foregroundColor(.primary)
             }
             Spacer()
             Image(systemName: "info.circle")
-                .foregroundColor(Color(hexString: "99A1AF"))
+                .foregroundColor(.secondary)
         }
         .padding(16)
-        .background(Color.white)
+        .background(Color(.systemBackground))
         .cornerRadius(16)
         .overlay(
             RoundedRectangle(cornerRadius: 16)
-                .stroke(Color(hexString: "E5E7EB"), lineWidth: 1)
+                .stroke(Color(.separator), lineWidth: 1)
         )
     }
 }
@@ -256,10 +257,10 @@ private struct GoalCard: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(goalDescription)
                         .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(Color(hexString: "101828"))
+                        .foregroundColor(.primary)
                     Text(daysCompleted)
                         .font(.system(size: 14))
-                        .foregroundColor(Color(hexString: "6A7282"))
+                        .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -267,7 +268,7 @@ private struct GoalCard: View {
                 HStack {
                     Text("Progress")
                         .font(.system(size: 14))
-                        .foregroundColor(Color(hexString: "6A7282"))
+                        .foregroundColor(.secondary)
                     Spacer()
                     Text(percentText)
                         .font(.system(size: 14, weight: .semibold))
@@ -276,7 +277,7 @@ private struct GoalCard: View {
                 GeometryReader { geometry in
                     ZStack(alignment: .leading) {
                         RoundedRectangle(cornerRadius: 4)
-                            .fill(Color(hexString: "E5E7EB"))
+                            .fill(Color(.separator))
                             .frame(height: 8)
                         RoundedRectangle(cornerRadius: 4)
                             .fill(Color(hexString: "A78BFA"))
@@ -287,15 +288,15 @@ private struct GoalCard: View {
                 .frame(height: 8)
                 Text(daysCompleted)
                     .font(.system(size: 12))
-                    .foregroundColor(Color(hexString: "6A7282"))
+                    .foregroundColor(.secondary)
             }
         }
         .padding(16)
-        .background(Color.white)
+        .background(Color(.systemBackground))
         .cornerRadius(16)
         .overlay(
             RoundedRectangle(cornerRadius: 16)
-                .stroke(Color(hexString: "E5E7EB"), lineWidth: 1)
+                .stroke(Color(.separator), lineWidth: 1)
         )
     }
 }

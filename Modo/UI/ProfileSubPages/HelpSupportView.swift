@@ -6,7 +6,7 @@ struct HelpSupportView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            Color(hexString: "F9FAFB").ignoresSafeArea()
+            Color(.systemBackground).ignoresSafeArea()
             
             VStack(spacing: 0) {
                 // Header
@@ -30,7 +30,7 @@ struct HelpSupportView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Contact Us")
                                 .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(Color(hexString: "6A7282"))
+                                .foregroundColor(.secondary)
                                 .padding(.leading, 4)
                             
                             // Email Support
@@ -52,7 +52,7 @@ struct HelpSupportView: View {
                     .padding(.bottom, 24)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .background(Color(hexString: "F3F4F6"))
+                .background(Color(.secondarySystemBackground))
             }
         }
         .navigationBarBackButtonHidden(true)

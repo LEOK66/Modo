@@ -32,8 +32,8 @@ final class InfoGatheringViewModel: ObservableObject {
     
     /// Unit selections
     @Published var heightUnit: String = "in"
-    @Published var weightUnit: String = "lb"
-    @Published var lossUnit: String = "lb"
+    @Published var weightUnit: String = "lbs"
+    @Published var lossUnit: String = "lbs"
     
     /// Recommended values
     @Published var actualCalories: String = ""
@@ -62,9 +62,6 @@ final class InfoGatheringViewModel: ObservableObject {
     /// Model context for SwiftData operations
     private var modelContext: ModelContext?
     
-    /// User profiles query result
-    private var profiles: [UserProfile] = []
-    
     // MARK: - Initialization
     
     /// Initialize ViewModel with dependencies
@@ -80,15 +77,12 @@ final class InfoGatheringViewModel: ObservableObject {
     /// - Parameters:
     ///   - modelContext: Model context for SwiftData operations
     ///   - authService: Auth service for user operations
-    ///   - profiles: User profiles query result
     func setup(
         modelContext: ModelContext,
-        authService: AuthService,
-        profiles: [UserProfile]
+        authService: AuthService
     ) {
         self.modelContext = modelContext
         self.authService = authService
-        self.profiles = profiles
     }
     
     // MARK: - Navigation Methods
@@ -116,76 +110,6 @@ final class InfoGatheringViewModel: ObservableObject {
                 }
             }
         }
-    }
-    
-    // MARK: - Validation Methods
-    
-    /// Validate height
-    /// - Returns: Whether height is valid
-    func validateHeight() -> Bool {
-        guard !height.isEmpty else { return true } // Empty is allowed (skip)
-        let range = heightUnit == "cm" ? (50.0, 250.0) : (20.0, 96.0)
-        guard let value = Double(height) else {
-            showHeightError = true
-            return false
-        }
-        let isValid = value >= range.0 && value <= range.1
-        showHeightError = !isValid
-        return isValid
-    }
-    
-    /// Validate weight
-    /// - Returns: Whether weight is valid
-    func validateWeight() -> Bool {
-        guard !weight.isEmpty else { return true } // Empty is allowed (skip)
-        let range = weightUnit == "kg" ? (20.0, 500.0) : (44.0, 1100.0)
-        guard let value = Double(weight) else {
-            showWeightError = true
-            return false
-        }
-        let isValid = value >= range.0 && value <= range.1
-        showWeightError = !isValid
-        return isValid
-    }
-    
-    /// Validate age
-    /// - Returns: Whether age is valid
-    func validateAge() -> Bool {
-        guard !age.isEmpty else { return true } // Empty is allowed (skip)
-        guard let ageValue = Int(age) else {
-            showAgeError = true
-            return false
-        }
-        let isValid = ageValue >= 10 && ageValue <= 120
-        showAgeError = !isValid
-        return isValid
-    }
-    
-    /// Validate target weight loss
-    /// - Returns: Whether target weight loss is valid
-    func validateTargetWeightLoss() -> Bool {
-        guard !targetWeightLoss.isEmpty else { return false }
-        let range = lossUnit == "kg" ? (0.2, 100.0) : (0.5, 220.0)
-        guard let value = Double(targetWeightLoss) else {
-            showTargetWeightError = true
-            return false
-        }
-        let isValid = value >= range.0 && value <= range.1
-        showTargetWeightError = !isValid
-        return isValid
-    }
-    
-    /// Validate target days
-    /// - Returns: Whether target days is valid
-    func validateTargetDays() -> Bool {
-        guard !targetDays.isEmpty else { return false }
-        guard let days = Int(targetDays) else {
-            showTargetDaysError = true
-            return false
-        }
-        let isValid = days >= 1 && days <= 365
-        showTargetDaysError = !isValid
-        return isValid
     }
     
     // MARK: - Health Calculation Methods
@@ -242,36 +166,19 @@ final class InfoGatheringViewModel: ObservableObject {
               let modelContext = modelContext else { return }
         
         // Only save valid data, skip invalid inputs
-        let validHeight = height.isValidHeight(unit: heightUnit) ? Double(height) : nil
-        let validWeight = weight.isValidWeight(unit: weightUnit) ? Double(weight) : nil
-        let validAge = age.isValidAge ? Int(age) : nil
-        let validTargetWeightLoss = targetWeightLoss.isValidTargetWeight(unit: lossUnit) ? Double(targetWeightLoss) : nil
-        let validTargetDays = targetDays.isValidTargetDays ? Int(targetDays) : nil
+        let validHeight = Double(height)
+        let validWeight = Double(weight)
+        let validAge = Int(age)
+        let validTargetWeightLoss = Double(targetWeightLoss)
+        let validTargetDays = Int(targetDays)
         
-        // Check if profile already exists
-        let existingProfile = profiles.first { $0.userId == userId }
-        let profile: UserProfile
-        
-        if let existing = existingProfile {
-            // Update existing profile
-            profile = existing
-            print("Updating existing profile for userId=\(userId)")
-        } else {
-            // Create new profile
-            profile = UserProfile(userId: userId)
-            modelContext.insert(profile)
-            print("Creating new profile for userId=\(userId)")
-        }
+        // Create new profile (onboarding only happens for brand new users)
+        let profile = UserProfile(userId: userId)
+        modelContext.insert(profile)
         
         // Goal-specific values
-        let validCalories: Int? = {
-            if goal == .keepHealthy { return Int(actualCalories) }
-            return nil
-        }()
-        let validProtein: Int? = {
-            if goal == .gainMuscle { return Int(actualProtein) }
-            return nil
-        }()
+        let validCalories: Int? = goal == .keepHealthy ? Int(actualCalories) : nil
+        let validProtein: Int? = goal == .gainMuscle ? Int(actualProtein) : nil
         
         profile.updateProfile(
             heightValue: validHeight,

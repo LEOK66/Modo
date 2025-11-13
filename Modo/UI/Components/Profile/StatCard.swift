@@ -10,10 +10,10 @@ struct StatCard: View {
         VStack(spacing: 8) {
             Text(value)
                 .font(.system(size: 24))
-                .foregroundColor(Color(hexString: "0A0A0A"))
+                .foregroundColor(.primary)
             Text(title)
                 .font(.system(size: 12))
-                .foregroundColor(Color(hexString: "4A5565"))
+                .foregroundColor(.secondary)
             Text(emoji)
                 .font(.system(size: 18))
         }
@@ -21,9 +21,9 @@ struct StatCard: View {
         .padding(.vertical, 16)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color.white)
-                .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 1)
-                .shadow(color: Color.black.opacity(0.1), radius: 6, x: 0, y: 4)
+                .fill(Color(.systemBackground))
+                .shadow(color: Color.primary.opacity(0.1), radius: 3, x: 0, y: 1)
+                .shadow(color: Color.primary.opacity(0.1), radius: 6, x: 0, y: 4)
         )
         .frame(width: 327)
     }

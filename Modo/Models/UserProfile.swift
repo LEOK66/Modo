@@ -28,6 +28,7 @@ final class UserProfile {
     init(userId: String) {
         self.userId = userId
         self.username = "Modor"  // Default username
+        self.avatarName = DefaultAvatars.random()  // Assign random default avatar
         self.createdAt = Date()
         self.updatedAt = Date()
     }
