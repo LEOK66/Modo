@@ -2,6 +2,21 @@ import SwiftUI
 import SwiftData
 import FirebaseAuth
 
+// MARK: - Task ID Tracker (Thread-safe)
+/// Thread-safe tracker to prevent duplicate task creation from same notification
+class TaskIdTracker {
+    private var processedIds: Set<String> = []
+    private let queue = DispatchQueue(label: "com.modo.taskIdTracker")
+    
+    func isProcessed(_ taskId: String) -> Bool {
+        queue.sync { processedIds.contains(taskId) }
+    }
+    
+    func markAsProcessed(_ taskId: String) {
+        queue.sync { processedIds.insert(taskId) }
+    }
+}
+
 struct MainPageView: View {
     @Binding var selectedTab: Tab
     @EnvironmentObject var dailyCaloriesService: DailyCaloriesService

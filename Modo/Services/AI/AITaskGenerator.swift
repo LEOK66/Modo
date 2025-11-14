@@ -188,69 +188,91 @@ class AITaskGenerator: ObservableObject {
         
         // ✅ Use AIPromptBuilder for prompt construction
         let systemPrompt = promptBuilder.buildSystemPrompt(userProfile: userProfile)
-        let userPrompt = promptBuilder.buildWorkoutPrompt(userProfile: userProfile, isReplacement: isReplacement)
+        let userPrompt = "Generate a workout plan for \(formatDate(date)). \(isReplacement ? "This replaces a previous workout, so create something DIFFERENT with varied exercises." : "")"
         
         Task {
             do {
                 let messages = [
-                    FirebaseFirebaseChatMessage(role: "system", content: systemPrompt),
-                    FirebaseFirebaseChatMessage(role: "user", content: userPrompt)
+                    ChatMessage(role: "system", content: systemPrompt),
+                    ChatMessage(role: "user", content: userPrompt)
                 ]
 
-                let response = try await firebaseAIService.sendChatRequest(messages: messages)
+                // ⭐ Use Function Calling instead of text parsing
+                let response = try await firebaseAIService.sendChatRequest(
+                    messages: messages,
+                    functions: firebaseAIService.buildFunctions(),
+                    functionCall: "auto",
+                    parallelToolCalls: false
+                )
                 
                 await MainActor.run {
                     self.isGenerating = false
                     
-                    if let content = response.choices.first?.message.content {
-                        // ✅ Use AIResponseParser for parsing
-                        let (title, parsedExercises) = self.responseParser.parseWorkoutResponse(content)
+                    // Check if AI called the function
+                    if let functionCall = response.choices.first?.message.effectiveFunctionCall,
+                       functionCall.name == "generate_workout_plan",
+                       let data = functionCall.arguments.data(using: .utf8) {
                         
-                        // ✅ Use ExerciseDataService to calculate duration and calories
-                        let exercises = parsedExercises.map { parsed -> AIExercise in
-                            let duration = self.exerciseData.calculateDuration(
-                                sets: parsed.sets,
-                                reps: parsed.reps,
-                                restSec: parsed.restSec
+                        do {
+                            // Decode structured response (100% reliable with strict mode)
+                            let workoutPlan = try JSONDecoder().decode(WorkoutPlanFunctionResponse.self, from: data)
+                            
+                            guard let exercises = workoutPlan.exercises, !exercises.isEmpty else {
+                                completion(.failure(ModoAIError.missingRequiredData(field: "exercises")))
+                                return
+                            }
+                            
+                            // Convert to AIExercise with calculated duration and calories
+                            let aiExercises = exercises.map { exercise -> AIExercise in
+                                let duration = self.exerciseData.calculateDuration(
+                                    sets: exercise.sets,
+                                    reps: exercise.reps,
+                                    restSec: exercise.restSec ?? 60
+                                )
+                                
+                                let calories = self.exerciseData.calculateCalories(
+                                    for: exercise.name,
+                                    sets: exercise.sets,
+                                    reps: exercise.reps,
+                                    restSec: exercise.restSec ?? 60,
+                                    userWeight: userProfile?.weightValue
+                                )
+                                
+                                return AIExercise(
+                                    name: exercise.name,
+                                    sets: exercise.sets,
+                                    reps: exercise.reps,
+                                    restSec: exercise.restSec ?? 60,
+                                    durationMin: duration,
+                                    calories: calories
+                                )
+                            }
+                            
+                            let totalDuration = aiExercises.reduce(0) { $0 + $1.durationMin }
+                            let totalCalories = aiExercises.reduce(0) { $0 + $1.calories }
+                            
+                            let task = AIGeneratedTask(
+                                type: .workout,
+                                date: date,
+                                title: workoutPlan.goal.capitalized, // Use goal as title
+                                exercises: aiExercises,
+                                meals: [],
+                                totalDuration: totalDuration,
+                                totalCalories: totalCalories
                             )
                             
-                            // Use AI-provided calories if available, otherwise calculate
-                            let calories = parsed.calories > 0 ? parsed.calories : 
-                                          self.exerciseData.calculateCalories(
-                                            for: parsed.name,
-                                            sets: parsed.sets,
-                                            reps: parsed.reps,
-                                            restSec: parsed.restSec,
-                                            userWeight: userProfile?.weightValue
-                                          )
+                            print("   ✅ Generated via Function Calling: \(task.title) - \(aiExercises.count) exercises")
+                            completion(.success(task))
                             
-                            return AIExercise(
-                                name: parsed.name,
-                                sets: parsed.sets,
-                                reps: parsed.reps,
-                                restSec: parsed.restSec,
-                                durationMin: duration,
-                                calories: calories
-                            )
+                        } catch {
+                            print("   ❌ Failed to decode function response: \(error)")
+                            completion(.failure(ModoAIError.decodingError(underlying: error)))
                         }
                         
-                        let totalDuration = exercises.reduce(0) { $0 + $1.durationMin }
-                        let totalCalories = exercises.reduce(0) { $0 + $1.calories }
-                        
-                        let task = AIGeneratedTask(
-                            type: .workout,
-                            date: date,
-                            title: title,
-                            exercises: exercises,
-                            meals: [],
-                            totalDuration: totalDuration,
-                            totalCalories: totalCalories
-                        )
-                        
-                        print("   ✅ Generated: \(title) - \(exercises.count) exercises, \(totalDuration)min, \(totalCalories)cal")
-                        completion(.success(task))
                     } else {
-                        completion(.failure(NSError(domain: "AITaskGenerator", code: 1, userInfo: [NSLocalizedDescriptionKey: "No response content"])))
+                        // Fallback: AI didn't call function (shouldn't happen with proper prompt)
+                        print("   ⚠️ AI didn't call function, response: \(response.choices.first?.message.content ?? "empty")")
+                        completion(.failure(ModoAIError.invalidResponse(reason: "AI didn't call the required function")))
                     }
                 }
             } catch {
@@ -261,6 +283,13 @@ class AITaskGenerator: ObservableObject {
                 }
             }
         }
+    }
+    
+    // MARK: - Helper
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
     }
     
     // MARK: - Generate Nutrition Tasks (Refactored with modular services)
@@ -278,37 +307,84 @@ class AITaskGenerator: ObservableObject {
         
         // ✅ Use AIPromptBuilder for prompt construction
         let systemPrompt = promptBuilder.buildSystemPrompt(userProfile: userProfile)
-        let userPrompt = promptBuilder.buildNutritionPrompt(meals: meals, userProfile: userProfile, isReplacement: isReplacement)
+        let userPrompt = "Generate a nutrition plan for \(formatDate(date)) with these meals: \(meals.joined(separator: ", ")). \(isReplacement ? "This replaces previous meals, so create DIFFERENT dishes with varied ingredients." : "")"
         
         Task {
             do {
                 let messages = [
-                    FirebaseFirebaseChatMessage(role: "system", content: systemPrompt),
-                    FirebaseFirebaseChatMessage(role: "user", content: userPrompt)
+                    ChatMessage(role: "system", content: systemPrompt),
+                    ChatMessage(role: "user", content: userPrompt)
                 ]
 
-                let response = try await firebaseAIService.sendChatRequest(messages: messages)
+                // ⭐ Use Function Calling instead of text parsing
+                let response = try await firebaseAIService.sendChatRequest(
+                    messages: messages,
+                    functions: firebaseAIService.buildFunctions(),
+                    functionCall: "auto",
+                    parallelToolCalls: false
+                )
                 
                 await MainActor.run {
-                    if let content = response.choices.first?.message.content {
-                        print("📝 AI Response received, parsing...")
+                    // Check if AI called the function
+                    if let functionCall = response.choices.first?.message.effectiveFunctionCall,
+                       functionCall.name == "generate_nutrition_plan",
+                       let data = functionCall.arguments.data(using: .utf8) {
                         
-                        // ✅ Use AIResponseParser for parsing
-                        let parsedMeals = self.responseParser.parseNutritionResponse(content)
-                        
-                        guard !parsedMeals.isEmpty else {
+                        do {
+                            // Decode structured response (100% reliable with strict mode)
+                            let nutritionPlan = try JSONDecoder().decode(NutritionPlanFunctionResponse.self, from: data)
+                            
+                            guard !nutritionPlan.meals.isEmpty else {
+                                self.isGenerating = false
+                                completion(.failure(ModoAIError.missingRequiredData(field: "meals")))
+                                return
+                            }
+                            
+                            // Convert to AIGeneratedTask array
+                            var generatedTasks: [AIGeneratedTask] = []
+                            
+                            for meal in nutritionPlan.meals {
+                                let foodItems = meal.foods.map { food in
+                                    AIFoodItem(name: food.name, calories: food.calories)
+                                }
+                                
+                                let totalCalories = foodItems.reduce(0) { $0 + $1.calories }
+                                
+                                let aiMeal = AIMeal(
+                                    name: meal.mealType.capitalized,
+                                    foods: meal.foods.map { $0.name },
+                                    time: meal.time ?? self.getMealTime(meal.mealType),
+                                    foodItems: foodItems
+                                )
+                                
+                                let task = AIGeneratedTask(
+                                    type: .nutrition,
+                                    date: date,
+                                    title: meal.mealType.capitalized,
+                                    exercises: [],
+                                    meals: [aiMeal],
+                                    totalDuration: 0,
+                                    totalCalories: totalCalories
+                                )
+                                
+                                generatedTasks.append(task)
+                            }
+                            
                             self.isGenerating = false
-                            print("  ❌ No meals parsed from AI response")
-                            completion(.failure(NSError(domain: "AITaskGenerator", code: 3, userInfo: [NSLocalizedDescriptionKey: "Failed to parse any meals"])))
-                            return
+                            print("   ✅ Generated via Function Calling: \(generatedTasks.count) nutrition tasks")
+                            completion(.success(generatedTasks))
+                            
+                        } catch {
+                            self.isGenerating = false
+                            print("   ❌ Failed to decode function response: \(error)")
+                            completion(.failure(ModoAIError.decodingError(underlying: error)))
                         }
                         
-                        // ✅ Use NutritionLookupService to fetch calories (API priority)
-                        self.fetchCaloriesForMeals(parsedMeals, date: date, completion: completion)
                     } else {
+                        // Fallback: AI didn't call function
                         self.isGenerating = false
-                        print("  ❌ No response content from AI")
-                        completion(.failure(NSError(domain: "AITaskGenerator", code: 2, userInfo: [NSLocalizedDescriptionKey: "No response content"])))
+                        print("   ⚠️ AI didn't call function, response: \(response.choices.first?.message.content ?? "empty")")
+                        completion(.failure(ModoAIError.invalidResponse(reason: "AI didn't call the required function")))
                     }
                 }
             } catch {
@@ -375,13 +451,14 @@ class AITaskGenerator: ObservableObject {
                 nutritionLookup.lookupCaloriesBatch(foodNames, allowNetwork: false) { results in
                     // Merge AI-provided calories with cache results
                     let foodItems = foods.map { food in
-                        // Priority: AI-provided calories > Cache > Default (250)
+                        // Priority: AI-provided calories > Cache > Default
                         // AI should have provided calories, but if not, use cache if available
                         let cached = results.first(where: { $0.name == food.name })
-                        let calories = food.calories > 0 ? food.calories : (cached?.calories ?? 250)
+                        let defaultCalories = 250
+                        let calories = food.calories > 0 ? food.calories : (cached?.calories ?? defaultCalories)
                         
                         if food.calories == 0 && cached == nil {
-                            print("  ⚠️ No calories from AI or cache for '\(food.name)', using default 250")
+                            print("  ⚠️ No calories from AI or cache for '\(food.name)', using default \(defaultCalories)")
                         }
                         
                         return AIFoodItem(name: food.name, calories: calories)

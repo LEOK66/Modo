@@ -17,8 +17,9 @@ const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
  * - model: String (default: "gpt-4o")
  * - temperature: Number (default: 0.9)
  * - maxTokens: Number (default: 1000)
- * - functions: Optional array of function definitions
- * - functionCall: Optional string
+ * - tools: Optional array of tool definitions (new format, supports strict)
+ * - toolChoice: Optional string or object (replaces functionCall)
+ * - parallelToolCalls: Optional boolean
  *
  * Returns:
  * - { success: true, data: ChatCompletionResponse }
@@ -58,20 +59,24 @@ exports.chatWithAI = onCall(async (request) => {
       max_tokens: data.maxTokens !== undefined ? data.maxTokens : 1000,
     };
 
-    // Add functions if provided
-    if (data.functions &&
-        Array.isArray(data.functions) &&
-        data.functions.length > 0) {
-      requestBody.functions = data.functions;
-      if (data.functionCall) {
-        requestBody.function_call = data.functionCall;
+    // Add tools if provided (new format, supports strict parameter)
+    if (data.tools &&
+        Array.isArray(data.tools) &&
+        data.tools.length > 0) {
+      requestBody.tools = data.tools;
+      if (data.toolChoice !== undefined) {
+        requestBody.tool_choice = data.toolChoice;
+      }
+      if (data.parallelToolCalls !== undefined) {
+        requestBody.parallel_tool_calls = data.parallelToolCalls;
       }
     }
 
     logger.info("Calling OpenAI API", {
       model: requestBody.model,
       messageCount: requestBody.messages.length,
-      hasFunctions: !!requestBody.functions,
+      hasTools: !!requestBody.tools,
+      toolChoice: data.toolChoice,
     });
 
     // Call OpenAI API

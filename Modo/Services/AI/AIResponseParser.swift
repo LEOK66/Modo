@@ -3,6 +3,16 @@ import Foundation
 /// Service responsible for parsing AI responses into structured data
 class AIResponseParser {
     
+    // MARK: - Constants
+    
+    /// Default exercise parameters when not specified in AI response
+    private struct DefaultExerciseParams {
+        static let sets = 3
+        static let reps = "10"
+        static let restSeconds = 60
+        static let calories = 0  // Will be calculated by ExerciseDataService
+    }
+    
     // MARK: - Workout Response Parsing
     
     /// Parse workout plan from AI response
@@ -47,10 +57,10 @@ class AIResponseParser {
     /// Parse a single exercise line
     private func parseExerciseLine(_ line: String) -> ParsedExercise? {
         var name = ""
-        var sets = 3
-        var reps = "10"
-        var restSec = 60
-        var calories = 0
+        var sets = DefaultExerciseParams.sets
+        var reps = DefaultExerciseParams.reps
+        var restSec = DefaultExerciseParams.restSeconds
+        var calories = DefaultExerciseParams.calories
         
         // Extract exercise name (before the colon)
         if let colonIndex = line.firstIndex(of: ":") {
@@ -77,7 +87,7 @@ class AIResponseParser {
         if let restRegex = try? NSRegularExpression(pattern: #"(\d+)\s*(?:seconds?|secs?|s)\s*rest"#, options: .caseInsensitive) {
             if let match = restRegex.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
                let range = Range(match.range(at: 1), in: line) {
-                restSec = Int(line[range]) ?? 60
+                restSec = Int(line[range]) ?? DefaultExerciseParams.restSeconds
             }
         }
         
