@@ -380,9 +380,12 @@ class AIPromptBuilder {
         - If user asks for 2-7 days: "this week", "next 3 days", "5-day plan", etc.
           * Call generate_multi_day_plan() ONCE with all days included
           * Maximum 7 days per plan
-          * Each day should have varied content (different exercises/meals)
+          * ⚠️ CRITICAL - KEEP IT CONCISE to avoid token limits:
+            - Use 2-3 foods per meal (simple names, no long descriptions)
+            - Use 4-5 exercises per workout (essential movements only)
+            - Each day should have varied content (different exercises/meals)
           * In text response: "I've created your [X]-day [workout/nutrition] plan!"
-        - For workout plans: Include 1-2 rest days per week
+        - For workout plans: Include 1-2 rest days per week (set workout to null)
         - For nutrition plans: Vary meals across days (different proteins, carbs, recipes)
         - Set plan_type: "workout", "nutrition", or "both" based on user request
         

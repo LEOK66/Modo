@@ -78,7 +78,7 @@ class FirebaseAIService {
                             "description": "Daily calorie target"
                         ],
                         "notes": [
-                            "type": "string",
+                            "type": ["string", "null"],
                             "description": "Additional notes or tips"
                         ]
                     ],
@@ -232,7 +232,7 @@ class FirebaseAIService {
                                         "description": "Day name (e.g., 'Monday', 'Day 1')"
                                     ],
                                     "workout": [
-                                        "type": "object",
+                                        "type": ["object", "null"],
                                         "description": "Workout plan for this day (null if rest day or nutrition-only)",
                                         "properties": [
                                             "goal": [
@@ -260,13 +260,13 @@ class FirebaseAIService {
                                                 ]
                                             ],
                                             "daily_kcal_target": ["type": "integer"],
-                                            "notes": ["type": "string"]
+                                            "notes": ["type": ["string", "null"]]
                                         ],
                                         "required": ["goal", "exercises", "daily_kcal_target", "notes"],
                                         "additionalProperties": false
                                     ],
                                     "nutrition": [
-                                        "type": "object",
+                                        "type": ["object", "null"],
                                         "description": "Nutrition plan for this day (null if workout-only)",
                                         "properties": [
                                             "goal": ["type": "string"],
@@ -321,16 +321,16 @@ class FirebaseAIService {
                                         "additionalProperties": false
                                     ]
                                 ],
-                                "required": ["date", "day_name"],
+                                "required": ["date", "day_name", "workout", "nutrition"],
                                 "additionalProperties": false
                             ]
                         ],
                         "notes": [
-                            "type": "string",
+                            "type": ["string", "null"],
                             "description": "Overall notes for the multi-day plan"
                         ]
                     ],
-                    "required": ["start_date", "end_date", "plan_type", "days"],
+                    "required": ["start_date", "end_date", "plan_type", "days", "notes"],
                     "additionalProperties": false
                 ],
                 strict: true

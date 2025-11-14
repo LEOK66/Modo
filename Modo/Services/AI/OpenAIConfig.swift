@@ -7,7 +7,7 @@ struct OpenAIConfig {
     static let temperature: Double = 0.9
     
     // Token limits
-    static let maxTokens = 1000
+    static let maxTokens = 3000  // Unified limit (sufficient for single-day and multi-day plans)
     static let maxTokensForVision = 300  // Reduced for image analysis
     static let maxTokensForChallenge = 300  // Reduced for daily challenge
     

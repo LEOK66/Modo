@@ -212,6 +212,23 @@ struct InsightsPageView: View {
             return
         }
         
+        if message.messageType == "multi_day_plan", let multiDayPlan = message.multiDayPlan {
+            print("   ✅ Found multi-day plan in message with \(multiDayPlan.days.count) days")
+            print("   Type: \(multiDayPlan.planType)")
+            // Send notifications for each day
+            for day in multiDayPlan.days {
+                if let workout = day.workout {
+                    sendWorkoutTaskNotification(plan: workout)
+                }
+                if let nutrition = day.nutrition {
+                    for meal in nutrition.meals {
+                        sendNutritionTaskNotification(meal: meal, date: nutrition.date)
+                    }
+                }
+            }
+            return
+        }
+        
         // ✅ FALLBACK: If no structured data, use text analysis (old method)
         print("   ⚠️ No structured plan found, falling back to text analysis")
         let content = message.content.lowercased()

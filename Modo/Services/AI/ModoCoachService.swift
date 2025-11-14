@@ -423,32 +423,12 @@ class ModoCoachService: ObservableObject {
             ))
             
             // Enable Function Calling with strict: true
-            // ✅ Detect if user is asking for a plan to use "required" mode
-            let userMessage = text.lowercased()
-            let isPlanRequest = userMessage.contains("plan") ||
-                               userMessage.contains("workout") ||
-                               userMessage.contains("exercise") ||
-                               userMessage.contains("meal") ||
-                               userMessage.contains("breakfast") ||
-                               userMessage.contains("lunch") ||
-                               userMessage.contains("dinner") ||
-                               userMessage.contains("diet") ||
-                               userMessage.contains("nutrition")
-            
-            let functionCallMode: String
-            if isPlanRequest && !userMessage.contains("?") {
-                // User is requesting a plan (not asking about it) → encourage function call
-                functionCallMode = "auto" // Still "auto" but prompt will enforce it
-            } else {
-                // General question → let AI decide freely
-                functionCallMode = "auto"
-            }
-            
+            // Use unified maxTokens (sufficient for both single-day and multi-day plans)
             let response = try await firebaseAIService.sendChatRequest(
                 messages: apiMessages,
-                functions: firebaseAIService.buildFunctions(), // Add function definitions (including strict: true)
-                functionCall: functionCallMode,
-                parallelToolCalls: false // Must be set to false (strict mode requires)
+                functions: firebaseAIService.buildFunctions(),
+                functionCall: "auto",
+                parallelToolCalls: false
             )
             
             await MainActor.run {
@@ -746,10 +726,18 @@ class ModoCoachService: ObservableObject {
         } catch {
             print("❌ Failed to decode multi-day plan: \(error)")
             if let jsonString = String(data: data, encoding: .utf8) {
-                print("Raw JSON: \(jsonString)")
+                print("Raw JSON (first 500 chars): \(jsonString.prefix(500))")
+                print("Raw JSON length: \(jsonString.count) characters")
+                
+                // Check if JSON was truncated
+                if !jsonString.hasSuffix("}") {
+                    print("⚠️ JSON appears to be truncated (doesn't end with })")
+                    sendErrorMessage("The plan was too large and got cut off. Please try asking for fewer days (e.g., 3-5 days instead of 7).")
+                    return
+                }
             }
             
-            sendErrorMessage("Had trouble generating that multi-day plan. Please try again.")
+            sendErrorMessage("Had trouble generating that multi-day plan. Please try asking for fewer days.")
         }
     }
     
