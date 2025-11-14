@@ -7,9 +7,13 @@ extension Notification.Name {
 
 class ProgressCalculationService {
     static let shared = ProgressCalculationService()
-    private let databaseService = DatabaseService.shared
+    private let databaseService: DatabaseServiceProtocol
     
-    private init() {}
+    /// Initialize with database service dependency
+    /// - Parameter databaseService: Database service for Firebase operations (defaults to shared instance)
+    init(databaseService: DatabaseServiceProtocol = DatabaseService.shared) {
+        self.databaseService = databaseService
+    }
     
     // MARK: - Day Completion Check
     
@@ -18,7 +22,7 @@ class ProgressCalculationService {
     ///   - tasks: All tasks to check
     ///   - date: Date to check
     /// - Returns: True if the day has at least one task and all tasks are completed
-    func isDayCompleted(tasks: [MainPageView.TaskItem], date: Date) -> Bool {
+    func isDayCompleted(tasks: [TaskItem], date: Date) -> Bool {
         let calendar = Calendar.current
         let normalizedDate = calendar.startOfDay(for: date)
         

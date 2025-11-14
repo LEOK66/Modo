@@ -4,9 +4,7 @@ import FirebaseAuth
 import FirebaseDatabase
 
 /// Daily Challenge Service - Manages daily challenge state and synchronization
-final class DailyChallengeService: ObservableObject {
-    static let shared = DailyChallengeService()
-    
+final class DailyChallengeService: ObservableObject, ChallengeServiceProtocol {
     // Current challenge
     @Published var currentChallenge: DailyChallenge?
     @Published var isChallengeCompleted: Bool = false
@@ -27,18 +25,26 @@ final class DailyChallengeService: ObservableObject {
     // Firebase listener handle
     private var completionObserverHandle: DatabaseHandle?
     
-    // Firebase reference - lazy to avoid early initialization
-    private lazy var databaseRef = Database.database().reference()
+    // Database service for Firebase operations
+    private let databaseService: DatabaseServiceProtocol
     
     // AI Services
     private let aiService = FirebaseAIService.shared
     private let promptBuilder = AIPromptBuilder()
     private let responseParser = AIResponseParser()
     
-    private init() {
-        // Load today's challenge from Firebase or generate default
-        loadTodayChallenge()
-        // Initial check will be done when UserProfileService updates
+    /// Initialize DailyChallengeService with dependencies
+    /// - Parameter databaseService: Database service for Firebase operations (defaults to shared instance)
+    init(databaseService: DatabaseServiceProtocol = DatabaseService.shared) {
+        self.databaseService = databaseService
+        // Don't load challenge here - wait until view appears
+        // This ensures user is logged in before loading
+    }
+    
+    /// Shared singleton instance (for backward compatibility)
+    /// Note: This creates a new instance with default database service, not a true singleton
+    static var shared: DailyChallengeService {
+        return DailyChallengeService()
     }
     
     /// Update user data availability status
@@ -55,54 +61,51 @@ final class DailyChallengeService: ObservableObject {
             return
         }
         
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
         let today = Calendar.current.startOfDay(for: Date())
-        let dateString = dateFormatter.string(from: today)
-        
-        let challengeRef = databaseRef
-            .child("users")
-            .child(userId)
-            .child("dailyChallenges")
-            .child(dateString)
         
         print("📡 DailyChallengeService: Loading today's challenge from Firebase...")
         
-        challengeRef.observeSingleEvent(of: .value) { [weak self] snapshot in
+        databaseService.fetchDailyChallenge(userId: userId, date: today) { [weak self] result in
             guard let self = self else { return }
             
-            if snapshot.exists(), let data = snapshot.value as? [String: Any] {
-                // Challenge exists in Firebase, parse it
-                if let challenge = self.parseChallengeFromFirebase(data, date: today) {
-                    DispatchQueue.main.async {
-                        self.currentChallenge = challenge
-                        self.isChallengeCompleted = data["isCompleted"] as? Bool ?? false
-                        self.isChallengeAddedToTasks = data["taskId"] != nil
-                        self.isLocked = data["isLocked"] as? Bool ?? false
-                        
-                        // Load completedAt timestamp
-                        if let completedAtTimestamp = data["completedAt"] as? Double {
-                            self.completedAt = Date(timeIntervalSince1970: completedAtTimestamp)
-                        } else {
-                            self.completedAt = nil
+            switch result {
+            case .success(let data):
+                if let data = data {
+                    // Challenge exists in Firebase, parse it
+                    if let challenge = self.parseChallengeFromFirebase(data, date: today) {
+                        DispatchQueue.main.async {
+                            self.currentChallenge = challenge
+                            self.isChallengeCompleted = data["isCompleted"] as? Bool ?? false
+                            self.isChallengeAddedToTasks = data["taskId"] != nil
+                            self.isLocked = data["isLocked"] as? Bool ?? false
+                            
+                            // Load completedAt timestamp
+                            if let completedAtTimestamp = data["completedAt"] as? Double {
+                                self.completedAt = Date(timeIntervalSince1970: completedAtTimestamp)
+                            } else {
+                                self.completedAt = nil
+                            }
+                            
+                            if let taskIdString = data["taskId"] as? String {
+                                self.challengeTaskId = UUID(uuidString: taskIdString)
+                            }
+                            
+                            // Set up real-time listener for completion status
+                            self.observeChallengeCompletion()
+                            
+                            print("✅ DailyChallengeService: Loaded challenge from Firebase - \(challenge.title)")
                         }
-                        
-                        if let taskIdString = data["taskId"] as? String {
-                            self.challengeTaskId = UUID(uuidString: taskIdString)
-                        }
-                        
-                        // Set up real-time listener for completion status
-                        self.observeChallengeCompletion()
-                        
-                        print("✅ DailyChallengeService: Loaded challenge from Firebase - \(challenge.title)")
+                    } else {
+                        print("⚠️ DailyChallengeService: Failed to parse challenge, using default")
+                        self.generateDefaultChallenge()
                     }
                 } else {
-                    print("⚠️ DailyChallengeService: Failed to parse challenge, using default")
+                    // No challenge for today in Firebase, use default
+                    print("ℹ️ DailyChallengeService: No challenge in Firebase for today, using default")
                     self.generateDefaultChallenge()
                 }
-            } else {
-                // No challenge for today in Firebase, use default
-                print("ℹ️ DailyChallengeService: No challenge in Firebase for today, using default")
+            case .failure(let error):
+                print("❌ DailyChallengeService: Failed to load challenge from Firebase - \(error.localizedDescription)")
                 self.generateDefaultChallenge()
             }
         }
@@ -320,31 +323,18 @@ final class DailyChallengeService: ObservableObject {
             return
         }
         
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
-        let dateString = dateFormatter.string(from: challenge.date)
-        
-        let challengeRef = databaseRef
-            .child("users")
-            .child(userId)
-            .child("dailyChallenges")
-            .child(dateString)
-        
-        // Update completion status, lock status, and completion time
-        var updates: [String: Any] = ["isCompleted": isCompleted]
-        
-        if isCompleted {
-            updates["isLocked"] = self.isLocked
-            if let completedAt = self.completedAt {
-                updates["completedAt"] = completedAt.timeIntervalSince1970
-            }
-        }
-        
-        challengeRef.updateChildValues(updates) { error, _ in
-            if let error = error {
-                print("❌ DailyChallengeService: Failed to update completion - \(error.localizedDescription)")
-            } else {
+        databaseService.updateDailyChallengeCompletion(
+            userId: userId,
+            date: challenge.date,
+            isCompleted: isCompleted,
+            isLocked: isLocked,
+            completedAt: completedAt
+        ) { result in
+            switch result {
+            case .success:
                 print("✅ DailyChallengeService: Completion status synced to Firebase")
+            case .failure(let error):
+                print("❌ DailyChallengeService: Failed to update completion - \(error.localizedDescription)")
             }
         }
     }
@@ -368,22 +358,16 @@ final class DailyChallengeService: ObservableObject {
             guard let userId = Auth.auth().currentUser?.uid,
                   let challenge = self.currentChallenge else { return }
             
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "yyyy-MM-dd"
-            let dateString = dateFormatter.string(from: challenge.date)
-            
-            let challengeRef = self.databaseRef
-                .child("users")
-                .child(userId)
-                .child("dailyChallenges")
-                .child(dateString)
-            
-            // Remove only the taskId field
-            challengeRef.updateChildValues(["taskId": NSNull()]) { error, _ in
-                if let error = error {
-                    print("❌ DailyChallengeService: Failed to remove taskId - \(error.localizedDescription)")
-                } else {
+            self.databaseService.updateDailyChallengeTaskId(
+                userId: userId,
+                date: challenge.date,
+                taskId: nil
+            ) { result in
+                switch result {
+                case .success:
                     print("✅ DailyChallengeService: Cleared taskId after task deletion")
+                case .failure(let error):
+                    print("❌ DailyChallengeService: Failed to remove taskId - \(error.localizedDescription)")
                 }
             }
         }
@@ -439,31 +423,17 @@ final class DailyChallengeService: ObservableObject {
         
         // Remove existing observer if any
         if let handle = completionObserverHandle {
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "yyyy-MM-dd"
-            let dateString = dateFormatter.string(from: challenge.date)
-            let ref = databaseRef
-                .child("users")
-                .child(userId)
-                .child("dailyChallenges")
-                .child(dateString)
-            ref.removeObserver(withHandle: handle)
+            databaseService.stopListening(handle: handle)
         }
         
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
-        let dateString = dateFormatter.string(from: challenge.date)
-        
-        let ref = databaseRef
-            .child("users")
-            .child(userId)
-            .child("dailyChallenges")
-            .child(dateString)
-        
         // Observe changes in completion status
-        completionObserverHandle = ref.observe(.value) { [weak self] snapshot in
-            guard let self = self,
-                  let data = snapshot.value as? [String: Any] else {
+        completionObserverHandle = databaseService.listenToDailyChallenge(
+            userId: userId,
+            date: challenge.date
+        ) { [weak self] data in
+            guard let self = self else { return }
+            
+            guard let data = data else {
                 return
             }
             
@@ -492,23 +462,11 @@ final class DailyChallengeService: ObservableObject {
     
     /// Remove completion observer
     func removeCompletionObserver() {
-        guard let userId = Auth.auth().currentUser?.uid,
-              let challenge = currentChallenge,
-              let handle = completionObserverHandle else {
+        guard let handle = completionObserverHandle else {
             return
         }
         
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
-        let dateString = dateFormatter.string(from: challenge.date)
-        
-        let ref = databaseRef
-            .child("users")
-            .child(userId)
-            .child("dailyChallenges")
-            .child(dateString)
-        
-        ref.removeObserver(withHandle: handle)
+        databaseService.stopListening(handle: handle)
         completionObserverHandle = nil
         
         print("🔇 DailyChallengeService: Removed completion observer")
@@ -523,38 +481,20 @@ final class DailyChallengeService: ObservableObject {
             return
         }
         
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
-        let dateString = dateFormatter.string(from: challenge.date)
-        
-        let challengeRef = databaseRef
-            .child("users")
-            .child(userId)
-            .child("dailyChallenges")
-            .child(dateString)
-        
-        var data: [String: Any] = [
-            "id": challenge.id.uuidString,
-            "title": challenge.title,
-            "subtitle": challenge.subtitle,
-            "emoji": challenge.emoji,
-            "type": challenge.type.rawValue,
-            "targetValue": challenge.targetValue,
-            "isCompleted": isChallengeCompleted,
-            "isLocked": isLocked,
-            "createdAt": Date().timeIntervalSince1970
-        ]
-        
-        // Add completedAt if available
-        if let completedAt = completedAt {
-            data["completedAt"] = completedAt.timeIntervalSince1970
-        }
-        
-        challengeRef.setValue(data) { error, _ in
-            if let error = error {
-                print("❌ DailyChallengeService: Failed to save challenge - \(error.localizedDescription)")
-            } else {
+        databaseService.saveDailyChallenge(
+            userId: userId,
+            challenge: challenge,
+            date: challenge.date,
+            isCompleted: isChallengeCompleted,
+            isLocked: isLocked,
+            completedAt: completedAt,
+            taskId: nil
+        ) { result in
+            switch result {
+            case .success:
                 print("✅ DailyChallengeService: Challenge saved to Firebase")
+            case .failure(let error):
+                print("❌ DailyChallengeService: Failed to save challenge - \(error.localizedDescription)")
             }
         }
     }
@@ -566,39 +506,20 @@ final class DailyChallengeService: ObservableObject {
             return
         }
         
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
-        let dateString = dateFormatter.string(from: challenge.date)
-        
-        let challengeRef = databaseRef
-            .child("users")
-            .child(userId)
-            .child("dailyChallenges")
-            .child(dateString)
-        
-        var data: [String: Any] = [
-            "id": challenge.id.uuidString,
-            "title": challenge.title,
-            "subtitle": challenge.subtitle,
-            "emoji": challenge.emoji,
-            "type": challenge.type.rawValue,
-            "targetValue": challenge.targetValue,
-            "taskId": taskId.uuidString,
-            "isCompleted": isChallengeCompleted,
-            "isLocked": isLocked,
-            "createdAt": Date().timeIntervalSince1970
-        ]
-        
-        // Add completedAt if available
-        if let completedAt = completedAt {
-            data["completedAt"] = completedAt.timeIntervalSince1970
-        }
-        
-        challengeRef.setValue(data) { error, _ in
-            if let error = error {
-                print("❌ DailyChallengeService: Failed to save challenge - \(error.localizedDescription)")
-            } else {
+        databaseService.saveDailyChallenge(
+            userId: userId,
+            challenge: challenge,
+            date: challenge.date,
+            isCompleted: isChallengeCompleted,
+            isLocked: isLocked,
+            completedAt: completedAt,
+            taskId: taskId
+        ) { result in
+            switch result {
+            case .success:
                 print("✅ DailyChallengeService: Challenge saved to Firebase")
+            case .failure(let error):
+                print("❌ DailyChallengeService: Failed to save challenge - \(error.localizedDescription)")
             }
         }
     }

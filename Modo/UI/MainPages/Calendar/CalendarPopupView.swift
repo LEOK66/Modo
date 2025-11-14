@@ -4,14 +4,14 @@ struct CalendarPopupView: View {
     @Binding var showCalendar: Bool
     @Binding var selectedDate: Date
     let dateRange: (min: Date, max: Date)
-    let tasksByDate: [Date: [MainPageView.TaskItem]]
+    let tasksByDate: [Date: [TaskItem]]
 
     @State private var currentMonth: Date = Date()
     @State private var selectedDay: Int? = nil
 
     private let weekSymbols = ["Su","Mo","Tu","We","Th","Fr","Sa"]
     
-    init(showCalendar: Binding<Bool>, selectedDate: Binding<Date>, dateRange: (min: Date, max: Date), tasksByDate: [Date: [MainPageView.TaskItem]] = [:]) {
+    init(showCalendar: Binding<Bool>, selectedDate: Binding<Date>, dateRange: (min: Date, max: Date), tasksByDate: [Date: [TaskItem]] = [:]) {
         self._showCalendar = showCalendar
         self._selectedDate = selectedDate
         self.dateRange = dateRange
@@ -46,9 +46,9 @@ struct CalendarPopupView: View {
             )
         }
         .frame(width: 343, height: 536)
-        .background(Color.white)
+        .background(Color(.systemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .shadow(color: Color.black.opacity(0.25), radius: 50, x: 0, y: 25)
+        .shadow(color: Color.primary.opacity(0.25), radius: 50, x: 0, y: 25)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         .zIndex(1)
         .onAppear {
@@ -72,12 +72,14 @@ private struct HeaderView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Daily Streak")
                         .font(.system(size: 12, weight: .regular))
-                        .foregroundColor(Color(hex: 0x6A7282))
+                        .foregroundColor(.secondary)
                     StreakView()
                 }
                 Spacer()
-                Text("🔥")
-                    .font(.system(size: 48))
+                // Placeholder for streak icon - logic to be implemented
+                Image(systemName: "flame.fill")
+                    .font(.system(size: 32))
+                    .foregroundColor(.secondary)
             }
             .frame(height: 68)
             .padding(.horizontal, 24)
@@ -86,7 +88,7 @@ private struct HeaderView: View {
         }
         .overlay(alignment: .bottom) {
             Rectangle()
-                .fill(Color(hex: 0xE5E7EB))
+                .fill(Color(.separator))
                 .frame(height: 1)
         }
     }
@@ -95,12 +97,13 @@ private struct HeaderView: View {
 private struct StreakView: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text("7")
+            // Placeholder - streak count logic to be implemented
+            Text("--")
                 .font(.system(size: 48, weight: .regular))
-                .foregroundColor(Color(hex: 0x0A0A0A))
+                .foregroundColor(.primary)
             Text("days")
                 .font(.system(size: 16, weight: .regular))
-                .foregroundColor(Color(hex: 0x4A5565))
+                .foregroundColor(.secondary)
         }
     }
 }
@@ -114,13 +117,13 @@ private struct MonthNavigationView: View {
         HStack {
             Text(monthTitle(for: currentMonth))
                 .font(.system(size: 18, weight: .medium))
-                .foregroundColor(Color(hex: 0x0A0A0A))
+                .foregroundColor(.primary)
             Spacer()
             HStack(spacing: 4) {
                 Button(action: { shiftMonth(by: -1) }) {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(canGoPrevious ? Color(hex: 0x0A0A0A) : Color(hex: 0xD1D5DB))
+                        .foregroundColor(canGoPrevious ? .primary : .secondary)
                         .frame(width: 32, height: 32)
                         .background(Color.clear)
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -130,7 +133,7 @@ private struct MonthNavigationView: View {
                 Button(action: { shiftMonth(by: 1) }) {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(canGoNext ? Color(hex: 0x0A0A0A) : Color(hex: 0xD1D5DB))
+                        .foregroundColor(canGoNext ? .primary : .secondary)
                         .frame(width: 32, height: 32)
                         .background(Color.clear)
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -200,7 +203,7 @@ private struct WeekdaySymbolsView: View {
             ForEach(weekSymbols, id: \.self) { sym in
                 Text(sym)
                     .font(.system(size: 12, weight: .regular))
-                    .foregroundColor(Color(hex: 0x99A1AF))
+                    .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity)
                     .frame(height: 32)
             }
@@ -215,7 +218,7 @@ private struct DaysGridView: View {
     @Binding var selectedDay: Int?
     @Binding var currentMonth: Date
     let dateRange: (min: Date, max: Date)
-    let tasksByDate: [Date: [MainPageView.TaskItem]]
+    let tasksByDate: [Date: [TaskItem]]
 
     private let columns = Array(repeating: GridItem(.fixed(36.57), spacing: 6), count: 7)
     private let calendar = Calendar.current
@@ -306,24 +309,24 @@ private struct DayCell: View {
     let hasUncompletedTasks: Bool
 
     private var bgColor: Color {
-        if isFilledBlack { return .black }
-        if isFilledGray { return Color(hex: 0xE5E7EB) }
+        if isFilledBlack { return Color.primary }
+        if isFilledGray { return Color(.secondarySystemBackground) }
         return .clear
     }
 
     private var fgColor: Color {
         if isDisabled {
-            return Color(hex: 0xD1D5DB)
+            return .secondary
         }
-        return isFilledBlack ? .white : Color(hex: 0x364153)
+        return isFilledBlack ? Color(.systemBackground) : .primary
     }
     
     private var dotColor: Color {
-        // Use gray color that works on both light and dark backgrounds
+        // Use secondary color that adapts to light/dark mode
         if isFilledBlack {
-            return Color(hex: 0x9CA3AF) // Lighter gray for black background
+            return .secondary.opacity(0.7) // Lighter for dark background
         }
-        return Color(hex: 0x6B7280) // Darker gray for light background
+        return .secondary // Adapts automatically
     }
 
     var body: some View {
@@ -365,10 +368,10 @@ private struct ActionButtonsView: View {
             }) {
                 Text("Cancel")
                     .font(.system(size: 16, weight: .regular))
-                    .foregroundColor(Color(hex: 0x101828))
+                    .foregroundColor(.primary)
                     .frame(maxWidth: .infinity)
                     .frame(height: 48)
-                    .background(Color(hex: 0xF3F4F6))
+                    .background(Color(.secondarySystemBackground))
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
 
@@ -377,10 +380,10 @@ private struct ActionButtonsView: View {
             }) {
                 Text("Confirm")
                     .font(.system(size: 16, weight: .regular))
-                    .foregroundColor(.white)
+                    .foregroundColor(hasValidSelection ? Color(.systemBackground) : .secondary)
                     .frame(maxWidth: .infinity)
                     .frame(height: 48)
-                    .background(hasValidSelection ? Color.black : Color(hex: 0xD1D5DB))
+                    .background(hasValidSelection ? Color.primary : Color(.tertiarySystemBackground))
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
             .disabled(!hasValidSelection)
@@ -424,16 +427,6 @@ private struct ActionButtonsView: View {
             selectedDay = nil
             showCalendar = false
         }
-    }
-}
-
-// MARK: - Color Extension
-private extension Color {
-    init(hex: UInt, alpha: Double = 1.0) {
-        let r = Double((hex >> 16) & 0xFF) / 255.0
-        let g = Double((hex >> 8) & 0xFF) / 255.0
-        let b = Double(hex & 0xFF) / 255.0
-        self.init(.sRGB, red: r, green: g, blue: b, opacity: alpha)
     }
 }
 

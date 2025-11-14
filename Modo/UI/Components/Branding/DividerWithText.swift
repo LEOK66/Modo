@@ -7,17 +7,17 @@ struct DividerWithText: View {
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             Rectangle()
-                .fill(Color(hexString: "E5E7EB"))
+                .fill(Color(.separator)) // Adapts to light/dark mode
                 .frame(height: 1)
                 .opacity(1.0)
             
             Text(text)
                 .font(.system(size: 12))
-                .foregroundColor(Color(hexString: "6A7282"))
+                .foregroundColor(.secondary) // Adapts to light/dark mode
                 .textCase(.uppercase)
             
             Rectangle()
-                .fill(Color(hexString: "E5E7EB"))
+                .fill(Color(.separator)) // Adapts to light/dark mode
                 .frame(height: 1)
                 .opacity(1.0)
         }

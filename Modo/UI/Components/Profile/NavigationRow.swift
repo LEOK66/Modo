@@ -18,33 +18,33 @@ struct NavigationRow: View {
         NavigationLink(destination: destination) {
             HStack(spacing: 16) {
                 RoundedRectangle(cornerRadius: 14)
-                    .fill(Color(hexString: "F3F4F6"))
+                    .fill(Color(.secondarySystemBackground))
                     .frame(width: 44, height: 44)
                     .overlay(
                         Image(systemName: icon)
-                            .foregroundColor(Color(hexString: "364153"))
+                            .foregroundColor(.primary)
                     )
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(Color(hexString: "101828"))
+                        .foregroundColor(.primary)
                     Text(subtitle)
                         .font(.system(size: 12))
-                        .foregroundColor(Color(hexString: "6A7282"))
+                        .foregroundColor(.secondary)
                 }
 
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .foregroundColor(Color(hexString: "99A1AF"))
+                    .foregroundColor(.secondary)
             }
             .padding(16)
             .background(
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.white)
-                    .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 1)
-                    .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+                    .fill(Color(.systemBackground))
+                    .shadow(color: Color.primary.opacity(0.1), radius: 3, x: 0, y: 1)
+                    .shadow(color: Color.primary.opacity(0.1), radius: 2, x: 0, y: 1)
             )
             .frame(width: 327)
         }

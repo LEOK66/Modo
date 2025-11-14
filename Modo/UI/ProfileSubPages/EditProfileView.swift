@@ -8,86 +8,80 @@ struct EditProfileView: View {
     @EnvironmentObject var authService: AuthService
     @EnvironmentObject var userProfileService: UserProfileService
     @Query private var profiles: [UserProfile]
-
-    // Local editable states (initialized from existing profile)
-    @State private var heightValue: String = ""
-    @State private var heightUnit: String = "cm"
-    @State private var weightValue: String = ""
-    @State private var weightUnit: String = "kg"
-    @State private var ageValue: String = ""
-    @State private var genderCode: String? = nil
-    @State private var lifestyleCode: String? = nil
-    @State private var goalCode: String? = nil
-    @State private var dailyCalories: String = ""
-    @State private var dailyProtein: String = ""
-    @State private var targetWeightLoss: String = ""
-    @State private var targetWeightLossUnit: String = "kg"
-    @State private var targetDays: String = ""
-
-    // Validation flags (lightweight)
-    @State private var showHeightError = false
-    @State private var showWeightError = false
-    @State private var showTargetDaysError = false
-
+    
+    // ViewModel - manages all business logic and state
+    @StateObject private var viewModel = EditProfileViewModel()
+    
     private var userProfile: UserProfile? {
         userProfileService.currentProfile
     }
-    
-    // MARK: - Helpers for recommendations
-    private func weightInKg() -> Double? {
-        guard let v = Double(weightValue) else { return nil }
-        return HealthCalculator.convertWeightToKg(v, unit: weightUnit)
-    }
-    private func heightInCm() -> Double? {
-        guard let v = Double(heightValue) else { return nil }
-        return HealthCalculator.convertHeightToCm(v, unit: heightUnit)
-    }
-    private func recommendedCaloriesValue() -> Int? {
-        guard let age = Int(ageValue),
-              let gender = genderCode,
-              let kg = weightInKg(),
-              let cm = heightInCm(),
-              let lifestyle = lifestyleCode else { return nil }
-        return HealthCalculator.recommendedCalories(age: age, genderCode: gender, weightKg: kg, heightCm: cm, lifestyleCode: lifestyle)
-    }
-    private func recommendedProteinValue() -> Int? {
-        guard let kg = weightInKg() else { return nil }
-        return HealthCalculator.recommendedProtein(weightKg: kg)
-    }
 
     var body: some View {
-        Form {
-            Section(header: Text("Body Metrics")) {
+        ZStack(alignment: .top) {
+            Color(.systemBackground).ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                // Header
+                HStack {
+                    BackButton(action: { dismiss() })
+                        .frame(width: 66, height: 44)
+                    
+                    Spacer()
+                    
+                    Text("Edit Profile")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundColor(.primary)
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        viewModel.saveChanges()
+                        dismiss()
+                    }) {
+                        Text("Save")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(Color(hexString: "7C3AED"))
+                    }
+                    .frame(width: 66, height: 44)
+                }
+                .padding(.top, 12)
+                .padding(.horizontal, 24)
+                
+                Spacer().frame(height: 12)
+                
+                // Form content
+                Form {
+                    Section(header: Text("Body Metrics")) {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text("Height")
                         Spacer()
-                        TextField("-", text: $heightValue)
+                        TextField("-", text: $viewModel.heightValue)
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
-                        Picker("Unit", selection: $heightUnit) {
+                        Picker("Unit", selection: $viewModel.heightUnit) {
                             Text("cm").tag("cm")
                             Text("in").tag("in")
                         }
                         .pickerStyle(.menu)
                     }
-                    .onChange(of: heightValue) {
-                        if !heightValue.isEmpty {
-                            showHeightError = !heightValue.isValidHeight(unit: heightUnit)
+                    .onChange(of: viewModel.heightValue) {
+                        if !viewModel.heightValue.isEmpty {
+                            _ = viewModel.validateHeight()
                         } else {
-                            showHeightError = false
+                            viewModel.showHeightError = false
                         }
                     }
-                    .onChange(of: heightUnit) {
-                        if !heightValue.isEmpty {
-                            showHeightError = !heightValue.isValidHeight(unit: heightUnit)
+                    .onChange(of: viewModel.heightUnit) {
+                        if !viewModel.heightValue.isEmpty {
+                            _ = viewModel.validateHeight()
                         } else {
-                            showHeightError = false
+                            viewModel.showHeightError = false
                         }
                     }
-                    if showHeightError {
-                        let range = heightUnit == "cm" ? "50-250" : "20-96"
-                        Text("Please enter a valid height (\(range) \(heightUnit))")
+                    if viewModel.showHeightError {
+                        let range = viewModel.heightUnit == "cm" ? "50-250" : "20-96"
+                        Text("Please enter a valid height (\(range) \(viewModel.heightUnit))")
                             .font(.footnote)
                             .foregroundColor(.red)
                     }
@@ -96,32 +90,32 @@ struct EditProfileView: View {
                     HStack {
                         Text("Weight")
                         Spacer()
-                        TextField("-", text: $weightValue)
+                        TextField("-", text: $viewModel.weightValue)
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
-                        Picker("Unit", selection: $weightUnit) {
+                        Picker("Unit", selection: $viewModel.weightUnit) {
                             Text("kg").tag("kg")
-                            Text("lb").tag("lb")
+                            Text("lbs").tag("lbs")
                         }
                         .pickerStyle(.menu)
                     }
-                    .onChange(of: weightValue) {
-                        if !weightValue.isEmpty {
-                            showWeightError = !weightValue.isValidWeight(unit: weightUnit)
+                    .onChange(of: viewModel.weightValue) {
+                        if !viewModel.weightValue.isEmpty {
+                            _ = viewModel.validateWeight()
                         } else {
-                            showWeightError = false
+                            viewModel.showWeightError = false
                         }
                     }
-                    .onChange(of: weightUnit) {
-                        if !weightValue.isEmpty {
-                            showWeightError = !weightValue.isValidWeight(unit: weightUnit)
+                    .onChange(of: viewModel.weightUnit) {
+                        if !viewModel.weightValue.isEmpty {
+                            _ = viewModel.validateWeight()
                         } else {
-                            showWeightError = false
+                            viewModel.showWeightError = false
                         }
                     }
-                    if showWeightError {
-                        let range = weightUnit == "kg" ? "20-500" : "44-1100"
-                        Text("Please enter a valid weight (\(range) \(weightUnit))")
+                    if viewModel.showWeightError {
+                        let range = viewModel.weightUnit == "kg" ? "20-500" : "44-1100"
+                        Text("Please enter a valid weight (\(range) \(viewModel.weightUnit))")
                             .font(.footnote)
                             .foregroundColor(.red)
                     }
@@ -129,20 +123,20 @@ struct EditProfileView: View {
                 HStack {
                     Text("Age")
                     Spacer()
-                    TextField("-", text: $ageValue)
+                    TextField("-", text: $viewModel.ageValue)
                         .keyboardType(.numberPad)
                         .multilineTextAlignment(.trailing)
                 }
             }
 
             Section(header: Text("Basics")) {
-                Picker("Gender", selection: Binding(get: { genderCode ?? "" }, set: { genderCode = $0.isEmpty ? nil : $0 })) {
+                Picker("Gender", selection: Binding(get: { viewModel.genderCode ?? "" }, set: { viewModel.genderCode = $0.isEmpty ? nil : $0 })) {
                     Text("-").tag("")
                     Text("Male").tag("male")
                     Text("Female").tag("female")
                     Text("Other").tag("other")
                 }
-                Picker("Lifestyle", selection: Binding(get: { lifestyleCode ?? "" }, set: { lifestyleCode = $0.isEmpty ? nil : $0 })) {
+                Picker("Lifestyle", selection: Binding(get: { viewModel.lifestyleCode ?? "" }, set: { viewModel.lifestyleCode = $0.isEmpty ? nil : $0 })) {
                     Text("-").tag("")
                     Text("Sedentary").tag("sedentary")
                     Text("Moderately Active").tag("moderately_active")
@@ -151,94 +145,97 @@ struct EditProfileView: View {
             }
 
             Section(header: Text("Goal")) {
-                Picker("Type", selection: Binding(get: { goalCode ?? "" }, set: { goalCode = $0.isEmpty ? nil : $0 })) {
+                Picker("Type", selection: Binding(get: { viewModel.goalCode ?? "" }, set: { viewModel.goalCode = $0.isEmpty ? nil : $0 })) {
                     Text("-").tag("")
                     Text("Lose Weight").tag("lose_weight")
                     Text("Keep Healthy").tag("keep_healthy")
                     Text("Gain Muscle").tag("gain_muscle")
                 }
-                if goalCode == "lose_weight" {
+                if viewModel.goalCode == "lose_weight" {
                     HStack {
                         Text("Target Loss")
                         Spacer()
-                        TextField("-", text: $targetWeightLoss)
+                        TextField("-", text: $viewModel.targetWeightLoss)
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
-                        Picker("Unit", selection: $targetWeightLossUnit) {
+                        Picker("Unit", selection: $viewModel.targetWeightLossUnit) {
                             Text("kg").tag("kg")
-                            Text("lb").tag("lb")
+                            Text("lbs").tag("lbs")
                         }
                         .pickerStyle(.menu)
                     }
-                } else if goalCode == "keep_healthy" {
+                } else if viewModel.goalCode == "keep_healthy" {
                     HStack {
                         Text("Daily Calories")
                         Spacer()
-                        TextField("-", text: $dailyCalories)
+                        TextField("-", text: $viewModel.dailyCalories)
                             .keyboardType(.numberPad)
                             .multilineTextAlignment(.trailing)
                         Text("kcal")
                     }
-                    if let rec = recommendedCaloriesValue() {
+                    if let rec = viewModel.recommendedCaloriesValue() {
                         HStack {
                             Text("Recommended")
                             Spacer()
                             Text("\(rec) kcal").foregroundColor(.secondary)
-                            Button("Use") { dailyCalories = String(rec) }
+                            Button("Use") { viewModel.dailyCalories = String(rec) }
                         }
                     }
-                } else if goalCode == "gain_muscle" {
+                } else if viewModel.goalCode == "gain_muscle" {
                     HStack {
                         Text("Daily Protein")
                         Spacer()
-                        TextField("-", text: $dailyProtein)
+                        TextField("-", text: $viewModel.dailyProtein)
                             .keyboardType(.numberPad)
                             .multilineTextAlignment(.trailing)
                         Text("g")
                     }
-                    if let rec = recommendedProteinValue() {
+                    if let rec = viewModel.recommendedProteinValue() {
                         HStack {
                             Text("Recommended")
                             Spacer()
                             Text("\(rec) g").foregroundColor(.secondary)
-                            Button("Use") { dailyProtein = String(rec) }
+                            Button("Use") { viewModel.dailyProtein = String(rec) }
                         }
                     }
                 }
                 HStack {
                     Text("Target Days")
                     Spacer()
-                    TextField("-", text: $targetDays)
+                    TextField("-", text: $viewModel.targetDays)
                         .keyboardType(.numberPad)
                         .multilineTextAlignment(.trailing)
                 }
-                if showTargetDaysError {
+                if viewModel.showTargetDaysError {
                     Text("Please enter 1-365 days")
                         .font(.footnote)
                         .foregroundColor(.red)
                 }
             }
-        }
-        .navigationTitle("Edit Profile")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Save") { saveChanges() }
+                }
+                .scrollContentBackground(.hidden)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .navigationBarBackButtonHidden(true)
         .onAppear {
-            hydrateFromProfile()
+            // Setup ViewModel with dependencies
+            viewModel.setup(
+                modelContext: modelContext,
+                authService: authService,
+                userProfileService: userProfileService,
+                userProfile: userProfile
+            )
             // Prefill suggestions if empty
-            if goalCode == "keep_healthy", dailyCalories.isEmpty, let rec = recommendedCaloriesValue() {
-                dailyCalories = String(rec)
+            if viewModel.goalCode == "keep_healthy", viewModel.dailyCalories.isEmpty, let rec = viewModel.recommendedCaloriesValue() {
+                viewModel.dailyCalories = String(rec)
             }
-            if goalCode == "gain_muscle", dailyProtein.isEmpty, let rec = recommendedProteinValue() {
-                dailyProtein = String(rec)
+            if viewModel.goalCode == "gain_muscle", viewModel.dailyProtein.isEmpty, let rec = viewModel.recommendedProteinValue() {
+                viewModel.dailyProtein = String(rec)
             }
         }
-        .scrollContentBackground(.hidden)
         .background(
-            Color.white
+            Color(.systemBackground)
                 .contentShape(Rectangle())
                 .onTapGesture {
                     UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
@@ -246,86 +243,6 @@ struct EditProfileView: View {
         )
     }
 
-    private func hydrateFromProfile() {
-        guard let p = userProfile else { return }
-        if let h = p.heightValue { heightValue = String(Int(h)) }
-        heightUnit = p.heightUnit ?? heightUnit
-        if let w = p.weightValue { weightValue = String(Int(w)) }
-        weightUnit = p.weightUnit ?? weightUnit
-        if let a = p.age { ageValue = String(a) }
-        genderCode = p.gender
-        lifestyleCode = p.lifestyle
-        goalCode = p.goal
-        if let c = p.dailyCalories { dailyCalories = String(c) }
-        if let pr = p.dailyProtein { dailyProtein = String(pr) }
-        if let tw = p.targetWeightLossValue { targetWeightLoss = String(Int(tw)) }
-        targetWeightLossUnit = p.targetWeightLossUnit ?? targetWeightLossUnit
-        if let td = p.targetDays { targetDays = String(td) }
-    }
-
-    private func saveChanges() {
-        // Validate height if provided
-        if !heightValue.isEmpty {
-            showHeightError = !heightValue.isValidHeight(unit: heightUnit)
-            if showHeightError { return }
-        }
-        
-        // Validate weight if provided
-        if !weightValue.isEmpty {
-            showWeightError = !weightValue.isValidWeight(unit: weightUnit)
-            if showWeightError { return }
-        }
-        
-        // Validate target days if provided
-        if !targetDays.isEmpty {
-            let td = Int(targetDays) ?? 0
-            showTargetDaysError = !(1...365).contains(td)
-            if showTargetDaysError { return }
-        }
-
-        guard let userId = authService.currentUser?.uid else { return }
-        let profile: UserProfile
-        if let existing = userProfile { profile = existing } else { profile = UserProfile(userId: userId); modelContext.insert(profile) }
-
-        // Parse numbers softly: empty strings mean keep nil
-        let heightDouble = Double(heightValue)
-        let weightDouble = Double(weightValue)
-        let ageInt = Int(ageValue)
-        let caloriesInt = Int(dailyCalories)
-        let proteinInt = Int(dailyProtein)
-        let targetLossDouble = Double(targetWeightLoss)
-        let targetDaysInt = Int(targetDays)
-
-        profile.updateProfile(
-            heightValue: heightValue.isEmpty ? nil : heightDouble,
-            heightUnit: heightUnit,
-            weightValue: weightValue.isEmpty ? nil : weightDouble,
-            weightUnit: weightUnit,
-            age: ageValue.isEmpty ? nil : ageInt,
-            genderCode: genderCode,
-            lifestyleCode: lifestyleCode,
-            goalCode: goalCode,
-            dailyCalories: dailyCalories.isEmpty ? nil : caloriesInt,
-            dailyProtein: dailyProtein.isEmpty ? nil : proteinInt,
-            targetWeightLossValue: targetWeightLoss.isEmpty ? nil : targetLossDouble,
-            targetWeightLossUnit: targetWeightLossUnit,
-            targetDays: targetDays.isEmpty ? nil : targetDaysInt
-        )
-
-        // If goal changed and was set, reset start date to now
-        if let newGoal = goalCode, newGoal != profile.goal {
-            profile.goalStartDate = Date()
-        }
-
-        do { try modelContext.save() } catch { print("Save error: \(error.localizedDescription)") }
-
-        DatabaseService.shared.saveUserProfile(profile) { _ in }
-        
-        // Refresh the shared service
-        userProfileService.setProfile(profile)
-
-        dismiss()
-    }
 }
 
 #Preview {
