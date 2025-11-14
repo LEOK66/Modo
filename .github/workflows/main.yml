@@ -70,24 +70,10 @@ jobs:
           echo "Available iPhone simulators:"
           xcrun simctl list devices available | grep -i "iphone" || echo "No iPhone simulators found"
 
-      - name: Start iOS Simulator
-        run: |
-          # Try common simulator names in order of preference
-          # Supports both newer (iPhone 16/17) and older (iPhone 15/14) Xcode versions
-          for simulator in "iPhone 17" "iPhone 16" "iPhone 15" "iPhone 14" "iPhone 13"; do
-            if xcrun simctl list devices available | grep -q "$simulator"; then
-              echo "Found and booting $simulator..."
-              xcrun simctl boot "$simulator" 2>/dev/null || echo "$simulator already booted or unavailable"
-              sleep 3
-              break
-            fi
-          done
-
-      - name: Detect Available Simulator
+      - name: Detect and Start iOS Simulator
         id: detect_sim
         run: |
-          # Detect first available iPhone simulator and get its UDID
-          # Using UDID is more reliable than device name
+          # Detect first available iPhone simulator, get UDID, and boot it
           for device in "iPhone 15" "iPhone 16" "iPhone 17" "iPhone 14" "iPhone 13"; do
             # Find device and extract UDID (format: "iPhone 16 (12345678-...) (Shutdown)")
             device_line=$(xcrun simctl list devices available | grep "$device" | head -1)
@@ -96,9 +82,22 @@ jobs:
               udid=$(echo "$device_line" | grep -oE '\([0-9A-Fa-f-]{36}\)' | tr -d '()')
               
               if [ -n "$udid" ]; then
+                echo "✅ Found: $device (UDID: $udid)"
+                
+                # Boot the simulator using its UDID
+                echo "🚀 Booting simulator..."
+                xcrun simctl boot "$udid" 2>/dev/null || echo "Simulator already booted"
+                sleep 5
+                
+                # Verify it's booted
+                if xcrun simctl list devices | grep "$udid" | grep -q "Booted"; then
+                  echo "✅ Simulator is booted and ready"
+                else
+                  echo "⚠️ Simulator boot status uncertain, but continuing..."
+                fi
+                
                 echo "SIMULATOR_UDID=$udid" >> $GITHUB_OUTPUT
                 echo "SIMULATOR_NAME=$device" >> $GITHUB_OUTPUT
-                echo "✅ Found: $device (UDID: $udid)"
                 break
               fi
             fi
