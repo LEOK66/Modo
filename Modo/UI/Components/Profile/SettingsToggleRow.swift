@@ -36,6 +36,7 @@ struct SettingsToggleRow: View {
             // Toggle
             Toggle("", isOn: $isOn)
                 .labelsHidden()
+                .toggleStyle(SwitchToggleStyle(tint: Color(hexString: "7C3AED")))
         }
         .padding(20)
     }

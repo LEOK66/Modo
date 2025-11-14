@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-// MARK: - Keyboard Dismissal Extension
+// MARK: - View Extensions
 extension View {
     /// Dismisses the keyboard when tapping outside of text fields
     /// This modifier adds a tap gesture that will dismiss the keyboard without interfering with other interactions
@@ -27,6 +27,16 @@ extension View {
                     UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                 }
         )
+    }
+    
+    /// Applies color scheme conditionally - if nil, follows system appearance
+    @ViewBuilder
+    func applyColorScheme(_ colorScheme: ColorScheme?) -> some View {
+        if let colorScheme = colorScheme {
+            self.colorScheme(colorScheme)
+        } else {
+            self
+        }
     }
 }
 

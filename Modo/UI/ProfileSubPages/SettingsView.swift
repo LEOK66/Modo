@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - Settings View
 struct SettingsView: View {
-    @StateObject private var themeManager = ThemeManager()
+    @EnvironmentObject var themeManager: ThemeManager
     @State private var notificationsEnabled = true
     
     var body: some View {
@@ -37,15 +37,6 @@ struct SettingsView: View {
                             icon: "globe",
                             title: "Language",
                             subtitle: "English",
-                            showDivider: true
-                        ) {
-                            ComingSoonView()
-                        }
-                        
-                        SettingsRowNavigationLink(
-                            icon: "ruler",
-                            title: "Units",
-                            subtitle: "Metric (kg, km, cal)",
                             showDivider: true
                         ) {
                             ComingSoonView()
@@ -174,5 +165,6 @@ struct SettingsView: View {
 #Preview {
     NavigationStack {
         SettingsView()
+            .environmentObject(ThemeManager())
     }
 }

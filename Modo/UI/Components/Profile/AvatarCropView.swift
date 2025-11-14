@@ -51,10 +51,11 @@ struct AvatarCropView: View {
 
                         // Circular crop border
                         Circle()
-                            .stroke(Color.white.opacity(0.95), lineWidth: 2)
+                            .stroke(Color.primary.opacity(0.9), lineWidth: 2)
                             .frame(width: side, height: side)
                             .position(x: cropRect.midX, y: cropRect.midY)
                             .allowsHitTesting(false)
+                            .shadow(color: Color.black.opacity(0.3), radius: 2, x: 0, y: 1)
                     }
                     .onAppear {
                         cropSize = side
@@ -72,11 +73,11 @@ struct AvatarCropView: View {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") { onCancel() }
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.black)
+                        .foregroundColor(.primary)
                 }
                 ToolbarItem(placement: .principal) {
                     Text("Adjust Avatar")
-                        .foregroundColor(.black)
+                        .foregroundColor(.primary)
                         .font(.system(size: 17, weight: .semibold))
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -86,12 +87,12 @@ struct AvatarCropView: View {
                         }
                     }
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.black)
+                    .foregroundColor(.primary)
                 }
             }
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
-            .tint(.black)
+            .tint(.primary)
         }
     }
 
