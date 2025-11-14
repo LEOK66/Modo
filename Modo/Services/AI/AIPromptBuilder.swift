@@ -384,8 +384,7 @@ class AIPromptBuilder {
             - Use 2-3 foods per meal (simple names, no long descriptions)
             - Use 4-5 exercises per workout (essential movements only)
             - Each day should have varied content (different exercises/meals)
-          * In text response: "I've created your [X]-day [workout/nutrition] plan!"
-        - For workout plans: Include 1-2 rest days per week (set workout to null)
+
         - For nutrition plans: Vary meals across days (different proteins, carbs, recipes)
         - Set plan_type: "workout", "nutrition", or "both" based on user request
         
@@ -424,7 +423,7 @@ class AIPromptBuilder {
         - Responding with ONLY text without calling function → This is INCOMPLETE
         
         ✅ CORRECT behavior:
-        - Text: "Great! I've created your breakfast plan for 9 AM 🍽️"
+        - Text: "Great! I've created your breakfast plan for 9 AM"
         - Function: generate_nutrition_plan(...) 
         - BOTH happen in the SAME response
         
@@ -438,7 +437,7 @@ class AIPromptBuilder {
         IMPORTANT for workout plans:
         - ALWAYS include 4-6 specific, VARIED exercises with sets and reps
         - Use diverse rep ranges (e.g., "4-6" for strength, "8-10" for hypertrophy, "15-20" for endurance)
-        - Include rest periods (30-45s for circuits, 60-90s for hypertrophy, 2-3min for strength)
+        - Include rest periods (15-30s for circuits, 30-60s for hypertrophy, 1-2min for strength)
         - Mix compound (squats, deadlifts, presses) and isolation exercises (curls, extensions)
         - Vary exercise selection: free weights, machines, bodyweight, TRX, kettlebells
         - Consider different training methods: straight sets, supersets, tri-sets, circuits, EMOM
