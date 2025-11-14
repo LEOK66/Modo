@@ -20,7 +20,7 @@ jobs:
       - name: Setup Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: '26.0.1'
+          xcode-version: '16.1.0'  # Xcode 16.1 includes iOS 18.6 simulators
 
       - name: Clean build artifacts
         run: |
@@ -74,31 +74,36 @@ jobs:
         id: detect_sim
         run: |
           # Detect first available iPhone simulator, get UDID, and boot it
-          for device in "iPhone 15" "iPhone 16" "iPhone 17" "iPhone 14" "iPhone 13"; do
-            # Find device and extract UDID (format: "iPhone 16 (12345678-...) (Shutdown)")
-            device_line=$(xcrun simctl list devices available | grep "$device" | head -1)
+          # Use more specific grep to avoid partial matches
+          for device in "iPhone 16" "iPhone 17" "iPhone 15" "iPhone 14" "iPhone SE"; do
+            echo "🔍 Looking for $device..."
+            # Find device with proper word boundaries and extract UDID
+            device_line=$(xcrun simctl list devices available | grep -w "$device" | grep "iPhone" | head -1)
+            
             if [ -n "$device_line" ]; then
-              # Extract UDID between parentheses (36 characters UUID)
-              udid=$(echo "$device_line" | grep -oE '\([0-9A-Fa-f-]{36}\)' | tr -d '()')
+              echo "📱 Found device line: $device_line"
+              # Extract UDID: format is "Device Name (UDID) (State)"
+              udid=$(echo "$device_line" | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/I')
               
-              if [ -n "$udid" ]; then
+              if [ -n "$udid" ] && [ ${#udid} -eq 36 ]; then
                 echo "✅ Found: $device (UDID: $udid)"
                 
                 # Boot the simulator using its UDID
-                echo "🚀 Booting simulator..."
+                echo "🚀 Booting simulator with UDID: $udid"
                 xcrun simctl boot "$udid" 2>/dev/null || echo "Simulator already booted"
                 sleep 5
                 
-                # Verify it's booted
-                if xcrun simctl list devices | grep "$udid" | grep -q "Booted"; then
-                  echo "✅ Simulator is booted and ready"
+                # Verify it's available
+                if xcrun simctl list devices | grep "$udid"; then
+                  echo "✅ Simulator is ready"
+                  echo "SIMULATOR_UDID=$udid" >> $GITHUB_OUTPUT
+                  echo "SIMULATOR_NAME=$device" >> $GITHUB_OUTPUT
+                  break
                 else
-                  echo "⚠️ Simulator boot status uncertain, but continuing..."
+                  echo "❌ Failed to verify simulator, trying next device..."
                 fi
-                
-                echo "SIMULATOR_UDID=$udid" >> $GITHUB_OUTPUT
-                echo "SIMULATOR_NAME=$device" >> $GITHUB_OUTPUT
-                break
+              else
+                echo "❌ Could not extract valid UDID from: $device_line"
               fi
             fi
           done
