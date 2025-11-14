@@ -87,12 +87,15 @@ jobs:
         timeout-minutes: 20
         run: |
           set -o pipefail
-          # Use generic iOS Simulator destination for maximum compatibility
-          # Works with any Xcode version (15, 16, 17, etc.)
+          # Multiple destinations for fallback - tries each in order until one works
+          # Supports Xcode 15 (iPhone 15), Xcode 16 (iPhone 16), Xcode 17 Beta (iPhone 17)
           xcodebuild test \
             -project Modo.xcodeproj \
             -scheme Modo \
-            -destination 'generic/platform=iOS Simulator' \
+            -destination 'platform=iOS Simulator,name=iPhone 17' \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            -destination 'platform=iOS Simulator,name=iPhone 14' \
             -skip-testing:ModoUITests \
             -skip-testing:ModoTests/AuthServiceTests/testGoogleSignInErrorHandling \
             -skip-testing:ModoTests/AuthServiceTests/testGoogleSignInFlow \
