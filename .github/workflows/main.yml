@@ -65,64 +65,26 @@ jobs:
         run: |
           echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> $GITHUB_ENV
 
-      - name: List available simulators
+      - name: List and Select Simulator
         run: |
-          echo "Available iPhone simulators:"
-          xcrun simctl list devices available | grep -i "iphone" || echo "No iPhone simulators found"
-
-      - name: Detect and Start iOS Simulator
-        id: detect_sim
-        run: |
-          # Detect first available iPhone simulator, get UDID, and boot it
-          # Use more specific grep to avoid partial matches
-          for device in "iPhone 16" "iPhone 17" "iPhone 15" "iPhone 14" "iPhone SE"; do
-            echo "🔍 Looking for $device..."
-            # Find device with proper word boundaries and extract UDID
-            device_line=$(xcrun simctl list devices available | grep -w "$device" | grep "iPhone" | head -1)
-            
-            if [ -n "$device_line" ]; then
-              echo "📱 Found device line: $device_line"
-              # Extract UDID: format is "Device Name (UDID) (State)"
-              udid=$(echo "$device_line" | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/I')
-              
-              if [ -n "$udid" ] && [ ${#udid} -eq 36 ]; then
-                echo "✅ Found: $device (UDID: $udid)"
-                
-                # Boot the simulator using its UDID
-                echo "🚀 Booting simulator with UDID: $udid"
-                xcrun simctl boot "$udid" 2>/dev/null || echo "Simulator already booted"
-                sleep 5
-                
-                # Verify it's available
-                if xcrun simctl list devices | grep "$udid"; then
-                  echo "✅ Simulator is ready"
-                  echo "SIMULATOR_UDID=$udid" >> $GITHUB_OUTPUT
-                  echo "SIMULATOR_NAME=$device" >> $GITHUB_OUTPUT
-                  break
-                else
-                  echo "❌ Failed to verify simulator, trying next device..."
-                fi
-              else
-                echo "❌ Could not extract valid UDID from: $device_line"
-              fi
-            fi
-          done
+          echo "📱 Available destinations for scheme 'Modo':"
+          xcodebuild -project Modo.xcodeproj -scheme Modo -showdestinations | grep "iPhone" | head -10
+          
+          echo ""
+          echo "🎯 Will use first available iPhone simulator (xcodebuild will auto-select)"
 
       - name: Build and Test
         timeout-minutes: 20
         run: |
           set -o pipefail
-          # Use UDID for most reliable targeting (bypasses name/OS ambiguity)
-          DEVICE_NAME="${{ steps.detect_sim.outputs.SIMULATOR_NAME }}"
-          DEVICE_UDID="${{ steps.detect_sim.outputs.SIMULATOR_UDID }}"
-          echo "🧪 Testing on: $DEVICE_NAME (UDID: $DEVICE_UDID)"
+          echo "🧪 Testing on iOS Simulator (auto-selected by xcodebuild)"
           
-          # Use UDID in destination - this is the most reliable way
-          # No OS parameter needed, no ambiguity
+          # Let xcodebuild pick the first available iOS Simulator
+          # This is the most reliable approach - no manual device detection needed
           xcodebuild test \
             -project Modo.xcodeproj \
             -scheme Modo \
-            -destination "platform=iOS Simulator,id=$DEVICE_UDID" \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
             -only-testing:ModoTests \
             -skip-testing:ModoUITests \
             -skip-testing:ModoTests/AuthServiceTests/testGoogleSignInErrorHandling \
