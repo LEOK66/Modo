@@ -6,9 +6,13 @@ import NotificationCenter
 /// This service manages NotificationCenter observers for task creation notifications.
 /// It handles daily challenge tasks and workout/nutrition tasks created from AI.
 /// Observers are automatically removed to prevent duplicates and memory leaks.
+///
+/// ⚠️ CRITICAL: Uses static variables to ensure only ONE observer exists globally,
+/// even if multiple TaskListViewModel instances are created (e.g., during view lifecycle).
 class NotificationSetupService {
-    private var dailyChallengeObserver: NSObjectProtocol?
-    private var workoutTaskObserver: NSObjectProtocol?
+    // ⚠️ CRITICAL: Static variables survive ViewModel recreation
+    private static var dailyChallengeObserver: NSObjectProtocol?
+    private static var workoutTaskObserver: NSObjectProtocol?
     
     /// Sets up notification observer for daily challenge task creation.
     ///
@@ -20,17 +24,17 @@ class NotificationSetupService {
         print("🔔 NotificationSetupService: Setting up daily challenge notification observer")
         
         // Remove existing observer first to prevent duplicates
-        if let existingObserver = dailyChallengeObserver {
+        if let existingObserver = Self.dailyChallengeObserver {
             print("   🗑️ Removing existing daily challenge observer")
             NotificationCenter.default.removeObserver(existingObserver)
-            dailyChallengeObserver = nil
+            Self.dailyChallengeObserver = nil
         }
         
-        dailyChallengeObserver = NotificationCenter.default.addObserver(
+        Self.dailyChallengeObserver = NotificationCenter.default.addObserver(
             forName: NSNotification.Name("AddDailyChallengeTask"),
             object: nil,
             queue: .main
-        ) { [weak self] notification in
+        ) { notification in
             print("📬 NotificationSetupService: Received daily challenge notification")
             
             guard let userInfo = notification.userInfo,
@@ -61,18 +65,18 @@ class NotificationSetupService {
         print("🔔 NotificationSetupService: Setting up workout task notification observer")
         
         // Remove existing observer first to prevent duplicates
-        if let existingObserver = workoutTaskObserver {
+        if let existingObserver = Self.workoutTaskObserver {
             print("   🗑️ Removing existing observer")
             NotificationCenter.default.removeObserver(existingObserver)
-            workoutTaskObserver = nil
+            Self.workoutTaskObserver = nil
         }
         
         // Add new observer and store the token
-        workoutTaskObserver = NotificationCenter.default.addObserver(
+        Self.workoutTaskObserver = NotificationCenter.default.addObserver(
             forName: NSNotification.Name("CreateWorkoutTask"),
             object: nil,
             queue: .main
-        ) { [weak self] notification in
+        ) { notification in
             print("📬 NotificationSetupService: Received workout/nutrition notification")
             
             guard let userInfo = notification.userInfo,
@@ -95,19 +99,22 @@ class NotificationSetupService {
     
     /// Removes all notification observers.
     ///
-    /// Should be called when the view disappears to prevent memory leaks.
-    /// This method removes both daily challenge and workout task observers.
+    /// ⚠️ WARNING: This method is deprecated and should NOT be called in onDisappear!
+    /// Observers need to stay active to receive notifications from InsightPage.
+    /// Only call this if you really need to clean up (e.g., app termination).
     func removeAllObservers() {
-        if let observer = dailyChallengeObserver {
+        print("⚠️ NotificationSetupService: removeAllObservers() called - this should be rare!")
+        
+        if let observer = Self.dailyChallengeObserver {
             print("🔕 NotificationSetupService: Removing daily challenge notification observer")
             NotificationCenter.default.removeObserver(observer)
-            dailyChallengeObserver = nil
+            Self.dailyChallengeObserver = nil
         }
         
-        if let observer = workoutTaskObserver {
+        if let observer = Self.workoutTaskObserver {
             print("🔕 NotificationSetupService: Removing workout task notification observer")
             NotificationCenter.default.removeObserver(observer)
-            workoutTaskObserver = nil
+            Self.workoutTaskObserver = nil
         }
     }
 }

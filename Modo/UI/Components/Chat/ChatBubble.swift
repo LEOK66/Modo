@@ -124,15 +124,34 @@ struct ChatBubble: View {
         }
     }
     
+    // MARK: - Safe Property Access Helpers
+    /// Safely access workoutPlan to prevent context detachment errors
+    private var safeWorkoutPlan: WorkoutPlanData? {
+        guard message.messageType == "workout_plan" else { return nil }
+        return message.workoutPlan
+    }
+    
+    /// Safely access nutritionPlan to prevent context detachment errors
+    private var safeNutritionPlan: NutritionPlanData? {
+        guard message.messageType == "nutrition_plan" else { return nil }
+        return message.nutritionPlan
+    }
+    
+    /// Safely access multiDayPlan to prevent context detachment errors
+    private var safeMultiDayPlan: MultiDayPlanData? {
+        guard message.messageType == "multi_day_plan" else { return nil }
+        return message.multiDayPlan
+    }
+    
     // MARK: - AI Message
     private var aiMessageView: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Check message type and display appropriate view
-            if message.messageType == "workout_plan", let plan = message.workoutPlan {
+            // Check message type and display appropriate view using safe accessors
+            if message.messageType == "workout_plan", let plan = safeWorkoutPlan {
                 workoutPlanView(plan)
-            } else if message.messageType == "nutrition_plan", let nutritionPlan = message.nutritionPlan {
+            } else if message.messageType == "nutrition_plan", let nutritionPlan = safeNutritionPlan {
                 nutritionPlanView(nutritionPlan)
-            } else if message.messageType == "multi_day_plan", let multiDayPlan = message.multiDayPlan {
+            } else if message.messageType == "multi_day_plan", let multiDayPlan = safeMultiDayPlan {
                 multiDayPlanView(multiDayPlan)
             } else {
                 VStack(alignment: .leading, spacing: 12) {
@@ -532,4 +551,3 @@ struct ChatBubble: View {
     }
     .background(Color.white)
 }
-

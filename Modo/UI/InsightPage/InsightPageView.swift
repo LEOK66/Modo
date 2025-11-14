@@ -78,6 +78,11 @@ struct InsightsPageView: View {
         } message: {
             Text("Are you sure you want to clear all chat history? This action cannot be undone.")
         }
+        .alert("数据库升级提示", isPresented: $viewModel.showDatabaseMigrationError) {
+            Button("确定", role: .cancel) { }
+        } message: {
+            Text("检测到数据库结构已更新。为了正常使用，建议删除并重新安装应用。\n\n或者在 Insight 页面清空聊天记录后重试。")
+        }
         .gesture(
             DragGesture(minimumDistance: 10)
                 .onChanged { value in

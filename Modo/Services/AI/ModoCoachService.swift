@@ -75,6 +75,11 @@ class ModoCoachService: ObservableObject {
         
         do {
             let savedMessages = try context.fetch(descriptor)
+            
+            // ⚠️ REMOVED: Force loading properties can cause crashes with schema changes
+            // SwiftData will lazy-load properties when actually accessed (safer approach)
+            // The UI already has safe access patterns (e.g., safeMultiDayPlan in ChatBubble)
+            
             if savedMessages.isEmpty {
                 // First time, check if we need to send user info
                 if shouldSendUserInfo(userProfile: userProfile) {
@@ -87,6 +92,8 @@ class ModoCoachService: ObservableObject {
                 messages = savedMessages
             }
             hasLoadedHistory = true
+            
+            print("✅ Loaded \(messages.count) chat messages for user \(currentUserId)")
         } catch {
             print("Failed to load chat history: \(error)")
             addWelcomeMessage()
@@ -171,8 +178,11 @@ class ModoCoachService: ObservableObject {
     }
     
     // MARK: - Clear Chat History
-    func clearHistory() {
-        guard let context = modelContext,
+    func clearHistory(with context: ModelContext? = nil) {
+        // Use provided context or fallback to stored modelContext
+        let contextToUse = context ?? modelContext
+        
+        guard let contextToUse = contextToUse,
               let currentUserId = Auth.auth().currentUser?.uid else {
             print("⚠️ No current user or context, cannot clear chat history")
             return
@@ -184,13 +194,15 @@ class ModoCoachService: ObservableObject {
                 message.userId == currentUserId
             }
             let descriptor = FetchDescriptor<FirebaseChatMessage>(predicate: predicate)
-            let userMessages = try context.fetch(descriptor)
+            
+            // ⚠️ CRITICAL: Fetching old messages may fail if schema has changed
+            let userMessages = try contextToUse.fetch(descriptor)
             
             for message in userMessages {
-                context.delete(message)
+                contextToUse.delete(message)
             }
             
-            try context.save()
+            try contextToUse.save()
             
             // Clear in-memory messages
             messages.removeAll()
@@ -198,8 +210,26 @@ class ModoCoachService: ObservableObject {
             // Add welcome message
             addWelcomeMessage()
             
+            print("✅ Chat history cleared successfully")
+            
         } catch {
-            print("Failed to clear chat history: \(error)")
+            print("❌ Failed to clear chat history: \(error)")
+            print("🔄 This is likely due to schema migration issues")
+            print("💡 Recommendation: Delete and reinstall the app to clear old database")
+            
+            // Try to at least clear in-memory messages
+            messages.removeAll()
+            addWelcomeMessage()
+            
+            // Show error to user
+            DispatchQueue.main.async {
+                // You could post a notification here to show an alert to user
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("DatabaseMigrationError"),
+                    object: nil,
+                    userInfo: ["error": error.localizedDescription]
+                )
+            }
         }
     }
     

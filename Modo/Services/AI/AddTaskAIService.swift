@@ -44,13 +44,13 @@ class AddTaskAIService {
         Task {
             do {
                 print("📡 Sending request to OpenAI...")
-                let FirebaseChatMessages = [
-                    FirebaseFirebaseChatMessage(role: "system", content: systemPrompt),
-                    FirebaseFirebaseChatMessage(role: "user", content: userMessage)
+                let chatMessages = [
+                    ChatMessage(role: "system", content: systemPrompt),
+                    ChatMessage(role: "user", content: userMessage)
                 ]
 
                 let response = try await firebaseAIService.sendChatRequest(
-                    messages: FirebaseChatMessages
+                    messages: chatMessages
                 )
                 
                 print("✅ Received response from OpenAI")
@@ -115,8 +115,8 @@ class AddTaskAIService {
         Task {
             do {
                 let messages = [
-                    FirebaseFirebaseChatMessage(role: "system", content: systemPrompt),
-                    FirebaseFirebaseChatMessage(role: "user", content: userMessage)
+                    ChatMessage(role: "system", content: systemPrompt),
+                    ChatMessage(role: "user", content: userMessage)
                 ]
                 
                 let response = try await firebaseAIService.sendChatRequest(messages: messages)
@@ -204,8 +204,8 @@ class AddTaskAIService {
         Task {
             do {
                 let messages = [
-                    FirebaseFirebaseChatMessage(role: "system", content: systemPrompt),
-                    FirebaseFirebaseChatMessage(role: "user", content: userMessage)
+                    ChatMessage(role: "system", content: systemPrompt),
+                    ChatMessage(role: "user", content: userMessage)
                 ]
                 
                 let response = try await firebaseAIService.sendChatRequest(messages: messages)
@@ -509,13 +509,13 @@ class AddTaskAIService {
         Task {
             do {
                 print("📡 Sending request to OpenAI...")
-                let FirebaseChatMessages = [
-                    FirebaseFirebaseChatMessage(role: "system", content: systemPrompt),
-                    FirebaseFirebaseChatMessage(role: "user", content: userMessage)
+                let chatMessages = [
+                    ChatMessage(role: "system", content: systemPrompt),
+                    ChatMessage(role: "user", content: userMessage)
                 ]
 
                 let response = try await firebaseAIService.sendChatRequest(
-                    messages: FirebaseChatMessages
+                    messages: chatMessages
                 )
                 print("✅ Received response from OpenAI")
                 
