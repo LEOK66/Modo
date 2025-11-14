@@ -86,18 +86,21 @@ jobs:
       - name: Detect Available Simulator
         id: detect_sim
         run: |
-          # Detect first available iPhone simulator and extract iOS version
+          # Detect first available iPhone simulator and get its UDID
+          # Using UDID is more reliable than device name
           for device in "iPhone 15" "iPhone 16" "iPhone 17" "iPhone 14" "iPhone 13"; do
-            # Find the device and extract its iOS version
-            device_info=$(xcrun simctl list devices available | grep "$device" | head -1)
-            if [ -n "$device_info" ]; then
-              # Extract iOS version (e.g., "18.0", "17.5")
-              ios_version=$(echo "$device_info" | grep -oE '\([0-9]+\.[0-9]+' | grep -oE '[0-9]+\.[0-9]+' | head -1)
+            # Find device and extract UDID (format: "iPhone 16 (12345678-...) (Shutdown)")
+            device_line=$(xcrun simctl list devices available | grep "$device" | head -1)
+            if [ -n "$device_line" ]; then
+              # Extract UDID between parentheses (36 characters UUID)
+              udid=$(echo "$device_line" | grep -oE '\([0-9A-Fa-f-]{36}\)' | tr -d '()')
               
-              echo "SIMULATOR_NAME=$device" >> $GITHUB_OUTPUT
-              echo "IOS_VERSION=$ios_version" >> $GITHUB_OUTPUT
-              echo "✅ Found: $device (iOS $ios_version)"
-              break
+              if [ -n "$udid" ]; then
+                echo "SIMULATOR_UDID=$udid" >> $GITHUB_OUTPUT
+                echo "SIMULATOR_NAME=$device" >> $GITHUB_OUTPUT
+                echo "✅ Found: $device (UDID: $udid)"
+                break
+              fi
             fi
           done
 
@@ -105,15 +108,18 @@ jobs:
         timeout-minutes: 20
         run: |
           set -o pipefail
-          # Use dynamically detected simulator with explicit iOS version
+          # Use UDID for most reliable targeting (bypasses name/OS ambiguity)
           DEVICE_NAME="${{ steps.detect_sim.outputs.SIMULATOR_NAME }}"
-          IOS_VERSION="${{ steps.detect_sim.outputs.IOS_VERSION }}"
-          echo "🧪 Testing on: $DEVICE_NAME (iOS $IOS_VERSION)"
+          DEVICE_UDID="${{ steps.detect_sim.outputs.SIMULATOR_UDID }}"
+          echo "🧪 Testing on: $DEVICE_NAME (UDID: $DEVICE_UDID)"
           
+          # Use UDID in destination - this is the most reliable way
+          # No OS parameter needed, no ambiguity
           xcodebuild test \
             -project Modo.xcodeproj \
             -scheme Modo \
-            -destination "platform=iOS Simulator,name=$DEVICE_NAME,OS=$IOS_VERSION" \
+            -destination "platform=iOS Simulator,id=$DEVICE_UDID" \
+            -only-testing:ModoTests \
             -skip-testing:ModoUITests \
             -skip-testing:ModoTests/AuthServiceTests/testGoogleSignInErrorHandling \
             -skip-testing:ModoTests/AuthServiceTests/testGoogleSignInFlow \
