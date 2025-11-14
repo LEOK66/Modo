@@ -194,7 +194,10 @@ final class TaskListViewModel: ObservableObject {
     func onDisappear() {
         print("📍 TaskListViewModel: onDisappear called")
         stopCurrentListener()
-        notificationService.removeAllObservers()
+        // ⚠️ DO NOT remove notification observers here!
+        // They need to stay active to receive notifications from InsightPage
+        // notificationService.removeAllObservers()
+        print("🔔 TaskListViewModel: Keeping notification observers active for background task reception")
         cancelMidnightSettlement()
     }
     
@@ -265,7 +268,7 @@ final class TaskListViewModel: ObservableObject {
         
         // Save to repository (handles cache and Firebase)
         taskRepository.saveTask(userId: userId, task: task, date: task.timeDate) { [weak self] result in
-            guard let self = self else { return }
+            guard self != nil else { return }
             
             switch result {
             case .success:
@@ -567,7 +570,7 @@ final class TaskListViewModel: ObservableObject {
         
         // Update cache in background
         Task.detached(priority: .background) { [weak self] in
-            self?.taskRepository.saveCachedTasks(userId: userId, date: normalizedDate, tasks: filteredTasks)
+            await self?.taskRepository.saveCachedTasks(userId: userId, date: normalizedDate, tasks: filteredTasks)
         }
         
         // Update in-memory state on main thread

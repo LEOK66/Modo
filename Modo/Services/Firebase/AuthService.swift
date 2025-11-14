@@ -147,8 +147,9 @@ final class AuthService: ObservableObject, AuthServiceProtocol {
     }
     
     // MARK: - Google Sign-In (Internal - use startGoogleSignInFlow instead)
-    private func signInWithGoogle(presentingViewController: UIViewController,
-                                   completion: @escaping (Result<User, Error>) -> Void) {
+    // Note: Changed from private to internal to allow testing with @testable import
+    func signInWithGoogle(presentingViewController: UIViewController,
+                          completion: @escaping (Result<User, Error>) -> Void) {
         print("🔵 AuthService: Starting Google Sign In")
         
         guard let clientID = FirebaseApp.app()?.options.clientID else {

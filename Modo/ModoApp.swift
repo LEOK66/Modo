@@ -59,8 +59,28 @@ struct ModoApp: App {
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])
         } catch {
-            // Temporary solution that only falling back to in-memory storage but in the future we need to
-            // think about how to do data migration
+            // ⚠️ Model migration failed - likely due to schema changes
+            print("❌ ModelContainer creation failed: \(error)")
+            print("🔄 Attempting to delete old database and recreate...")
+            
+            // Try to delete old database files
+            let fileManager = FileManager.default
+            if let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+                let storeURL = appSupportURL.appendingPathComponent("default.store")
+                try? fileManager.removeItem(at: storeURL)
+                print("🗑️ Deleted old database at: \(storeURL.path)")
+                
+                // Try creating ModelContainer again after deletion
+                do {
+                    let freshContainer = try ModelContainer(for: schema, configurations: [modelConfiguration])
+                    print("✅ Successfully created fresh ModelContainer")
+                    return freshContainer
+                } catch {
+                    print("❌ Still failed after deletion: \(error)")
+                }
+            }
+            
+            // Final fallback: in-memory storage
             print("⚠️ Falling back to in-memory storage")
             let inMemoryOnly = ModelConfiguration(
                 schema: schema,
