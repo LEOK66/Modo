@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-// MARK: - Keyboard Dismissal Extension
+// MARK: - View Extensions
 extension View {
     /// Dismisses the keyboard when tapping outside of text fields
     /// This modifier adds a tap gesture that will dismiss the keyboard without interfering with other interactions
@@ -18,15 +18,25 @@ extension View {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
     
-    /// Adds a background that dismisses keyboard on tap, without interfering with foreground interactions
+    /// Adds a gesture that dismisses keyboard on tap, without interfering with foreground interactions
+    /// This uses simultaneousGesture to allow other interactions to work normally
     func dismissKeyboardOnBackgroundTap() -> some View {
-        self.background(
-            Color.clear
-                .contentShape(Rectangle())
-                .onTapGesture {
+        self.simultaneousGesture(
+            TapGesture()
+                .onEnded { _ in
                     UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                 }
         )
+    }
+    
+    /// Applies color scheme conditionally - if nil, follows system appearance
+    @ViewBuilder
+    func applyColorScheme(_ colorScheme: ColorScheme?) -> some View {
+        if let colorScheme = colorScheme {
+            self.colorScheme(colorScheme)
+        } else {
+            self
+        }
     }
 }
 
@@ -108,13 +118,13 @@ extension String {
         return value >= 20 && value <= 96 // default inches
     }
     
-    /// Validates weight by unit: lb (44-1100) or kg (20-500)
+    /// Validates weight by unit: lbs (44-1100) or kg (20-500)
     func isValidWeight(unit: String) -> Bool {
         guard let value = Double(self.trimmingCharacters(in: .whitespacesAndNewlines)) else { return false }
         if unit.lowercased() == "kg" {
             return value >= 20 && value <= 500
         }
-        return value >= 44 && value <= 1100 // default lb
+        return value >= 44 && value <= 1100 // default lbs
     }
     
     /// Validates if string is a valid age (10-120 years)
@@ -125,13 +135,13 @@ extension String {
         return age >= 10 && age <= 120
     }
     
-    /// Validates target weight loss by unit: lb (0.5-220) or kg (0.2-100)
+    /// Validates target weight loss by unit: lbs (0.5-220) or kg (0.2-100)
     func isValidTargetWeight(unit: String) -> Bool {
         guard let value = Double(self.trimmingCharacters(in: .whitespacesAndNewlines)) else { return false }
         if unit.lowercased() == "kg" {
             return value >= 0.2 && value <= 100
         }
-        return value >= 0.5 && value <= 220 // default lb
+        return value >= 0.5 && value <= 220 // default lbs
     }
     
     /// Validates if string is a valid target days (1-365 days)
@@ -139,7 +149,7 @@ extension String {
         guard let days = Int(self.trimmingCharacters(in: .whitespacesAndNewlines)) else {
             return false
         }
-        return days >= 1 && days <= 365
+        return (1...365).contains(days)
     }
 }
 

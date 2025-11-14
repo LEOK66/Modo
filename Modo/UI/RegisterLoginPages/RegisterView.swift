@@ -1,8 +1,4 @@
 import SwiftUI
-import FirebaseAuth
-import UIKit
-import AuthenticationServices
-import CryptoKit
 
 struct RegisterView: View {
     @EnvironmentObject var authService: AuthService
@@ -18,7 +14,7 @@ struct RegisterView: View {
     
     var body: some View {
         ZStack {
-            Color.white
+            Color(.systemBackground) // Adapts to light/dark mode
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
                 .onTapGesture {
@@ -33,46 +29,30 @@ struct RegisterView: View {
                 
                 VStack(spacing: 16) {
                     // Email input field with validation
-                    VStack(alignment: .leading, spacing: 4) {
-                        CustomInputField(
-                            placeholder: "Email address",
-                            text: $emailAddress,
-                            keyboardType: .emailAddress,
-                            textContentType: .emailAddress
-                        )
-                        
-                        if showEmailError {
-                            Text("Please enter a valid email address")
-                                .font(.system(size: 10))
-                                .foregroundColor(.red)
-                                .padding(.leading, 12)
-                        }
-                    }
+                    ValidatedInputField(
+                        placeholder: "Email address",
+                        text: $emailAddress,
+                        showError: $showEmailError,
+                        errorMessage: "Please enter a valid email address",
+                        keyboardType: .emailAddress,
+                        textContentType: .emailAddress
+                    )
                     
                     // Password input field with validation
-                    VStack(alignment: .leading, spacing: 4) {
-                        CustomInputField(
-                            placeholder: "Password",
-                            text: $password,
-                            isSecure: true,
-                            keyboardType: .emailAddress,
-                            textContentType: .emailAddress,
-                            showPasswordToggle: true
-                        )
-                        
-                        if showPasswordError {
-                            Text("At least 8 characters with letters and numbers")
-                                .font(.system(size: 10))
-                                .foregroundColor(.red)
-                                .padding(.leading, 12)
-                        }
-                    }
+                    ValidatedInputField(
+                        placeholder: "Password",
+                        text: $password,
+                        showError: $showPasswordError,
+                        errorMessage: "At least 8 characters with letters and numbers",
+                        isSecure: true,
+                        showPasswordToggle: true
+                    )
                     
                     // Terms and Privacy
                     VStack(spacing: 8) {
                         Text("By signing up, you agree to our")
                             .font(.system(size: 12))
-                            .foregroundColor(Color(hexString: "6A7282"))
+                            .foregroundColor(.secondary) // Adapts to light/dark mode
                             .multilineTextAlignment(.center)
                         
                         HStack(spacing: 4) {
@@ -81,19 +61,19 @@ struct RegisterView: View {
                             } label: {
                                 Text("Terms of Service")
                                     .font(.system(size: 12, weight: .semibold))
-                                    .foregroundColor(Color.blue)
+                                    .foregroundColor(.blue) // System blue adapts to dark mode
                             }
                             
                             Text("and")
                                 .font(.system(size: 12))
-                                .foregroundColor(Color(hexString: "6A7282"))
+                                .foregroundColor(.secondary) // Adapts to light/dark mode
                             
                             Button {
                                 showPrivacy = true
                             } label: {
                                 Text("Privacy Policy")
                                     .font(.system(size: 12, weight: .semibold))
-                                    .foregroundColor(Color.blue)
+                                    .foregroundColor(.blue) // System blue adapts to dark mode
                             }
                         }
                         .multilineTextAlignment(.center)
@@ -125,6 +105,7 @@ struct RegisterView: View {
             .padding(.top, 4)
             .padding(.bottom, 12)
         }
+        .ignoresSafeArea(.keyboard)
         .fullScreenCover(isPresented: $showTerms) {
             TermsOfServiceView()
         }
@@ -162,18 +143,16 @@ struct RegisterView: View {
                         isLoading = false
                         print("Sign up error: \(error.localizedDescription)")
                         
-                        // Check for error code 17007 (email already in use)
-                        let nsError = error as NSError
-                        if nsError.code == 17007 {
-                            errorMessage = "This email is already registered. Please use a different email or try logging in."
-                        } else {
-                            // Handle other errors
-                            errorMessage = error.localizedDescription
-                        }
-                        
-                        showErrorMessage = true
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                            showErrorMessage = false
+                        let appError = AppError.from(error)
+                        if !appError.isUserCancellation {
+                            errorMessage = appError.userMessage(context: .signUp)
+                            showErrorMessage = true
+                            
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                                withAnimation {
+                                    showErrorMessage = false
+                                }
+                            }
                         }
                     }
                 }
@@ -182,84 +161,33 @@ struct RegisterView: View {
     }
     
     private func signInWithApple() {
-        let nonce = AuthService.randomNonceString()
-        let hashedNonce = AuthService.sha256(nonce)
-        
-        let appleIDProvider = ASAuthorizationAppleIDProvider()
-        let request = appleIDProvider.createRequest()
-        request.requestedScopes = [.fullName, .email]
-        request.nonce = hashedNonce
-        
-        let authorizationController = ASAuthorizationController(authorizationRequests: [request])
-        authorizationController.delegate = AppleSignInDelegate(
-            nonce: nonce,
-            onSuccess: { _ in
-                // Auth state will automatically update via the listener
-            },
-            onError: { error in
-                DispatchQueue.main.async {
-                    // Check if user canceled
-                    let nsError = error as NSError
-                    let errorDomain = nsError.domain
-                    let errorCode = nsError.code
-                    let errorDescription = nsError.localizedDescription.lowercased()
+        authService.startAppleSignInFlow { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success:
+                    // Auth state will automatically update via the listener
+                    break
+                case .failure(let error):
+                    print("Apple sign in error: \(error.localizedDescription)")
                     
-                    let isCancelled = errorDomain == "com.apple.AuthenticationServices.AuthorizationError" && errorCode == 1001
-                        || errorDomain.contains("AuthenticationServices") && (errorCode == 1001 || errorCode == -1001)
-                        || errorDescription.contains("cancel") || errorDescription.contains("cancelled") || errorDescription.contains("user canceled")
-                    
-                    if !isCancelled {
-                        // Check for Bundle ID mismatch error
-                        if errorDescription.contains("audience") && errorDescription.contains("does not match") {
-                            errorMessage = "Bundle ID configuration mismatch. Please check Firebase Console settings."
-                        } else {
-                            errorMessage = error.localizedDescription
-                        }
+                    let appError = AppError.from(error)
+                    if !appError.isUserCancellation {
+                        errorMessage = appError.userMessage(context: .signUp)
                         showErrorMessage = true
                         
-                        // Hide error message after 3 seconds
                         DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                            showErrorMessage = false
+                            withAnimation {
+                                showErrorMessage = false
+                            }
                         }
                     }
                 }
             }
-        )
-        authorizationController.presentationContextProvider = AppleSignInPresentationContextProvider()
-        authorizationController.performRequests()
+        }
     }
     
     private func signInWithGoogle() {
-        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let window = windowScene.windows.first else {
-            print("Could not find window")
-            errorMessage = "Unable to start Google Sign In"
-            showErrorMessage = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                showErrorMessage = false
-            }
-            return
-        }
-        
-        // Find the top-most view controller
-        var topController = window.rootViewController
-        while let presentedController = topController?.presentedViewController {
-            topController = presentedController
-        }
-        
-        guard let presentingController = topController else {
-            print("Could not find presenting controller")
-            errorMessage = "Unable to start Google Sign In"
-            showErrorMessage = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                showErrorMessage = false
-            }
-            return
-        }
-        
-        print("Starting Google Sign In with controller: \(type(of: presentingController))")
-        
-        authService.signInWithGoogle(presentingViewController: presentingController) { result in
+        authService.startGoogleSignInFlow { result in
             DispatchQueue.main.async {
                 switch result {
                 case .success:
@@ -267,12 +195,17 @@ struct RegisterView: View {
                     print("Google sign in successful")
                 case .failure(let error):
                     print("Google sign in error: \(error.localizedDescription)")
-                    errorMessage = error.localizedDescription
-                    showErrorMessage = true
                     
-                    // Hide error message after 3 seconds
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                        showErrorMessage = false
+                    let appError = AppError.from(error)
+                    if !appError.isUserCancellation {
+                        errorMessage = appError.userMessage(context: .signUp)
+                        showErrorMessage = true
+                        
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                            withAnimation {
+                                showErrorMessage = false
+                            }
+                        }
                     }
                 }
             }
@@ -282,12 +215,13 @@ struct RegisterView: View {
 
 private struct TermsOfServiceView: View {
     @Environment(\.dismiss) private var dismiss
+    
     var body: some View {
         NavigationStack {
             ScrollView {
-                Text(sampleTOS)
+                Text(LegalDocuments.termsOfService)
                     .font(.system(size: 15))
-                    .foregroundColor(Color(hexString: "101828"))
+                    .foregroundColor(.primary) // Adapts to light/dark mode
                     .padding()
             }
             .navigationTitle("Terms of Service")
@@ -297,19 +231,20 @@ private struct TermsOfServiceView: View {
                     Button("Close") { dismiss() }
                 }
             }
-            .background(Color.white.ignoresSafeArea())
+            .background(Color(.systemBackground)) // Adapts to light/dark mode
         }
     }
 }
 
 private struct PrivacyPolicyView: View {
     @Environment(\.dismiss) private var dismiss
+    
     var body: some View {
         NavigationStack {
             ScrollView {
-                Text(samplePrivacy)
+                Text(LegalDocuments.privacyPolicy)
                     .font(.system(size: 15))
-                    .foregroundColor(Color(hexString: "101828"))
+                    .foregroundColor(.primary) // Adapts to light/dark mode
                     .padding()
             }
             .navigationTitle("Privacy Policy")
@@ -319,20 +254,10 @@ private struct PrivacyPolicyView: View {
                     Button("Close") { dismiss() }
                 }
             }
-            .background(Color.white.ignoresSafeArea())
+            .background(Color(.systemBackground)) // Adapts to light/dark mode
         }
     }
 }
-
-private let sampleTOS = """
-Your Terms of Service content goes here.
-Add your sections, headings, and details.
-"""
-
-private let samplePrivacy = """
-Your Privacy Policy content goes here.
-Describe data collection, usage, and retention.
-"""
 
 
 #Preview {

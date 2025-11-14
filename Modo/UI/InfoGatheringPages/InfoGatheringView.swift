@@ -6,58 +6,14 @@ struct InfoGatheringView: View {
     @EnvironmentObject var authService: AuthService
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    @Query private var profiles: [UserProfile]
-    @State private var currentStep = 1
-    @State private var isBackwards: Bool = false
     
-    // User data
-    @State private var height = ""
-    @State private var weight = ""
-    @State private var age = ""
-    @State private var gender: GenderOption? = nil
-    @State private var lifestyle: LifestyleOption? = nil
-    @State private var goal: GoalOption? = nil
-    @State private var targetWeightLoss = ""
-    @State private var targetDays = ""
-    // Unit selections
-    @State private var heightUnit: String = "in"
-    @State private var weightUnit: String = "lb"
-    @State private var lossUnit: String = "lb"
-    
-    // Validation states
-    @State private var showHeightError = false
-    @State private var showWeightError = false
-    @State private var showAgeError = false
-    @State private var showTargetWeightError = false
-    @State private var showTargetDaysError = false
-    
-    // New states for recommended values
-    @State private var actualCalories: String = ""
-    @State private var actualProtein: String = ""
-    
-    let totalSteps = 7
-    
-    private func weightInKg() -> Double? {
-        guard let v = Double(weight) else { return nil }
-        return HealthCalculator.convertWeightToKg(v, unit: weightUnit)
-    }
-    private func heightInCm() -> Double? {
-        guard let v = Double(height) else { return nil }
-        return HealthCalculator.convertHeightToCm(v, unit: heightUnit)
-    }
-    private func recommendedCalories() -> Int? {
-        guard let ageV = Int(age), let genderCode = gender?.code, let kg = weightInKg(), let cm = heightInCm(), let life = lifestyle else { return nil }
-        return HealthCalculator.recommendedCalories(age: ageV, genderCode: genderCode, weightKg: kg, heightCm: cm, lifestyleCode: life.code)
-    }
-    private func recommendedProtein() -> Int? {
-        guard let kg = weightInKg() else { return nil }
-        return HealthCalculator.recommendedProtein(weightKg: kg)
-    }
+    // ViewModel - manages all business logic and state
+    @StateObject private var viewModel = InfoGatheringViewModel()
     
     
     var body: some View {
         ZStack {
-            Color.white
+            Color(.systemBackground)
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
                 .onTapGesture {
@@ -65,178 +21,64 @@ struct InfoGatheringView: View {
                 }
             
             VStack(spacing: 0) {
-                ProgressBar(currentStep: currentStep, totalSteps: totalSteps)
+                ProgressBar(currentStep: viewModel.currentStep, totalSteps: viewModel.totalSteps)
                     .padding(.horizontal, 24)
                     .padding(.top, 12)
                 
                 ZStack {
-                    switch currentStep {
+                    switch viewModel.currentStep {
                     case 1:
-                        HeightStepView(height: $height, heightUnit: $heightUnit, showError: $showHeightError, onContinue: nextStep, onSkip: nextStep, onBack: nil)
-                            .id(currentStep)
+                        HeightStepView(height: $viewModel.height, heightUnit: $viewModel.heightUnit, showError: $viewModel.showHeightError, onContinue: viewModel.nextStep, onSkip: viewModel.nextStep, onBack: nil)
+                            .id(viewModel.currentStep)
                     case 2:
-                        WeightStepView(weight: $weight, weightUnit: $weightUnit, showError: $showWeightError, onContinue: nextStep, onSkip: nextStep, onBack: lastStep)
-                            .id(currentStep)
+                        WeightStepView(weight: $viewModel.weight, weightUnit: $viewModel.weightUnit, showError: $viewModel.showWeightError, onContinue: viewModel.nextStep, onSkip: viewModel.nextStep, onBack: viewModel.lastStep)
+                            .id(viewModel.currentStep)
                     case 3:
-                        AgeStepView(age: $age, showError: $showAgeError, onContinue: nextStep, onSkip: nextStep, onBack: lastStep)
-                            .id(currentStep)
+                        AgeStepView(age: $viewModel.age, showError: $viewModel.showAgeError, onContinue: viewModel.nextStep, onSkip: viewModel.nextStep, onBack: viewModel.lastStep)
+                            .id(viewModel.currentStep)
                     case 4:
-                        GenderStepView(gender: $gender, onContinue: nextStep, onSkip: nextStep, onBack: lastStep)
-                            .id(currentStep)
+                        GenderStepView(gender: $viewModel.gender, onContinue: viewModel.nextStep, onSkip: viewModel.nextStep, onBack: viewModel.lastStep)
+                            .id(viewModel.currentStep)
                     case 5:
-                        LifestyleStepView(lifestyle: $lifestyle, onContinue: nextStep, onSkip: nextStep, onBack: lastStep)
-                            .id(currentStep)
+                        LifestyleStepView(lifestyle: $viewModel.lifestyle, onContinue: viewModel.nextStep, onSkip: viewModel.nextStep, onBack: viewModel.lastStep)
+                            .id(viewModel.currentStep)
                     case 6:
-                        GoalStepView(goal: $goal, onContinue: nextStep, onSkip: nextStep, onBack: lastStep)
-                            .id(currentStep)
+                        GoalStepView(goal: $viewModel.goal, onContinue: viewModel.nextStep, onSkip: viewModel.nextStep, onBack: viewModel.lastStep)
+                            .id(viewModel.currentStep)
                     case 7:
                         FinalStepView(
-                            goal: goal,
-                            actualCalories: $actualCalories,
-                            recommendedCalories: recommendedCalories(),
-                            actualProtein: $actualProtein,
-                            recommendedProtein: recommendedProtein(),
-                            targetWeightLoss: $targetWeightLoss, lossUnit: $lossUnit, targetDays: $targetDays,
-                            showWeightError: $showTargetWeightError, showDaysError: $showTargetDaysError,
-                            onDone: completeOnboarding, onSkip: completeOnboarding, onBack: lastStep)
-                            .id(currentStep)
+                            goal: viewModel.goal,
+                            actualCalories: $viewModel.actualCalories,
+                            recommendedCalories: viewModel.recommendedCalories(),
+                            actualProtein: $viewModel.actualProtein,
+                            recommendedProtein: viewModel.recommendedProtein(),
+                            targetWeightLoss: $viewModel.targetWeightLoss, lossUnit: $viewModel.lossUnit, targetDays: $viewModel.targetDays,
+                            showWeightError: $viewModel.showTargetWeightError, showDaysError: $viewModel.showTargetDaysError,
+                            onDone: {
+                                viewModel.completeOnboarding()
+                                dismiss()
+                            }, onSkip: {
+                                viewModel.completeOnboarding()
+                                dismiss()
+                            }, onBack: viewModel.lastStep)
+                            .id(viewModel.currentStep)
                     default:
-                        EmptyView().id(currentStep)
+                        EmptyView().id(viewModel.currentStep)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .transition(.asymmetric(
-                    insertion: .move(edge: isBackwards ? .leading : .trailing),
-                    removal: .move(edge: isBackwards ? .trailing : .leading)
+                    insertion: .move(edge: viewModel.isBackwards ? .leading : .trailing),
+                    removal: .move(edge: viewModel.isBackwards ? .trailing : .leading)
                 ))
-                .animation(.easeInOut(duration: 0.3), value: currentStep)
+                .animation(.easeInOut(duration: 0.3), value: viewModel.currentStep)
             }
         }
-    }
-    
-    private func nextStep() {
-        withAnimation(.easeInOut(duration: 0.3)) {
-            isBackwards = false
-            if currentStep < totalSteps {
-                currentStep += 1
-            }
-        }
-    }
-    
-    private func lastStep() {
-        withAnimation(.easeInOut(duration: 0.3)) {
-            isBackwards = true
-            if currentStep > 1 {
-                currentStep -= 1
-                if currentStep < 7 {
-                    actualCalories = ""
-                    actualProtein = ""
-                }
-            }
-        }
-    }
-    
-    
-    
-    private func completeOnboarding() {
-        saveUserData()
-        authService.completeOnboarding()
-        // Dismiss the view if it was presented modally or pushed
-        dismiss()
-    }
-    
-    private func saveUserData() {
-        guard let userId = authService.currentUser?.uid else { return }
-        
-        // Only save valid data, skip invalid inputs
-        let validHeight = height.isValidHeight(unit: heightUnit) ? Double(height) : nil
-        let validWeight = weight.isValidWeight(unit: weightUnit) ? Double(weight) : nil
-        let validAge = age.isValidAge ? Int(age) : nil
-        let validTargetWeightLoss = targetWeightLoss.isValidTargetWeight(unit: lossUnit) ? Double(targetWeightLoss) : nil
-        let validTargetDays = targetDays.isValidTargetDays ? Int(targetDays) : nil
-        
-        // Check if profile already exists
-        let existingProfile = profiles.first { $0.userId == userId }
-        let profile: UserProfile
-        
-        if let existing = existingProfile {
-            // Update existing profile
-            profile = existing
-            print("Updating existing profile for userId=\(userId)")
-        } else {
-            // Create new profile
-            profile = UserProfile(userId: userId)
-            modelContext.insert(profile)
-            print("Creating new profile for userId=\(userId)")
-        }
-        
-        // Goal-specific values
-        let validCalories: Int? = {
-            if goal == .keepHealthy { return Int(actualCalories) }
-            return nil
-        }()
-        let validProtein: Int? = {
-            if goal == .gainMuscle { return Int(actualProtein) }
-            return nil
-        }()
-
-        profile.updateProfile(
-            heightValue: validHeight,
-            heightUnit: heightUnit,
-            weightValue: validWeight,
-            weightUnit: weightUnit,
-            age: validAge,
-            genderCode: gender?.code,
-            lifestyleCode: lifestyle?.code,
-            goalCode: goal?.code,
-            dailyCalories: validCalories,
-            dailyProtein: validProtein,
-            targetWeightLossValue: validTargetWeightLoss,
-            targetWeightLossUnit: lossUnit,
-            targetDays: validTargetDays
-        )
-        
-        // Set goal start date when saving profile (only if not already set or if goal changed)
-        if profile.goalStartDate == nil || profile.goal != goal?.code {
-            profile.goalStartDate = Date()
-        }
-        
-        // Save to SwiftData
-        do {
-            try modelContext.save()
-            print("User profile saved successfully")
-        } catch {
-            print("Failed to save user profile: \(error.localizedDescription)")
-        }
-        
-        // Also save to Firebase for cloud backup
-        DatabaseService.shared.saveUserProfile(profile) { result in
-            switch result {
-            case .success:
-                print("[Firebase] User profile saved for userId=\(userId)")
-            case .failure(let error):
-                print("[Firebase] Failed to save user profile: \(error.localizedDescription)")
-            }
-        }
-        print("Saving user data:")
-        print("Height: \(validHeight != nil ? "\(validHeight!) \(heightUnit)" : "not provided")")
-        print("Weight: \(validWeight != nil ? "\(validWeight!) \(weightUnit)" : "not provided")")
-        print("Age: \(validAge != nil ? "\(validAge!) years" : "not provided")")
-        print("Gender: \(gender?.code ?? "not provided")")
-        print("Lifestyle: \(lifestyle?.code ?? "not provided")")
-        print("Goal: \(goal?.code ?? "not provided")")
-        switch goal {
-        case .loseWeight:
-            print("Target weight loss: \(validTargetWeightLoss != nil ? "\(validTargetWeightLoss!) \(lossUnit)" : "not provided")")
-            print("Target days: \(validTargetDays != nil ? "\(validTargetDays!) days" : "not provided")")
-        case .keepHealthy:
-            print("Daily calories: \(validCalories != nil ? "\(validCalories!) kcal" : "not provided")")
-            print("Target days: \(validTargetDays != nil ? "\(validTargetDays!) days" : "not provided")")
-        case .gainMuscle:
-            print("Daily protein: \(validProtein != nil ? "\(validProtein!) g" : "not provided")")
-            print("Target days: \(validTargetDays != nil ? "\(validTargetDays!) days" : "not provided")")
-        default:
-            break
+        .onAppear {
+            viewModel.setup(
+                modelContext: modelContext,
+                authService: authService
+            )
         }
     }
 }
@@ -251,24 +93,15 @@ private struct HeightStepView: View {
     let onSkip: () -> Void
     let onBack: (() -> Void)?
     
-    private func heightRange(for unit: String) -> (Double, Double) {
-        unit == "cm" ? (50, 250) : (20, 96)
-    }
-
-    private func isValidNumberInRange(_ text: String, range: (Double, Double)) -> Bool {
-        guard let v = Double(text) else { return false }
-        return v >= range.0 && v <= range.1
-    }
-
     var body: some View {
-        let range = heightRange(for: heightUnit)
+        let range = heightUnit == "cm" ? (50, 250) : (20, 96)
         StepTemplate(
             title: "What's your height?",
             subtitle: "This helps us personalize your experience",
             buttonTitle: "Continue",
             buttonEnabled: !height.isEmpty,
             onButtonTap: {
-                let valid = isValidNumberInRange(height, range: range)
+                let valid = height.isValidHeight(unit: heightUnit)
                 showError = !valid && !height.isEmpty
                 if height.isEmpty || valid {
                     showError = false
@@ -286,11 +119,11 @@ private struct HeightStepView: View {
                     trailingAccessory: AnyView(UnitSelector(selection: $heightUnit, options: ["in", "cm"]))
                 )
                 .onChange(of: height) {
-                    let valid = isValidNumberInRange(height, range: heightRange(for: heightUnit))
+                    let valid = height.isValidHeight(unit: heightUnit)
                     showError = !valid && !height.isEmpty
                 }
                 .onChange(of: heightUnit) {
-                    let valid = isValidNumberInRange(height, range: heightRange(for: heightUnit))
+                    let valid = height.isValidHeight(unit: heightUnit)
                     showError = !valid && !height.isEmpty
                 }
                 if showError {
@@ -317,11 +150,6 @@ private struct WeightStepView: View {
         unit == "kg" ? (20, 500) : (44, 1100) // kg/lb
     }
 
-    private func isValidNumberInRange(_ text: String, range: (Double, Double)) -> Bool {
-        guard let v = Double(text) else { return false }
-        return v >= range.0 && v <= range.1
-    }
-
     var body: some View {
         let range = weightRange(for: weightUnit)
         StepTemplate(
@@ -330,7 +158,7 @@ private struct WeightStepView: View {
             buttonTitle: "Continue",
             buttonEnabled: !weight.isEmpty,
             onButtonTap: {
-                let valid = isValidNumberInRange(weight, range: range)
+                let valid = weight.isValidWeight(unit: weightUnit)
                 showError = !valid && !weight.isEmpty
                 if weight.isEmpty || valid {
                     showError = false
@@ -345,14 +173,14 @@ private struct WeightStepView: View {
                     placeholder: "Enter weight",
                     text: $weight,
                     keyboardType: .decimalPad,
-                    trailingAccessory: AnyView(UnitSelector(selection: $weightUnit, options: ["lb", "kg"]))
+                    trailingAccessory: AnyView(UnitSelector(selection: $weightUnit, options: ["lbs", "kg"]))
                 )
                 .onChange(of: weight) {
-                    let valid = isValidNumberInRange(weight, range: weightRange(for: weightUnit))
+                    let valid = weight.isValidWeight(unit: weightUnit)
                     showError = !valid && !weight.isEmpty
                 }
                 .onChange(of: weightUnit) {
-                    let valid = isValidNumberInRange(weight, range: weightRange(for: weightUnit))
+                    let valid = weight.isValidWeight(unit: weightUnit)
                     showError = !valid && !weight.isEmpty
                 }
                 if showError {
@@ -381,7 +209,7 @@ private struct AgeStepView: View {
             buttonTitle: "Continue",
             buttonEnabled: !age.isEmpty,
             onButtonTap: {
-                if let ageValue = Int(age), ageValue >= 10 && ageValue <= 120 {
+                if age.isValidAge {
                     showError = false
                     onContinue()
                 } else if !age.isEmpty {
@@ -402,7 +230,7 @@ private struct AgeStepView: View {
                     suffix: "years"
                 )
                 .onChange(of: age) {
-                    if let ageValue = Int(age), ageValue >= 10 && ageValue <= 120 {
+                    if age.isValidAge {
                         showError = false
                     } else if !age.isEmpty {
                         showError = true
@@ -475,7 +303,7 @@ enum LifestyleOption: String, CaseIterable {
     case veryActive = "Athletic"
 }
 
-private extension LifestyleOption {
+extension LifestyleOption {
     var code: String {
         switch self {
         case .longSitting: return "sedentary"
@@ -525,7 +353,7 @@ enum GoalOption: String, CaseIterable {
     case gainMuscle = "Gain Muscle"
 }
 
-private extension GoalOption {
+extension GoalOption {
     var code: String {
         switch self {
         case .loseWeight: return "lose_weight"
@@ -590,11 +418,6 @@ private struct FinalStepView: View {
     private func lossRange(for unit: String) -> (Double, Double) {
         unit == "kg" ? (0.2, 100) : (0.5, 220)
     }
-    // 校验/非空 Helper
-    private func isValidNumberInRange(_ text: String, range: (Double, Double)) -> Bool {
-        guard let v = Double(text) else { return false }
-        return v >= range.0 && v <= range.1
-    }
 
     var body: some View {
         if goal == nil {
@@ -645,24 +468,24 @@ private struct FinalStepView: View {
           default: return ""
         }
     }
-    // 校验逻辑
+
     private var isCurrentInputValid: Bool {
         switch goal {
         case .loseWeight:
             let range = lossRange(for: lossUnit)
-            let validWeight = isValidNumberInRange(targetWeightLoss, range: range)
-            let validDays = (Int(targetDays) ?? 0) >= 1 && (Int(targetDays) ?? 0) <= 365
+            let validWeight = targetWeightLoss.isValidTargetWeight(unit: lossUnit)
+            let validDays = targetDays.isValidTargetDays
             return (!targetWeightLoss.isEmpty && validWeight) && (!targetDays.isEmpty && validDays)
         case .keepHealthy:
-            let validDays = (Int(targetDays) ?? 0) >= 1 && (Int(targetDays) ?? 0) <= 365
+            let validDays = targetDays.isValidTargetDays
             return (!actualCalories.isEmpty && Int(actualCalories) ?? 0 > 600) && (!targetDays.isEmpty && validDays)
         case .gainMuscle:
-            let validDays = (Int(targetDays) ?? 0) >= 1 && (Int(targetDays) ?? 0) <= 365
+            let validDays = targetDays.isValidTargetDays
             return (!actualProtein.isEmpty && Int(actualProtein) ?? 0 >= 20) && (!targetDays.isEmpty && validDays)
         default: return false
         }
     }
-    // lose weight
+
     private var weightLossBlock: some View {
         let range = lossRange(for: lossUnit)
         let errorView: some View = Group {
@@ -683,14 +506,14 @@ private struct FinalStepView: View {
                     placeholder: "Target weight",
                     text: $targetWeightLoss,
                     keyboardType: .decimalPad,
-                    trailingAccessory: AnyView(UnitSelector(selection: $lossUnit, options: ["lb", "kg"]))
+                    trailingAccessory: AnyView(UnitSelector(selection: $lossUnit, options: ["lbs", "kg"]))
                 )
                 .onChange(of: targetWeightLoss) {
-                    let valid = isValidNumberInRange(targetWeightLoss, range: lossRange(for: lossUnit))
+                    let valid = targetWeightLoss.isValidTargetWeight(unit: lossUnit)
                     showWeightError = !valid && !targetWeightLoss.isEmpty
                 }
                 .onChange(of: lossUnit) {
-                    let valid = isValidNumberInRange(targetWeightLoss, range: lossRange(for: lossUnit))
+                    let valid = targetWeightLoss.isValidTargetWeight(unit: lossUnit)
                     showWeightError = !valid && !targetWeightLoss.isEmpty
                 }
                 errorView
@@ -698,7 +521,7 @@ private struct FinalStepView: View {
             timeframeBlock
         }
     }
-    // keep healthy
+
     @State var showInfoTip = false
     private var healthyBlock: some View {
         let errorView: some View = Group {
@@ -828,7 +651,7 @@ private struct FinalStepView: View {
                 suffix: "days"
             )
             .onChange(of: targetDays) {
-                let valid = (Int(targetDays) ?? 0) >= 1 && (Int(targetDays) ?? 0) <= 365
+                let valid = targetDays.isValidTargetDays
                 showDaysError = !valid && !targetDays.isEmpty
             }
             if showDaysError {

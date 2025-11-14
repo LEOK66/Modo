@@ -15,7 +15,7 @@ struct PageHeader: View {
 
             Text(title)
                 .font(.system(size: 22, weight: .bold))
-                .foregroundColor(Color(hexString: "101828"))
+                .foregroundColor(.primary)
 
             Spacer()
 

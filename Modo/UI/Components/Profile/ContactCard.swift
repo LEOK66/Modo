@@ -13,23 +13,23 @@ struct ContactCard: View {
                 // Icon
                 ZStack {
                     RoundedRectangle(cornerRadius: 14)
-                        .fill(Color(hexString: "F3F4F6"))
+                        .fill(Color(.secondarySystemBackground))
                         .frame(width: 44, height: 44)
                     
                     Image(systemName: icon)
                         .font(.system(size: 20))
-                        .foregroundColor(Color(hexString: "364153"))
+                        .foregroundColor(.primary)
                 }
                 
                 // Text content
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(Color(hexString: "101828"))
+                        .foregroundColor(.primary)
                     
                     Text(subtitle)
                         .font(.system(size: 14))
-                        .foregroundColor(Color(hexString: "6A7282"))
+                        .foregroundColor(.secondary)
                 }
                 
                 Spacer()
@@ -37,14 +37,14 @@ struct ContactCard: View {
                 // Chevron
                 Image(systemName: "chevron.right")
                     .font(.system(size: 14))
-                    .foregroundColor(Color(hexString: "99A1AF"))
+                    .foregroundColor(.secondary)
             }
             .padding(20)
             .frame(maxWidth: .infinity)
-            .background(Color.white)
+            .background(Color(.systemBackground))
             .cornerRadius(16)
-            .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 1)
-            .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+            .shadow(color: Color.primary.opacity(0.1), radius: 3, x: 0, y: 1)
+            .shadow(color: Color.primary.opacity(0.1), radius: 2, x: 0, y: 1)
         }
         .buttonStyle(PlainButtonStyle())
     }
@@ -70,6 +70,6 @@ struct ContactCard: View {
         }
     }
     .padding()
-    .background(Color(hexString: "F3F4F6"))
+    .background(Color(.secondarySystemBackground))
 }
 

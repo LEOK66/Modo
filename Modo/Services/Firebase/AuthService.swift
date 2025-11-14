@@ -8,33 +8,55 @@ import AuthenticationServices
 import CryptoKit
 
 
-final class AuthService: ObservableObject {
-    static let shared = AuthService()
+final class AuthService: ObservableObject, AuthServiceProtocol {
+    // Optional dependency for challenge service (injected via dependency injection)
+    // This allows AuthService to reset challenge state on sign out without direct dependency
+    weak var challengeService: ChallengeServiceProtocol?
+    
     private var authStateListener: AuthStateDidChangeListenerHandle?
-    private var isInitialized = false
-    
-    private init() {
-        // Don't initialize Firebase Auth here - wait until configure() is called
-        // This prevents crashes if AuthService is accessed before FirebaseApp.configure()
-    }
-    
-    // Call this method after FirebaseApp.configure() to initialize auth state
-    func configure() {
-        guard !isInitialized else { return }
-        isInitialized = true
-        
-        // Immediately check current user state synchronously
-        let currentUser = Auth.auth().currentUser
-        self.currentUser = currentUser
-        self.isAuthenticated = currentUser != nil
-        if currentUser != nil {
-            loadOnboardingStatus()
-        }
-        setupAuthStateListener()
-    }   
     @Published var isAuthenticated = false
     @Published var currentUser: User?
     @Published var hasCompletedOnboarding = false
+    private var appleSignInDelegate: AppleSignInDelegate?
+    private var appleSignInPresentationProvider: AppleSignInPresentationContextProvider?
+    
+    /// Initialize with optional challenge service dependency
+    /// This allows for dependency injection while maintaining backward compatibility
+    /// - Parameter challengeService: Optional challenge service for dependency injection
+    init(challengeService: ChallengeServiceProtocol? = nil) {
+        self.challengeService = challengeService
+        setupAuthStateListener()
+        if let user = Auth.auth().currentUser {
+            self.currentUser = user
+            self.isAuthenticated = true
+            loadOnboardingStatus()
+        }
+    }
+    
+    /// Shared singleton instance (for backward compatibility)
+    /// Note: Uses ServiceContainer for dependency injection even in fallback case
+    static let shared: AuthService = {
+        // Use ServiceContainer to get challenge service (ensures proper dependency injection)
+        // This maintains backward compatibility while using the new architecture
+        let challengeService = ServiceContainer.shared.challengeService
+        return AuthService(challengeService: challengeService)
+    }()
+    
+    // MARK: - Email Verification Status
+    /// Determines if the current user needs email verification
+    /// Apple/Google users are automatically considered verified
+    var needsEmailVerification: Bool {
+        guard let user = currentUser ?? Auth.auth().currentUser else {
+            return false
+        }
+        
+        // Apple/Google users don't need email verification
+        let isThirdPartyAuth = user.providerData.contains { provider in
+            provider.providerID == "apple.com" || provider.providerID == "google.com"
+        }
+        
+        return !isThirdPartyAuth && !user.isEmailVerified
+    }
 
     // MARK: - Create Account
     func signUp(email: String, password: String, completion: @escaping (Result<User, Error>) -> Void) {
@@ -65,8 +87,9 @@ final class AuthService: ObservableObject {
 
     // MARK: - Sign Out
     func signOut() throws {
-        // Reset DailyChallengeService state before signing out
-        DailyChallengeService.shared.resetState()
+        // Reset challenge state if challenge service is available
+        // Note: challengeService should always be injected via ServiceContainer
+        challengeService?.resetState()
         
         try Auth.auth().signOut()
     }
@@ -108,86 +131,70 @@ final class AuthService: ObservableObject {
             return
         }
         
-        // Store cached verification status before reload
         let cachedVerificationStatus = user.isEmailVerified
         
         user.reload { error in
             DispatchQueue.main.async {
                 if let error = error {
-                    // If reload fails (e.g., no network), use cached verification status
-                    // This prevents showing email verification page for already-verified users when offline
                     print("Error reloading user: \(error.localizedDescription)")
                     print("Using cached verification status: \(cachedVerificationStatus)")
                     completion(cachedVerificationStatus)
                 } else {
-                    // Reload successful, use the latest verification status
                     completion(user.isEmailVerified)
                 }
             }
         }
     }
     
-    // MARK: - Google Sign-In
-    func signInWithGoogle(presentingViewController: UIViewController,
-                          completion: @escaping (Result<User, Error>) -> Void) {
+    // MARK: - Google Sign-In (Internal - use startGoogleSignInFlow instead)
+    private func signInWithGoogle(presentingViewController: UIViewController,
+                                   completion: @escaping (Result<User, Error>) -> Void) {
         print("🔵 AuthService: Starting Google Sign In")
         
         guard let clientID = FirebaseApp.app()?.options.clientID else {
-            print("❌ AuthService: Missing client ID")
             completion(.failure(NSError(domain: "AuthService", code: -1,
                                         userInfo: [NSLocalizedDescriptionKey: "Missing client ID"])))
             return
         }
         
-        print("✅ AuthService: Client ID found: \(clientID)")
-        
         // Configure Google Sign-In
         let config = GIDConfiguration(clientID: clientID)
         GIDSignIn.sharedInstance.configuration = config
         
-        print("🔵 AuthService: Starting Google Sign In flow")
-        
         // Start the sign-in flow
         GIDSignIn.sharedInstance.signIn(withPresenting: presentingViewController) { result, error in
             if let error = error {
-                print("❌ AuthService: Google Sign In error: \(error.localizedDescription)")
                 completion(.failure(error))
                 return
             }
-            
-            print("✅ AuthService: Google Sign In successful, processing tokens")
             
             guard
                 let idToken = result?.user.idToken?.tokenString,
                 let accessToken = result?.user.accessToken.tokenString
             else {
-                print("❌ AuthService: Missing tokens")
                 completion(.failure(NSError(domain: "AuthService", code: -2,
                                             userInfo: [NSLocalizedDescriptionKey: "Missing tokens"])))
                 return
             }
-            
-            print("✅ AuthService: Tokens received, signing in to Firebase")
             
             let credential = GoogleAuthProvider.credential(withIDToken: idToken, accessToken: accessToken)
             
             // Sign in to Firebase
             Auth.auth().signIn(with: credential) { authResult, error in
                 if let error = error {
-                    print("❌ AuthService: Firebase sign in error: \(error.localizedDescription)")
                     completion(.failure(error))
                 } else if let user = authResult?.user {
-                    print("✅ AuthService: Firebase sign in successful for user: \(user.uid)")
                     completion(.success(user))
                 }
             }
         }
     }
     
-    // MARK: - Apple Sign-In
-    func signInWithApple(authorization: ASAuthorization, 
-                        nonce: String,
-                        completion: @escaping (Result<User, Error>) -> Void) {
+    // MARK: - Apple Sign-In (Internal - use startAppleSignInFlow instead)
+    private func signInWithApple(authorization: ASAuthorization, 
+                                  nonce: String,
+                                  completion: @escaping (Result<User, Error>) -> Void) {
+        print("🔵 AuthService: Starting Apple Sign In")
         guard let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential else {
             completion(.failure(NSError(domain: "AuthService", code: -3,
                                         userInfo: [NSLocalizedDescriptionKey: "Invalid Apple ID credential"])))
@@ -215,6 +222,7 @@ final class AuthService: ObservableObject {
                     // Force update auth state immediately for Apple Sign-In
                     self?.currentUser = user
                     self?.isAuthenticated = true
+                    self?.loadOnboardingStatus()
                     completion(.success(user))
                 } else {
                     completion(.failure(NSError(domain: "AuthService", code: -6,
@@ -268,6 +276,119 @@ final class AuthService: ObservableObject {
         return hashString
     }
     
+    // MARK: - High-Level Social Auth Methods
+    /// Starts the Apple Sign-In flow, handling all UI setup internally
+    /// This method encapsulates nonce generation, ASAuthorizationController creation, and delegate management
+    func startAppleSignInFlow(completion: @escaping (Result<User, Error>) -> Void) {
+        let nonce = AuthService.randomNonceString()
+        let hashedNonce = AuthService.sha256(nonce)
+        
+        let appleIDProvider = ASAuthorizationAppleIDProvider()
+        let request = appleIDProvider.createRequest()
+        request.requestedScopes = [.fullName, .email]
+        request.nonce = hashedNonce
+        
+        // Create delegate and presentation provider - keep strong references
+        appleSignInDelegate = AppleSignInDelegate(
+            authService: self,
+            nonce: nonce,
+            onSuccess: { user in
+                completion(.success(user))
+            },
+            onError: { error in
+                completion(.failure(error))
+            }
+        )
+        
+        appleSignInPresentationProvider = AppleSignInPresentationContextProvider()
+        
+        guard let delegate = appleSignInDelegate, let provider = appleSignInPresentationProvider else {
+            completion(.failure(NSError(domain: "AuthService", code: -7,
+                                        userInfo: [NSLocalizedDescriptionKey: "Failed to create Apple Sign-In components"])))
+            return
+        }
+        
+        let authorizationController = ASAuthorizationController(authorizationRequests: [request])
+        authorizationController.delegate = delegate
+        authorizationController.presentationContextProvider = provider
+        authorizationController.performRequests()
+    }
+    
+    // MARK: - Apple Sign-In Delegate (Private)
+    private class AppleSignInDelegate: NSObject, ASAuthorizationControllerDelegate {
+        weak var authService: AuthService?
+        let nonce: String
+        let onSuccess: (User) -> Void
+        let onError: (Error) -> Void
+        
+        init(authService: AuthService, nonce: String, onSuccess: @escaping (User) -> Void, onError: @escaping (Error) -> Void) {
+            self.authService = authService
+            self.nonce = nonce
+            self.onSuccess = onSuccess
+            self.onError = onError
+        }
+        
+        func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+            guard let authService = authService else {
+                onError(NSError(domain: "AuthService", code: -9, userInfo: [NSLocalizedDescriptionKey: "AuthService deallocated"]))
+                return
+            }
+            
+            authService.signInWithApple(authorization: authorization, nonce: nonce) { result in
+                DispatchQueue.main.async {
+                    switch result {
+                    case .success(let user):
+                        self.onSuccess(user)
+                    case .failure(let error):
+                        self.onError(error)
+                    }
+                }
+            }
+        }
+        
+        func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+            onError(error)
+        }
+    }
+
+    // MARK: - Apple Sign-In Presentation Context Provider (Private)
+    private class AppleSignInPresentationContextProvider: NSObject, ASAuthorizationControllerPresentationContextProviding {
+        func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+            guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                  let window = windowScene.windows.first else {
+                fatalError("No window found")
+            }
+            return window
+        }
+    }
+    
+    /// Starts the Google Sign-In flow, automatically finding the presenting view controller
+    /// This method encapsulates the view controller lookup logic
+    func startGoogleSignInFlow(completion: @escaping (Result<User, Error>) -> Void) {
+        guard let topViewController = findTopViewController() else {
+            completion(.failure(NSError(domain: "AuthService", code: -8,
+                                        userInfo: [NSLocalizedDescriptionKey: "Unable to start Google Sign In. Please try again."])))
+            return
+        }
+        
+        signInWithGoogle(presentingViewController: topViewController, completion: completion)
+    }
+    
+    // MARK: - Helper: Find Top View Controller
+    private func findTopViewController() -> UIViewController? {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first else {
+            return nil
+        }
+        
+        var topController = window.rootViewController
+        while let presentedController = topController?.presentedViewController {
+            topController = presentedController
+        }
+        
+        return topController
+    }
+    
     // MARK: - Onboarding Status
     func completeOnboarding() {
         hasCompletedOnboarding = true
@@ -275,8 +396,6 @@ final class AuthService: ObservableObject {
     }
     
     private func loadOnboardingStatus() {
-        // Load from UserDefaults or Firebase
-        // For now, using UserDefaults
         if let userId = Auth.auth().currentUser?.uid {
             hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding_\(userId)")
         }

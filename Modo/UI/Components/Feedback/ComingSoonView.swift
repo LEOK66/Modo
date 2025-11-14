@@ -6,7 +6,7 @@ struct ComingSoonView: View {
     
     var body: some View {
         ZStack(alignment: .top) {
-            Color(hexString: "F9FAFB").ignoresSafeArea()
+            Color(.systemBackground).ignoresSafeArea()
             
             VStack(spacing: 0) {
                 // Back Button
@@ -31,7 +31,7 @@ struct ComingSoonView: View {
                     // Heading
                     Text("Coming Soon")
                         .font(.system(size: 16, weight: .regular))
-                        .foregroundColor(Color(hexString: "0A0A0A"))
+                        .foregroundColor(.primary)
                         .tracking(-0.3125)
                     
                     Spacer().frame(height: 24)
@@ -40,7 +40,7 @@ struct ComingSoonView: View {
                     VStack(spacing: 12) {
                         Text("This feature is currently under development")
                             .font(.system(size: 16, weight: .regular))
-                            .foregroundColor(Color(hexString: "4A5565"))
+                            .foregroundColor(.primary)
                             .multilineTextAlignment(.center)
                             .tracking(-0.3125)
                             .lineSpacing(10)
@@ -48,7 +48,7 @@ struct ComingSoonView: View {
                         
                         Text("We're working hard to bring you this feature. Check back soon!")
                             .font(.system(size: 14, weight: .regular))
-                            .foregroundColor(Color(hexString: "99A1AF"))
+                            .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
                             .tracking(-0.150391)
                             .lineSpacing(9)
@@ -65,11 +65,11 @@ struct ComingSoonView: View {
                 } label: {
                     Text("Go Back")
                         .font(.system(size: 16, weight: .regular))
-                        .foregroundColor(.white)
+                        .foregroundColor(Color(.systemBackground))
                         .tracking(-0.3125)
                         .frame(maxWidth: .infinity)
                         .frame(height: 56)
-                        .background(Color.black)
+                        .background(Color.primary)
                         .cornerRadius(16)
                 }
                 .padding(.horizontal, 24)
