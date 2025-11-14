@@ -86,11 +86,17 @@ jobs:
       - name: Detect Available Simulator
         id: detect_sim
         run: |
-          # Detect first available iPhone simulator
+          # Detect first available iPhone simulator and extract iOS version
           for device in "iPhone 15" "iPhone 16" "iPhone 17" "iPhone 14" "iPhone 13"; do
-            if xcrun simctl list devices available | grep -q "$device"; then
+            # Find the device and extract its iOS version
+            device_info=$(xcrun simctl list devices available | grep "$device" | head -1)
+            if [ -n "$device_info" ]; then
+              # Extract iOS version (e.g., "18.0", "17.5")
+              ios_version=$(echo "$device_info" | grep -oE '\([0-9]+\.[0-9]+' | grep -oE '[0-9]+\.[0-9]+' | head -1)
+              
               echo "SIMULATOR_NAME=$device" >> $GITHUB_OUTPUT
-              echo "✅ Found: $device"
+              echo "IOS_VERSION=$ios_version" >> $GITHUB_OUTPUT
+              echo "✅ Found: $device (iOS $ios_version)"
               break
             fi
           done
@@ -99,14 +105,15 @@ jobs:
         timeout-minutes: 20
         run: |
           set -o pipefail
-          # Use dynamically detected simulator
+          # Use dynamically detected simulator with explicit iOS version
           DEVICE_NAME="${{ steps.detect_sim.outputs.SIMULATOR_NAME }}"
-          echo "🧪 Testing on: $DEVICE_NAME"
+          IOS_VERSION="${{ steps.detect_sim.outputs.IOS_VERSION }}"
+          echo "🧪 Testing on: $DEVICE_NAME (iOS $IOS_VERSION)"
           
           xcodebuild test \
             -project Modo.xcodeproj \
             -scheme Modo \
-            -destination "platform=iOS Simulator,name=$DEVICE_NAME" \
+            -destination "platform=iOS Simulator,name=$DEVICE_NAME,OS=$IOS_VERSION" \
             -skip-testing:ModoUITests \
             -skip-testing:ModoTests/AuthServiceTests/testGoogleSignInErrorHandling \
             -skip-testing:ModoTests/AuthServiceTests/testGoogleSignInFlow \
