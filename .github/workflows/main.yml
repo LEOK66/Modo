@@ -83,19 +83,30 @@ jobs:
             fi
           done
 
+      - name: Detect Available Simulator
+        id: detect_sim
+        run: |
+          # Detect first available iPhone simulator
+          for device in "iPhone 15" "iPhone 16" "iPhone 17" "iPhone 14" "iPhone 13"; do
+            if xcrun simctl list devices available | grep -q "$device"; then
+              echo "SIMULATOR_NAME=$device" >> $GITHUB_OUTPUT
+              echo "✅ Found: $device"
+              break
+            fi
+          done
+
       - name: Build and Test
         timeout-minutes: 20
         run: |
           set -o pipefail
-          # Multiple destinations for fallback - tries each in order until one works
-          # Supports Xcode 15 (iPhone 15), Xcode 16 (iPhone 16), Xcode 17 Beta (iPhone 17)
+          # Use dynamically detected simulator
+          DEVICE_NAME="${{ steps.detect_sim.outputs.SIMULATOR_NAME }}"
+          echo "🧪 Testing on: $DEVICE_NAME"
+          
           xcodebuild test \
             -project Modo.xcodeproj \
             -scheme Modo \
-            -destination 'platform=iOS Simulator,name=iPhone 17' \
-            -destination 'platform=iOS Simulator,name=iPhone 16' \
-            -destination 'platform=iOS Simulator,name=iPhone 15' \
-            -destination 'platform=iOS Simulator,name=iPhone 14' \
+            -destination "platform=iOS Simulator,name=$DEVICE_NAME" \
             -skip-testing:ModoUITests \
             -skip-testing:ModoTests/AuthServiceTests/testGoogleSignInErrorHandling \
             -skip-testing:ModoTests/AuthServiceTests/testGoogleSignInFlow \
