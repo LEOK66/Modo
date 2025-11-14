@@ -73,10 +73,10 @@ jobs:
       - name: Start iOS Simulator
         run: |
           # Try common simulator names in order of preference
-          # iPhone 15 is widely available in Xcode 15+
-          for simulator in "iPhone 15" "iPhone 14" "iPhone 13" "iPhone SE (3rd generation)"; do
-            if xcrun simctl list devices | grep -q "$simulator"; then
-              echo "Booting $simulator..."
+          # Supports both newer (iPhone 16/17) and older (iPhone 15/14) Xcode versions
+          for simulator in "iPhone 17" "iPhone 16" "iPhone 15" "iPhone 14" "iPhone 13"; do
+            if xcrun simctl list devices available | grep -q "$simulator"; then
+              echo "Found and booting $simulator..."
               xcrun simctl boot "$simulator" 2>/dev/null || echo "$simulator already booted or unavailable"
               sleep 3
               break
@@ -87,12 +87,12 @@ jobs:
         timeout-minutes: 20
         run: |
           set -o pipefail
-          # Use iPhone 15 (widely available), with fallback to generic iOS Simulator
-          # xcodebuild will automatically select an available simulator if the specified one is not found
+          # Use generic iOS Simulator destination for maximum compatibility
+          # Works with any Xcode version (15, 16, 17, etc.)
           xcodebuild test \
             -project Modo.xcodeproj \
             -scheme Modo \
-            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            -destination 'generic/platform=iOS Simulator' \
             -skip-testing:ModoUITests \
             -skip-testing:ModoTests/AuthServiceTests/testGoogleSignInErrorHandling \
             -skip-testing:ModoTests/AuthServiceTests/testGoogleSignInFlow \
