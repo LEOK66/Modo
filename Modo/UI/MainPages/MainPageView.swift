@@ -162,7 +162,7 @@ struct MainPageView: View {
                 }
 
                 if isShowingChallengeDetail {
-                    DailyChallengeDetailView(
+                DailyChallengeDetailView(
                         viewModel: challengeViewModel,
                         isPresented: $isShowingChallengeDetail
                     )

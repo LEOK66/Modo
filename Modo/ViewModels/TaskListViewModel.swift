@@ -236,7 +236,7 @@ final class TaskListViewModel: ObservableObject {
                 switch result {
                 case .success(let tasks):
                     self.tasksByDate[normalizedDate] = tasks
-                    print("✅ TaskListViewModel: Loaded \(tasks.count) tasks for \(date)")
+                    print("✅ TaskListViewModel: Loaded \(tasks.count) tasks on ", date)
                 case .failure(let error):
                     print("❌ TaskListViewModel: Failed to load tasks - \(error.localizedDescription)")
                 }

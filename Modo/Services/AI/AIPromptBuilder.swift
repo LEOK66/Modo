@@ -617,6 +617,8 @@ class AIPromptBuilder {
         - Use specific numbers for targetValue
         - Keep title concise and motivating
         - Choose appropriate emoji
+        - Do not generate the same challenge twice in a row
+        - No meaningful word. For example, use "30 minutes of workout" instead of "complete a 30 minute workout"
         
         Example:
         {"title": "Walk 8,000 steps", "subtitle": "Get moving with a daily walk", "emoji": "👟", "type": "fitness", "targetValue": 8000}

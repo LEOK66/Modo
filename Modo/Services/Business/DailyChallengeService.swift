@@ -10,7 +10,10 @@ final class DailyChallengeService: ObservableObject, ChallengeServiceProtocol {
     @Published var isChallengeCompleted: Bool = false
     @Published var isChallengeAddedToTasks: Bool = false
     @Published var completedAt: Date? = nil // Track when challenge was completed
-    @Published var isLocked: Bool = false // Lock challenge after completion
+    @Published var isLocked: Bool = false
+    
+    // Track if completion toast has been shown for current challenge
+    @Published var hasShownCompletionToast: Bool = false
     
     // User data availability check
     @Published var hasMinimumUserData: Bool = false
@@ -25,32 +28,78 @@ final class DailyChallengeService: ObservableObject, ChallengeServiceProtocol {
     // Firebase listener handle
     private var completionObserverHandle: DatabaseHandle?
     
+    // Track if challenge has been loaded to avoid redundant loads
+    private var hasLoadedChallenge: Bool = false
+    private var lastLoadedDate: Date? = nil
+    
     // Database service for Firebase operations
     private let databaseService: DatabaseServiceProtocol
+    
+    // User profile service for checking data availability (optional - injected)
+    private weak var userProfileService: UserProfileService?
     
     // AI Services
     private let aiService = FirebaseAIService.shared
     private let promptBuilder = AIPromptBuilder()
     private let responseParser = AIResponseParser()
     
+    // Combine subscriptions
+    private var cancellables = Set<AnyCancellable>()
+    private var profileObserverCancellable: AnyCancellable?
+    
     /// Initialize DailyChallengeService with dependencies
-    /// - Parameter databaseService: Database service for Firebase operations (defaults to shared instance)
-    init(databaseService: DatabaseServiceProtocol = DatabaseService.shared) {
+    /// - Parameters:
+    ///   - databaseService: Database service for Firebase operations (defaults to shared instance)
+    ///   - userProfileService: User profile service for data availability checks (optional)
+    init(databaseService: DatabaseServiceProtocol = DatabaseService.shared, userProfileService: UserProfileService? = nil) {
         self.databaseService = databaseService
-        // Don't load challenge here - wait until view appears
-        // This ensures user is logged in before loading
+        self.userProfileService = userProfileService
+        
+        // ✅ Immediately check user data availability on init
+        self.hasMinimumUserData = userProfileService?.currentProfile?.hasMinimumDataForDailyChallenge() ?? false
+        
+        // ✅ Automatically update when profile changes
+        setupProfileObserver()
+    }
+    
+    /// Setup observer for profile changes
+    private func setupProfileObserver() {
+        guard let userProfileService = userProfileService else {
+            print("⚠️ DailyChallengeService: No UserProfileService provided, skipping profile observer")
+            return
+        }
+        
+        profileObserverCancellable = userProfileService.$currentProfile
+            .sink { [weak self] newProfile in
+                guard let self = self else { return }
+                let newValue = newProfile?.hasMinimumDataForDailyChallenge() ?? false
+                if self.hasMinimumUserData != newValue {
+                    self.hasMinimumUserData = newValue
+                }
+            }
+    }
+    
+    /// Set user profile service and setup observer (can be called after initialization)
+    /// - Parameter profileService: User profile service to inject
+    func setUserProfileService(_ profileService: UserProfileService) {
+        // Remove existing profile observer if any
+        profileObserverCancellable?.cancel()
+        profileObserverCancellable = nil
+        
+        // Set new profile service
+        self.userProfileService = profileService
+        
+        // Update current data availability
+        self.hasMinimumUserData = profileService.currentProfile?.hasMinimumDataForDailyChallenge() ?? false
+        
+        // Setup observer for future changes
+        setupProfileObserver()
     }
     
     /// Shared singleton instance (for backward compatibility)
     /// Note: This creates a new instance with default database service, not a true singleton
     static var shared: DailyChallengeService {
         return DailyChallengeService()
-    }
-    
-    /// Update user data availability status
-    func updateUserDataAvailability(profile: UserProfile?) {
-        hasMinimumUserData = profile?.hasMinimumDataForDailyChallenge() ?? false
-        print("✅ DailyChallengeService: User data availability updated - \(hasMinimumUserData)")
     }
     
     /// Load today's challenge from Firebase or generate default
@@ -63,7 +112,11 @@ final class DailyChallengeService: ObservableObject, ChallengeServiceProtocol {
         
         let today = Calendar.current.startOfDay(for: Date())
         
-        print("📡 DailyChallengeService: Loading today's challenge from Firebase...")
+        // ✅ Check if we've already loaded today's challenge (avoid redundant loads)
+        if hasLoadedChallenge, let lastLoaded = lastLoadedDate,
+           Calendar.current.isDate(lastLoaded, inSameDayAs: today) {
+            return
+        }
         
         databaseService.fetchDailyChallenge(userId: userId, date: today) { [weak self] result in
             guard let self = self else { return }
@@ -79,6 +132,10 @@ final class DailyChallengeService: ObservableObject, ChallengeServiceProtocol {
                             self.isChallengeAddedToTasks = data["taskId"] != nil
                             self.isLocked = data["isLocked"] as? Bool ?? false
                             
+                            // ✅ If loading an already completed challenge, mark toast as shown
+                            // (don't show toast again on page reload)
+                            self.hasShownCompletionToast = self.isChallengeCompleted
+                            
                             // Load completedAt timestamp
                             if let completedAtTimestamp = data["completedAt"] as? Double {
                                 self.completedAt = Date(timeIntervalSince1970: completedAtTimestamp)
@@ -93,20 +150,39 @@ final class DailyChallengeService: ObservableObject, ChallengeServiceProtocol {
                             // Set up real-time listener for completion status
                             self.observeChallengeCompletion()
                             
+                            // ✅ Mark as loaded to prevent redundant loads
+                            self.hasLoadedChallenge = true
+                            self.lastLoadedDate = today
+                            
                             print("✅ DailyChallengeService: Loaded challenge from Firebase - \(challenge.title)")
                         }
                     } else {
                         print("⚠️ DailyChallengeService: Failed to parse challenge, using default")
-                        self.generateDefaultChallenge()
+                        DispatchQueue.main.async {
+                            self.generateDefaultChallenge()
+                            // ✅ Save default challenge to Firebase to persist across page switches
+                            if let challenge = self.currentChallenge {
+                                self.saveChallengeToFirebase(challenge)
+                            }
+                        }
                     }
                 } else {
-                    // No challenge for today in Firebase, use default
-                    print("ℹ️ DailyChallengeService: No challenge in Firebase for today, using default")
-                    self.generateDefaultChallenge()
+                    // No challenge for today in Firebase, generate new one
+                    print("ℹ️ DailyChallengeService: No challenge in Firebase for today, generating new challenge")
+                    DispatchQueue.main.async {
+                        // ✅ Use AI if user has enough data, otherwise use default
+                        self.generateFirstChallenge()
+                    }
                 }
             case .failure(let error):
                 print("❌ DailyChallengeService: Failed to load challenge from Firebase - \(error.localizedDescription)")
-                self.generateDefaultChallenge()
+                DispatchQueue.main.async {
+                    self.generateDefaultChallenge()
+                    // ✅ Save default challenge to Firebase to persist across page switches
+                    if let challenge = self.currentChallenge {
+                        self.saveChallengeToFirebase(challenge)
+                    }
+                }
             }
         }
     }
@@ -154,6 +230,11 @@ final class DailyChallengeService: ObservableObject, ChallengeServiceProtocol {
         isLocked = false
         completedAt = nil
         challengeTaskId = nil
+        hasShownCompletionToast = false // ✅ Reset for new challenge
+        
+        // ✅ Mark as loaded to prevent redundant loads
+        hasLoadedChallenge = true
+        lastLoadedDate = Calendar.current.startOfDay(for: Date())
         
         print("✅ DailyChallengeService: Generated default challenge - \(currentChallenge?.title ?? "") (\(randomSteps) steps)")
     }
@@ -176,6 +257,29 @@ final class DailyChallengeService: ObservableObject, ChallengeServiceProtocol {
         let roundedSteps = (randomSteps / 500) * 500
         
         return roundedSteps
+    }
+    
+    /// Generate first challenge (AI or default based on user data availability)
+    /// This is called when no challenge exists in Firebase for today
+    private func generateFirstChallenge() {
+        print("🎯 DailyChallengeService: Generating first challenge for today")
+        
+        // Check if we have enough user data for AI generation
+        if hasMinimumUserData {
+            print("   ✅ User has minimum data, generating AI challenge")
+            // Use AI to generate challenge
+            Task {
+                await generateAIChallenge(userProfile: nil)
+            }
+        } else {
+            print("   ⚠️ User doesn't have enough data, using default challenge")
+            // Use default random challenge
+            generateDefaultChallenge()
+            // Save default challenge to Firebase to persist across page switches
+            if let challenge = currentChallenge {
+                saveChallengeToFirebase(challenge)
+            }
+        }
     }
     
     /// Refresh challenge (generate a new challenge using AI or default)
@@ -235,7 +339,12 @@ final class DailyChallengeService: ObservableObject, ChallengeServiceProtocol {
                     isLocked = false
                     completedAt = nil
                     challengeTaskId = nil
+                    hasShownCompletionToast = false // ✅ Reset for new challenge
                     isGeneratingChallenge = false
+                    
+                    // ✅ Mark as loaded to prevent redundant loads
+                    self.hasLoadedChallenge = true
+                    self.lastLoadedDate = Calendar.current.startOfDay(for: Date())
                     
                     // Save AI-generated challenge to Firebase
                     self.saveChallengeToFirebase(challenge)
@@ -263,7 +372,12 @@ final class DailyChallengeService: ObservableObject, ChallengeServiceProtocol {
             isLocked = false
             completedAt = nil
             challengeTaskId = nil
+            hasShownCompletionToast = false // ✅ Reset for new challenge
             isGeneratingChallenge = false
+            
+            // ✅ Mark as loaded to prevent redundant loads
+            self.hasLoadedChallenge = true
+            self.lastLoadedDate = Calendar.current.startOfDay(for: Date())
             
             // Save fallback challenge to Firebase
             if let challenge = currentChallenge {
@@ -386,6 +500,7 @@ final class DailyChallengeService: ObservableObject, ChallengeServiceProtocol {
         isChallengeAddedToTasks = false
         completedAt = nil
         isLocked = false
+        hasShownCompletionToast = false
         hasMinimumUserData = false
         isGeneratingChallenge = false
         challengeGenerationError = nil
@@ -409,6 +524,9 @@ final class DailyChallengeService: ObservableObject, ChallengeServiceProtocol {
             print("📅 DailyChallengeService: New day detected, resetting challenge")
             // Remove old observer
             removeCompletionObserver()
+            // ✅ Reset load flags so new challenge will be loaded
+            hasLoadedChallenge = false
+            lastLoadedDate = nil
             // Load or generate new challenge for today
             loadTodayChallenge()
         }

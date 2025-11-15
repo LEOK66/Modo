@@ -11,16 +11,11 @@ struct ProfileHeaderView: View {
     var body: some View {
         VStack(spacing: 12) {
             ZStack(alignment: .bottomTrailing) {
-                // Avatar circle background
+                // Avatar circle background with soft shadow
                 Circle()
-                    .stroke(Color.black, lineWidth: 2)
+                    .fill(Color(hexString: "F3F4F6"))
                     .frame(width: 96, height: 96)
-                    .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 10)
-                    .background(
-                        Circle()
-                            .fill(Color(hexString: "F3F4F6"))
-                            .padding(4)
-                    )
+                    .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 4)
 
                 // Content image
                 Group {

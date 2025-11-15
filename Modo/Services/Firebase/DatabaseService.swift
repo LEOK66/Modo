@@ -261,20 +261,20 @@ final class DatabaseService: DatabaseServiceProtocol {
             guard self != nil else { return }
             
             guard snapshot.exists() else {
-                print("📡 DatabaseService: Listener update - no data for \(listenerKey)")
+                print("📡 DatabaseService: Listener update - no data for user \(userId)")
                 callback([])
                 return
             }
             
             guard let taskDict = snapshot.value as? [String: Any] else {
-                print("📡 DatabaseService: Listener update - invalid data for \(listenerKey)")
+                print("📡 DatabaseService: Listener update - invalid data for user \(userId)")
                 callback([])
                 return
             }
             
             do {
                 let tasks = try self!.parseTaskDictionary(taskDict)
-                print("📡 DatabaseService: Listener update - \(tasks.count) tasks for \(listenerKey)")
+                print("📡 DatabaseService: Listener update - \(tasks.count) tasks for user \(userId)")
                 callback(tasks)
             } catch {
                 print("❌ DatabaseService: Failed to parse tasks in listener - \(error.localizedDescription)")

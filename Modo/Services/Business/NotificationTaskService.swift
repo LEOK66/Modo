@@ -183,7 +183,6 @@ struct NotificationTaskService {
         
         // Get challenge type (default to fitness)
         let typeString = userInfo["type"] as? String ?? "fitness"
-        let emoji = userInfo["emoji"] as? String ?? "💪"
         
         // Create daily challenge task
         let calendar = Calendar.current
