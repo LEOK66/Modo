@@ -30,10 +30,16 @@ enum OffClient {
             let energy_kcal_100g: Double?
             let energy_100g: Double? // sometimes kJ, we will convert if needed
             let energy_unit: String?
+            let proteins_100g: Double?
+            let carbohydrates_100g: Double?
+            let fat_100g: Double?
             private enum CodingKeys: String, CodingKey {
                 case energy_kcal_100g = "energy-kcal_100g"
                 case energy_100g
                 case energy_unit
+                case proteins_100g
+                case carbohydrates_100g
+                case fat_100g
             }
         }
     }
@@ -164,7 +170,7 @@ enum OffClient {
             .init(name: "action", value: "process"),
             .init(name: "json", value: "1"),
             .init(name: "page_size", value: String(limit)),
-            .init(name: "fields", value: "product_name,generic_name,brands,categories_tags,nutriments.energy-kcal_100g,nutriments.energy_100g,nutriments.energy_unit"),
+            .init(name: "fields", value: "product_name,generic_name,brands,categories_tags,nutriments.energy-kcal_100g,nutriments.energy_100g,nutriments.energy_unit,nutriments.proteins_100g,nutriments.carbohydrates_100g,nutriments.fat_100g"),
             .init(name: "search_terms", value: query.trimmingCharacters(in: .whitespacesAndNewlines))
         ]
         // Narrowing parameters based on query
@@ -237,7 +243,19 @@ enum OffClient {
                 guard let kcalVal = kcal else {
                     continue
                 }
-                mapped.append(MenuData.FoodItem(name: nameUnwrapped, calories: Int(round(kcalVal))))
+
+                // if the field is missing, should we default to 0 or make it null? 
+                let protein = p.nutriments?.proteins_100g ?? 0.0
+                let carbs = p.nutriments?.carbohydrates_100g ?? 0.0
+                let fat = p.nutriments?.fat_100g ?? 0.0
+                
+                mapped.append(MenuData.FoodItem(
+                    name: nameUnwrapped, 
+                    calories: Int(round(kcalVal)),
+                    proteinPer100g: protein,
+                    carbsPer100g: carbs,
+                    fatPer100g: fat
+                ))
             }
             // client-side filter/sort (robust contains: ignore case & punctuation)
             let qNorm = normalize(qLower)

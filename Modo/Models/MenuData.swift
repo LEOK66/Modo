@@ -8,8 +8,14 @@ public enum MenuData {
         public let caloriesPer100g: Double?
         public let caloriesPerServing: Int?
         public let defaultUnit: String?
-        public init(id: UUID = UUID(), name: String, calories: Int) { self.id = id; self.name = name; self.calories = calories; self.caloriesPer100g = nil; self.caloriesPerServing = calories; self.defaultUnit = "serving" }
-        private enum CodingKeys: String, CodingKey { case name, calories, caloriesPer100g, caloriesPerServing, defaultUnit }
+
+        // macro fields
+        public let proteinPer100g: Double?
+        public let carbsPer100g: Double?
+        public let fatPer100g: Double?
+
+        public init(id: UUID = UUID(), name: String, calories: Int, proteinPer100g: Double, carbsPer100g: Double, fatPer100g: Double) { self.id = id; self.name = name; self.calories = calories; self.caloriesPer100g = nil; self.caloriesPerServing = calories; self.defaultUnit = "serving"; self.proteinPer100g = proteinPer100g; self.carbsPer100g = carbsPer100g; self.fatPer100g = fatPer100g;}
+        private enum CodingKeys: String, CodingKey { case name, calories, caloriesPer100g, caloriesPerServing, defaultUnit, proteinPer100g, carbsPer100g, fatPer100g }
         public init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             self.name = try container.decode(String.self, forKey: .name)
@@ -18,6 +24,10 @@ public enum MenuData {
             self.caloriesPerServing = (try? container.decode(Int.self, forKey: .caloriesPerServing)) ?? self.calories
             self.defaultUnit = (try? container.decode(String.self, forKey: .defaultUnit)) ?? (self.caloriesPer100g != nil ? "g" : "serving")
             self.id = UUID()
+            
+            self.proteinPer100g = try? container.decode(Double.self, forKey: .proteinPer100g)
+            self.carbsPer100g = try? container.decode(Double.self, forKey: .carbsPer100g)
+            self.fatPer100g = try? container.decode(Double.self, forKey: .fatPer100g)
         }
         public func encode(to encoder: Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)
@@ -26,6 +36,9 @@ public enum MenuData {
             try container.encodeIfPresent(caloriesPer100g, forKey: .caloriesPer100g)
             try container.encodeIfPresent(caloriesPerServing, forKey: .caloriesPerServing)
             try container.encodeIfPresent(defaultUnit, forKey: .defaultUnit)
+            try container.encodeIfPresent(proteinPer100g, forKey: .proteinPer100g)
+            try container.encodeIfPresent(carbsPer100g, forKey: .carbsPer100g)
+            try container.encodeIfPresent(fatPer100g, forKey: .fatPer100g)
         }
         // Helpers
         public var hasPer100g: Bool { caloriesPer100g != nil }
