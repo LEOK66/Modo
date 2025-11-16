@@ -164,7 +164,7 @@ struct DailyChallengeCardView: View {
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                     
-                    NavigationLink(destination: ProgressView()) {
+                    NavigationLink(destination: ProgressPageView()) {
                         Text("Go to Setup")
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(.white)

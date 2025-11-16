@@ -49,6 +49,7 @@ enum AuthError: Error, LocalizedError, Equatable {
         case signIn
         case signUp
         case passwordReset
+        case passwordChange
         case emailVerification
         
         var defaultMessage: String {
@@ -59,6 +60,8 @@ enum AuthError: Error, LocalizedError, Equatable {
                 return "Failed to create account. Please try again."
             case .passwordReset:
                 return "Failed to send reset link. Please try again."
+            case .passwordChange:
+                return "Failed to change password. Please try again."
             case .emailVerification:
                 return "Failed to send verification email. Please try again."
             }
@@ -177,13 +180,18 @@ enum AuthError: Error, LocalizedError, Equatable {
         case .invalidEmail:
             return "Invalid email address. Please check and try again."
         case .wrongPassword:
-            return "Invalid email or password"
+            switch context {
+            case .passwordChange:
+                return "Current password is incorrect. Please try again."
+            default:
+                return "Invalid email or password"
+            }
         case .userNotFound:
             switch context {
             case .passwordReset:
                 return "No account found with this email address. Please check your email or sign up."
             case .signIn:
-                return "Invalid email or password"
+                return "This email is not registered. Please sign up first."
             default:
                 return "User not found."
             }
@@ -198,7 +206,14 @@ enum AuthError: Error, LocalizedError, Equatable {
         case .emailNotVerified:
             return "Email not verified. Please verify your email address."
         case .invalidCredentials:
-            return "Invalid email or password"
+            switch context {
+            case .signIn:
+                return "Authentication failed. Please try signing in again."
+            case .passwordChange:
+                return "Current password is incorrect. Please try again."
+            default:
+                return "Invalid credentials. Please try again."
+            }
         case .accountDisabled:
             return "This account has been disabled. Please contact support."
         case .operationNotAllowed:
@@ -243,6 +258,18 @@ enum AuthError: Error, LocalizedError, Equatable {
                 return .wrongPassword
             case 17011: // User not found
                 return .userNotFound
+            case 17004: // Invalid credential (ERROR_INVALID_CREDENTIAL)
+                // For email/password login, 17004 with "malformed" or "expired" message
+                // often indicates user not found (unregistered email)
+                // This is a common Firebase behavior for unregistered emails
+                if errorDescription.contains("malformed") || errorDescription.contains("expired") {
+                    // For email/password authentication, this likely means user not found
+                    return .userNotFound
+                }
+                // For other cases (e.g., third-party auth token issues), return invalidCredentials
+                return .invalidCredentials
+            case 17025: // Invalid credential (malformed or expired)
+                return .invalidCredentials
             case 17026: // Weak password
                 return .weakPassword
             case 17010: // Too many requests
@@ -301,6 +328,9 @@ enum AuthError: Error, LocalizedError, Equatable {
         }
         
         // Check error description for auth-related keywords
+        if errorDescription.contains("user not found") {
+            return .userNotFound
+        }
         if errorDescription.contains("email already") || errorDescription.contains("already in use") {
             return .emailAlreadyInUse
         }
@@ -309,9 +339,6 @@ enum AuthError: Error, LocalizedError, Equatable {
         }
         if errorDescription.contains("wrong password") || errorDescription.contains("invalid password") {
             return .wrongPassword
-        }
-        if errorDescription.contains("user not found") {
-            return .userNotFound
         }
         if errorDescription.contains("weak password") {
             return .weakPassword
@@ -340,6 +367,10 @@ enum AuthError: Error, LocalizedError, Equatable {
                 return .wrongPassword
             case 17011:
                 return .userNotFound
+            case 17004: // ERROR_INVALID_CREDENTIAL
+                return .invalidCredentials
+            case 17025:
+                return .invalidCredentials
             case 17026:
                 return .weakPassword
             case 17010:

@@ -153,3 +153,24 @@ extension String {
     }
 }
 
+// MARK: - Bundle Extension
+extension Bundle {
+    /// Returns the app's version number (e.g., "1.0.5")
+    /// This corresponds to the MARKETING_VERSION in Xcode target settings
+    var appVersion: String {
+        return infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
+    }
+    
+    /// Returns the app's build number (e.g., "1.0.5")
+    /// This corresponds to the CURRENT_PROJECT_VERSION in Xcode target settings
+    var buildNumber: String {
+        return infoDictionary?["CFBundleVersion"] as? String ?? "Unknown"
+    }
+    
+    /// Returns a formatted version string combining version and build number
+    /// Example: "1.0.5 (Build 1.0.5)"
+    var versionString: String {
+        return "\(appVersion) (Build \(buildNumber))"
+    }
+}
+

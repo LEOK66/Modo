@@ -18,7 +18,7 @@ struct StepTemplate<Content: View>: View {
             VStack(spacing: 12) {
                 Text(title)
                     .font(.system(size: 28, weight: .bold))
-                    .foregroundColor(Color(hexString: "101828"))
+                    .foregroundColor(.primary)
                     .multilineTextAlignment(.center)
                 
                 Text(subtitle)
