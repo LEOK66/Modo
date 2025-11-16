@@ -29,7 +29,7 @@ struct ProfileContent: View {
                 .padding(.top, 8)
 
                 // MARK: - Stats row
-                NavigationLink(destination: ProgressView()) {
+                NavigationLink(destination: ProgressPageView()) {
                     StatsCardView(
                         progressPercent: progressPercent,
                         daysCompletedText: daysCompletedText,
