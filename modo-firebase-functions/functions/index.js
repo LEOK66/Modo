@@ -5,6 +5,12 @@
 
 const {onCall} = require("firebase-functions/v2/https");
 const logger = require("firebase-functions/logger");
+const admin = require("firebase-admin");
+
+// Initialize Firebase Admin SDK
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
 
 // OpenAI API Configuration
 const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
@@ -136,6 +142,107 @@ exports.chatWithAI = onCall(async (request) => {
     });
 
     // Return error response
+    return {
+      success: false,
+      error: error.message || "An unknown error occurred",
+    };
+  }
+});
+
+/**
+ * Callable function to delete user account and all associated data
+ *
+ * Expected request data: None (uses authenticated user from request.auth)
+ *
+ * Returns:
+ * - { success: true, message: string }
+ * - { success: false, error: string }
+ *
+ * This function:
+ * 1. Verifies the user is authenticated
+ * 2. Deletes all user data from Realtime Database
+ * 3. Deletes all user files from Storage
+ * 4. Deletes the user account from Firebase Auth
+ */
+exports.deleteAccount = onCall(async (request) => {
+  try {
+    // Verify user is authenticated
+    if (!request.auth) {
+      return {
+        success: false,
+        error: "Unauthorized: User must be authenticated",
+      };
+    }
+
+    const userId = request.auth.uid;
+    logger.info("Deleting account for user", {userId});
+
+    // 1. Delete user data from Realtime Database
+    try {
+      const userRef = admin.database().ref(`users/${userId}`);
+      await userRef.remove();
+      logger.info("Deleted user data from Realtime Database", {userId});
+    } catch (error) {
+      logger.error("Error deleting user data from Realtime Database", {
+        userId,
+        error: error.message,
+      });
+      // Continue with other deletions even if this fails
+    }
+
+    // 2. Delete user files from Storage
+    try {
+      const bucket = admin.storage().bucket();
+      const userStoragePath = `users/${userId}`;
+
+      // List all files in user's storage path
+      const [files] = await bucket.getFiles({
+        prefix: userStoragePath,
+      });
+
+      // Delete each file
+      const deletePromises = files.map((file) => file.delete());
+      await Promise.all(deletePromises);
+
+      logger.info("Deleted user files from Storage", {
+        userId,
+        fileCount: files.length,
+      });
+    } catch (error) {
+      logger.error("Error deleting user files from Storage", {
+        userId,
+        error: error.message,
+      });
+      // Continue with auth deletion even if this fails
+    }
+
+    // 3. Delete user account from Firebase Auth
+    try {
+      await admin.auth().deleteUser(userId);
+      logger.info("Deleted user account from Firebase Auth", {userId});
+    } catch (error) {
+      logger.error("Error deleting user account from Firebase Auth", {
+        userId,
+        error: error.message,
+      });
+      return {
+        success: false,
+        error: `Failed to delete user account: ${error.message}`,
+      };
+    }
+
+    logger.info("Successfully deleted account for user", {userId});
+
+    return {
+      success: true,
+      message: "Account and all associated data have been deleted",
+    };
+  } catch (error) {
+    logger.error("Error in deleteAccount", {
+      error: error.message,
+      stack: error.stack,
+    });
+
     return {
       success: false,
       error: error.message || "An unknown error occurred",

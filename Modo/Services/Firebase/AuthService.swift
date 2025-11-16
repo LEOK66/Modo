@@ -133,13 +133,18 @@ final class AuthService: ObservableObject, AuthServiceProtocol {
         
         let cachedVerificationStatus = user.isEmailVerified
         
-        user.reload { error in
+        user.reload { [weak self] error in
             DispatchQueue.main.async {
                 if let error = error {
                     print("Error reloading user: \(error.localizedDescription)")
                     print("Using cached verification status: \(cachedVerificationStatus)")
                     completion(cachedVerificationStatus)
                 } else {
+                    // Update currentUser to trigger UI refresh
+                    // This ensures needsEmailVerification will reflect the updated state
+                    if let updatedUser = Auth.auth().currentUser {
+                        self?.currentUser = updatedUser
+                    }
                     completion(user.isEmailVerified)
                 }
             }

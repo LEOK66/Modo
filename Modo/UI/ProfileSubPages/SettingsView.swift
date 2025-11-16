@@ -60,7 +60,7 @@ struct SettingsView: View {
                             subtitle: "Data collection & sharing",
                             showDivider: true
                         ) {
-                            ComingSoonView()
+                            PrivacyPreferencesView()
                         }
                         
                         SettingsRowNavigationLink(
@@ -83,18 +83,6 @@ struct SettingsView: View {
                     }
                 }
                 
-                // Data Management Section
-                settingsSection(title: "Data Management") {
-                    SettingsRowNavigationLink(
-                        icon: "arrow.down.doc",
-                        title: "Export Data",
-                        subtitle: "Download your information",
-                        showDivider: false
-                    ) {
-                        ComingSoonView()
-                    }
-                }
-                
                 // About Section
                 settingsSection(title: "About") {
                     HStack(spacing: 16) {
@@ -113,7 +101,7 @@ struct SettingsView: View {
                                 .font(.system(size: 16, weight: .medium))
                                 .foregroundColor(.primary)
                             
-                            Text("1.0.0 (Build 2025)")
+                            Text(Bundle.main.versionString)
                                 .font(.system(size: 12))
                                 .foregroundColor(.secondary)
                         }
