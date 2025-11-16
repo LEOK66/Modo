@@ -205,27 +205,72 @@ private struct NutritionRow: View {
     let title: String
     let amount: String
     let icon: String
+    private let staticProgress: Double = 0.6
+    
+    // Static fraction display (will be replaced with actual values later)
+    private var staticFraction: String {
+        // Calculate current from progress: if amount is "150g" and progress is 0.6, show "90g/150g"
+        if let recommendedValue = Double(amount.replacingOccurrences(of: "g", with: "")) {
+            let currentValue = Int(recommendedValue * staticProgress)
+            return "\(currentValue)g/\(amount)"
+        }
+        return "-" // Default fallback
+    }
+    
+    private var percentText: String {
+        String(format: "%.0f%%", staticProgress * 100)
+    }
     
     var body: some View {
-        HStack(spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(color.opacity(0.12))
-                    .frame(width: 44, height: 44)
-                Image(systemName: icon)
-                    .foregroundColor(color)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(color.opacity(0.12))
+                        .frame(width: 44, height: 44)
+                    Image(systemName: icon)
+                        .foregroundColor(color)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(color)
+                    Text(amount)
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(.primary)
+                }
+                Spacer()
+                Image(systemName: "info.circle")
+                    .foregroundColor(.secondary)
             }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(color)
-                Text(amount)
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(.primary)
+            
+            // Progress section - similar to GoalCard
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Progress")
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Text(percentText)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(color)
+                }
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color(.separator))
+                            .frame(height: 8)
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(color)
+                            .frame(width: geometry.size.width * CGFloat(staticProgress), height: 8)
+                            .animation(.easeInOut(duration: 0.5), value: staticProgress)
+                    }
+                }
+                .frame(height: 8)
+                Text(staticFraction)
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
             }
-            Spacer()
-            Image(systemName: "info.circle")
-                .foregroundColor(.secondary)
         }
         .padding(16)
         .background(Color(.systemBackground))
