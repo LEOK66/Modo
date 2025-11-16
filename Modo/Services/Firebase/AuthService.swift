@@ -124,6 +124,45 @@ final class AuthService: ObservableObject, AuthServiceProtocol {
             }
         }
     }
+    
+    // MARK: - Change Password
+    func changePassword(currentPassword: String, newPassword: String, completion: @escaping (Result<Void, Error>) -> Void) {
+        guard let user = Auth.auth().currentUser,
+              let email = user.email else {
+            completion(.failure(NSError(domain: "AuthService", code: -1,
+                                        userInfo: [NSLocalizedDescriptionKey: "No authenticated user found"])))
+            return
+        }
+        
+        // Check if user is using email/password authentication
+        let isEmailPasswordAuth = user.providerData.contains { provider in
+            provider.providerID == "password"
+        }
+        
+        guard isEmailPasswordAuth else {
+            completion(.failure(NSError(domain: "AuthService", code: -2,
+                                        userInfo: [NSLocalizedDescriptionKey: "Password change is only available for email/password accounts"])))
+            return
+        }
+        
+        // Re-authenticate user with current password
+        let credential = EmailAuthProvider.credential(withEmail: email, password: currentPassword)
+        user.reauthenticate(with: credential) { authResult, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+            
+            // Update password
+            user.updatePassword(to: newPassword) { error in
+                if let error = error {
+                    completion(.failure(error))
+                } else {
+                    completion(.success(()))
+                }
+            }
+        }
+    }
 
     func checkEmailVerification(completion: @escaping (Bool) -> Void) {
         guard let user = Auth.auth().currentUser else {

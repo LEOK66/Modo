@@ -49,6 +49,7 @@ enum AuthError: Error, LocalizedError, Equatable {
         case signIn
         case signUp
         case passwordReset
+        case passwordChange
         case emailVerification
         
         var defaultMessage: String {
@@ -59,6 +60,8 @@ enum AuthError: Error, LocalizedError, Equatable {
                 return "Failed to create account. Please try again."
             case .passwordReset:
                 return "Failed to send reset link. Please try again."
+            case .passwordChange:
+                return "Failed to change password. Please try again."
             case .emailVerification:
                 return "Failed to send verification email. Please try again."
             }
@@ -177,7 +180,12 @@ enum AuthError: Error, LocalizedError, Equatable {
         case .invalidEmail:
             return "Invalid email address. Please check and try again."
         case .wrongPassword:
-            return "Invalid email or password"
+            switch context {
+            case .passwordChange:
+                return "Current password is incorrect. Please try again."
+            default:
+                return "Invalid email or password"
+            }
         case .userNotFound:
             switch context {
             case .passwordReset:
@@ -201,6 +209,8 @@ enum AuthError: Error, LocalizedError, Equatable {
             switch context {
             case .signIn:
                 return "Authentication failed. Please try signing in again."
+            case .passwordChange:
+                return "Current password is incorrect. Please try again."
             default:
                 return "Invalid credentials. Please try again."
             }

@@ -1,9 +1,19 @@
 import SwiftUI
+import FirebaseAuth
 
 // MARK: - Settings View
 struct SettingsView: View {
     @EnvironmentObject var themeManager: ThemeManager
+    @EnvironmentObject var authService: AuthService
     @State private var notificationsEnabled = true
+    
+    // Check if user can change password (only for email/password accounts)
+    private var canChangePassword: Bool {
+        guard let user = authService.currentUser else { return false }
+        return user.providerData.contains { provider in
+            provider.providerID == "password"
+        }
+    }
     
     var body: some View {
         ZStack(alignment: .top) {
@@ -58,27 +68,20 @@ struct SettingsView: View {
                             icon: "shield",
                             title: "Privacy Preferences",
                             subtitle: "Data collection & sharing",
-                            showDivider: true
+                            showDivider: canChangePassword
                         ) {
                             PrivacyPreferencesView()
                         }
                         
-                        SettingsRowNavigationLink(
-                            icon: "envelope",
-                            title: "Change Email",
-                            subtitle: "sarah.j@email.com",
-                            showDivider: true
-                        ) {
-                            ComingSoonView()
-                        }
-                        
-                        SettingsRowNavigationLink(
-                            icon: "lock",
-                            title: "Change Password",
-                            subtitle: "Last updated 30 days ago",
-                            showDivider: false
-                        ) {
-                            ComingSoonView()
+                        if canChangePassword {
+                            SettingsRowNavigationLink(
+                                icon: "lock",
+                                title: "Change Password",
+                                subtitle: "Update your password",
+                                showDivider: false
+                            ) {
+                                ChangePasswordView()
+                            }
                         }
                     }
                 }
