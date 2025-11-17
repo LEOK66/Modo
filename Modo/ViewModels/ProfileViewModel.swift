@@ -75,7 +75,7 @@ final class ProfileViewModel: ObservableObject {
     private let userProfileRepository: UserProfileRepository
     
     /// Auth service for authentication operations
-    private let authService: AuthServiceProtocol
+    private let authService: any AuthServiceProtocol
     
     /// Avatar upload service for avatar management
     private let avatarUploadService: AvatarUploadService
@@ -285,7 +285,7 @@ final class ProfileViewModel: ObservableObject {
     /// Set default avatar
     /// - Parameter avatarName: Default avatar name
     func setDefaultAvatar(_ avatarName: String) {
-        guard var profile = userProfile else {
+        guard let profile = userProfile else {
             print("⚠️ ProfileViewModel: No profile to update")
             return
         }
@@ -555,7 +555,7 @@ final class ProfileViewModel: ObservableObject {
             DispatchQueue.main.async {
                 switch result {
                 case .success(let url):
-                    var updatedProfile = profile
+                    let updatedProfile = profile
                     updatedProfile.profileImageURL = url
                     updatedProfile.avatarName = nil
                     updatedProfile.updatedAt = Date()
@@ -597,7 +597,7 @@ final class ProfileViewModel: ObservableObject {
             }
         }
         
-        guard var profile = profile else { return }
+        guard let profile = profile else { return }
         
         profile.avatarName = name
         // Clear uploaded photo URL so default avatar can be displayed

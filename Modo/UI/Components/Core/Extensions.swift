@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-// MARK: - Keyboard Dismissal Extension
+// MARK: - View Extensions
 extension View {
     /// Dismisses the keyboard when tapping outside of text fields
     /// This modifier adds a tap gesture that will dismiss the keyboard without interfering with other interactions
@@ -27,6 +27,16 @@ extension View {
                     UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                 }
         )
+    }
+    
+    /// Applies color scheme conditionally - if nil, follows system appearance
+    @ViewBuilder
+    func applyColorScheme(_ colorScheme: ColorScheme?) -> some View {
+        if let colorScheme = colorScheme {
+            self.colorScheme(colorScheme)
+        } else {
+            self
+        }
     }
 }
 
@@ -140,6 +150,27 @@ extension String {
             return false
         }
         return (1...365).contains(days)
+    }
+}
+
+// MARK: - Bundle Extension
+extension Bundle {
+    /// Returns the app's version number (e.g., "1.0.5")
+    /// This corresponds to the MARKETING_VERSION in Xcode target settings
+    var appVersion: String {
+        return infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
+    }
+    
+    /// Returns the app's build number (e.g., "1.0.5")
+    /// This corresponds to the CURRENT_PROJECT_VERSION in Xcode target settings
+    var buildNumber: String {
+        return infoDictionary?["CFBundleVersion"] as? String ?? "Unknown"
+    }
+    
+    /// Returns a formatted version string combining version and build number
+    /// Example: "1.0.5 (Build 1.0.5)"
+    var versionString: String {
+        return "\(appVersion) (Build \(buildNumber))"
     }
 }
 

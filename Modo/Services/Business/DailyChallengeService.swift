@@ -137,13 +137,16 @@ final class DailyChallengeService: ObservableObject, ChallengeServiceProtocol {
     
     /// Generate default challenge (fallback)
     private func generateDefaultChallenge() {
+        // Generate random step count for variety
+        let randomSteps = generateRandomStepTarget()
+        
         currentChallenge = DailyChallenge(
             id: UUID(),
-            title: "10,000 steps",
-            subtitle: "Walk 10,000 steps today",
+            title: "\(randomSteps.formatted()) steps",
+            subtitle: "Walk \(randomSteps.formatted()) steps today",
             emoji: "👟",
             type: .fitness,
-            targetValue: 10000,
+            targetValue: randomSteps,
             date: Calendar.current.startOfDay(for: Date())
         )
         isChallengeCompleted = false
@@ -152,7 +155,27 @@ final class DailyChallengeService: ObservableObject, ChallengeServiceProtocol {
         completedAt = nil
         challengeTaskId = nil
         
-        print("✅ DailyChallengeService: Generated default challenge - \(currentChallenge?.title ?? "")")
+        print("✅ DailyChallengeService: Generated default challenge - \(currentChallenge?.title ?? "") (\(randomSteps) steps)")
+    }
+    
+    /// Generate random step target with reasonable variety
+    private func generateRandomStepTarget() -> Int {
+        // Define step ranges for different difficulty levels
+        let stepRanges = [
+            5000...7000,   // Light activity
+            7000...9000,   // Moderate activity
+            9000...12000,  // Active
+            12000...15000  // Very active
+        ]
+        
+        // Randomly select a difficulty level
+        let selectedRange = stepRanges.randomElement()!
+        
+        // Generate random steps in that range, rounded to nearest 500
+        let randomSteps = Int.random(in: selectedRange)
+        let roundedSteps = (randomSteps / 500) * 500
+        
+        return roundedSteps
     }
     
     /// Refresh challenge (generate a new challenge using AI or default)
@@ -190,7 +213,7 @@ final class DailyChallengeService: ObservableObject, ChallengeServiceProtocol {
             let prompt = promptBuilder.buildDailyChallengePrompt(userProfile: userProfile)
             
             // Create message
-            let message = FirebaseFirebaseChatMessage(role: "user", content: prompt)
+            let message = ChatMessage(role: "user", content: prompt)
             
             // Call AI service
             let response = try await aiService.sendChatRequest(messages: [message], maxTokens: 300)

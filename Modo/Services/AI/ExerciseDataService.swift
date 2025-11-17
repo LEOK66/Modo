@@ -5,6 +5,33 @@ import Foundation
 /// Future: External exercise API integration (placeholder ready)
 class ExerciseDataService {
     
+    // MARK: - Constants
+    
+    /// Estimated seconds per rep for duration calculation
+    private let secondsPerRep = 3
+    
+    /// Rounding buffer for duration calculation (seconds)
+    private let durationRoundingBuffer = 30
+    
+    /// Seconds in a minute
+    private let secondsPerMinute = 60
+    
+    /// Baseline weight for calorie calculations (kg)
+    private let baselineWeightKg = 70.0
+    
+    /// Minimum duration in minutes
+    private let minDurationMinutes = 1
+    
+    /// Minimum calories burned
+    private let minCaloriesBurned = 10
+    
+    /// Base calories per minute by intensity level
+    private struct CaloriesPerMinute {
+        static let high: Double = 12.0      // HIIT, compound lifts with low reps
+        static let moderate: Double = 8.0   // Bodyweight exercises, moderate weights
+        static let low: Double = 5.0        // Isolation movements, stretching
+    }
+    
     // MARK: - Calorie Calculation
     
     /// Calculate calories burned for an exercise
@@ -29,29 +56,29 @@ class ExerciseDataService {
         let intensity = determineIntensity(exerciseName: exerciseName, reps: avgReps)
         
         // Calculate duration (rough estimate)
-        let workTime = sets * avgReps * 3 // ~3 seconds per rep
+        let workTime = sets * avgReps * secondsPerRep
         let restTime = sets * restSec
         let totalSeconds = workTime + restTime
-        let minutes = Double(totalSeconds) / 60.0
+        let minutes = Double(totalSeconds) / Double(secondsPerMinute)
         
         // Base calories per minute by intensity
         let baseCalPerMin: Double
         switch intensity {
         case .high:
-            baseCalPerMin = 12.0  // HIIT, burpees, mountain climbers
+            baseCalPerMin = CaloriesPerMinute.high
         case .moderate:
-            baseCalPerMin = 8.0   // Squats, lunges, push-ups
+            baseCalPerMin = CaloriesPerMinute.moderate
         case .low:
-            baseCalPerMin = 5.0   // Light cardio, stretching
+            baseCalPerMin = CaloriesPerMinute.low
         }
         
         // Adjust for user weight if available (heavier people burn more)
-        let weightMultiplier = userWeight.map { $0 / 70.0 } ?? 1.0  // 70kg as baseline
+        let weightMultiplier = userWeight.map { $0 / baselineWeightKg } ?? 1.0
         
         let calories = Int(baseCalPerMin * minutes * weightMultiplier)
         
         print("   💪 Calculated \(exerciseName): \(calories) cal (\(minutes.rounded())min)")
-        return max(calories, 10) // Minimum 10 calories
+        return max(calories, minCaloriesBurned)
     }
     
     // MARK: - Exercise Analysis
@@ -126,11 +153,11 @@ class ExerciseDataService {
     /// - Returns: Duration in minutes
     func calculateDuration(sets: Int, reps: String, restSec: Int) -> Int {
         let avgReps = extractAvgReps(from: reps)
-        let workTime = sets * avgReps * 3 // ~3 seconds per rep
+        let workTime = sets * avgReps * secondsPerRep
         let restTime = sets * restSec
         let totalSeconds = workTime + restTime
-        let minutes = (totalSeconds + 30) / 60 // Round up
-        return max(minutes, 1) // Minimum 1 minute
+        let minutes = (totalSeconds + durationRoundingBuffer) / secondsPerMinute // Round up
+        return max(minutes, minDurationMinutes)
     }
     
     // MARK: - Future API Integration (Placeholder)

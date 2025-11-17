@@ -6,6 +6,17 @@ import Foundation
 class NutritionLookupService {
     private let firebaseAIService = FirebaseAIService.shared
     
+    // MARK: - Constants
+    
+    /// Default calories to use when lookup fails
+    private let defaultCaloriesPerServing = 250
+    
+    /// Timeout for individual food item lookup (seconds)
+    private let perItemTimeoutSeconds: TimeInterval = 30.0
+    
+    /// Timeout for entire batch lookup (seconds)
+    private let totalBatchTimeoutSeconds: TimeInterval = 60.0
+    
     // MARK: - Lookup Methods
     
     /// Look up calories for a food item
@@ -65,12 +76,12 @@ class NutritionLookupService {
     
     /// Use OpenAI (FirebaseAIService) to estimate calories
     private func estimateCaloriesWithAI(foodName: String, completion: @escaping (Int?) -> Void) {
-        let prompt = "Estimate the calories for a typical single serving of '\(foodName)'. Respond with ONLY a number (e.g., '250' for 250 calories). Do not include any other text."
+        let prompt = "Estimate the calories for a typical single serving of '\(foodName)'. Respond with ONLY a number (e.g., '\(defaultCaloriesPerServing)' for \(defaultCaloriesPerServing) calories). Do not include any other text."
         
         Task {
             do {
                 let messages = [
-                    FirebaseFirebaseChatMessage(role: "user", content: prompt)
+                    ChatMessage(role: "user", content: prompt)
                 ]
                 
                 let response = try await firebaseAIService.sendChatRequest(messages: messages)
@@ -109,9 +120,9 @@ class NutritionLookupService {
         var overallCompleted = false
         let overallCompletedLock = NSLock()
         
-        // Timeout: Maximum 30 seconds per item, or 60 seconds total (whichever comes first)
-        let perItemTimeout: TimeInterval = 30.0
-        let totalTimeout: TimeInterval = 60.0
+        // Timeout settings
+        let perItemTimeout = perItemTimeoutSeconds
+        let totalTimeout = totalBatchTimeoutSeconds
         let startTime = Date()
         
         // Overall timeout timer
@@ -151,8 +162,8 @@ class NutritionLookupService {
                     let elapsed = Date().timeIntervalSince(itemStartTime)
                     print("⏱️ NutritionLookupService: Timeout for '\(foodName)' after \(String(format: "%.2f", elapsed))s, using default")
                     resultsQueue.async {
-                        // Use default 250 if timeout
-                        results.append((name: foodName, calories: 250))
+                        // Use default calories if timeout
+                        results.append((name: foodName, calories: self.defaultCaloriesPerServing))
                         completedCount += 1
                         dispatchGroup.leave()
                     }
@@ -169,8 +180,8 @@ class NutritionLookupService {
                     itemCompleted = true
                     itemTimeoutWork.cancel()  // Cancel timeout since we got a result
                     resultsQueue.async {
-                        // Use default 250 if lookup failed
-                        results.append((name: foodName, calories: calories ?? 250))
+                        // Use default calories if lookup failed
+                        results.append((name: foodName, calories: calories ?? self.defaultCaloriesPerServing))
                         completedCount += 1
                         dispatchGroup.leave()
                     }

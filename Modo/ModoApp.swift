@@ -11,6 +11,7 @@ struct ModoApp: App {
     @StateObject private var userProgress = UserProgress()
     @StateObject private var dailyCaloriesService = DailyCaloriesService()
     @StateObject private var userProfileService = UserProfileService()
+    @StateObject private var themeManager = ThemeManager()
     @State private var verificationTimer: Timer?
     
     init() {
@@ -58,8 +59,28 @@ struct ModoApp: App {
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])
         } catch {
-            // Temporary solution that only falling back to in-memory storage but in the future we need to
-            // think about how to do data migration
+            // ⚠️ Model migration failed - likely due to schema changes
+            print("❌ ModelContainer creation failed: \(error)")
+            print("🔄 Attempting to delete old database and recreate...")
+            
+            // Try to delete old database files
+            let fileManager = FileManager.default
+            if let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+                let storeURL = appSupportURL.appendingPathComponent("default.store")
+                try? fileManager.removeItem(at: storeURL)
+                print("🗑️ Deleted old database at: \(storeURL.path)")
+                
+                // Try creating ModelContainer again after deletion
+                do {
+                    let freshContainer = try ModelContainer(for: schema, configurations: [modelConfiguration])
+                    print("✅ Successfully created fresh ModelContainer")
+                    return freshContainer
+                } catch {
+                    print("❌ Still failed after deletion: \(error)")
+                }
+            }
+            
+            // Final fallback: in-memory storage
             print("⚠️ Falling back to in-memory storage")
             let inMemoryOnly = ModelConfiguration(
                 schema: schema,
@@ -75,38 +96,42 @@ struct ModoApp: App {
     
     var body: some Scene {
         WindowGroup {
-            ZStack {
-                switch currentState {
-                case .login:
-                    LoginView()
-                        .transition(.opacity)
-                    
-                case .emailVerification:
-                    EmailVerificationView()
-                        .transition(.opacity)
-                        .onAppear {
-                            startVerificationPolling()
-                        }
-                        .onDisappear {
-                            stopVerificationPolling()
-                        }
-                    
-                case .onboarding:
-                    InfoGatheringView()
-                        .transition(.opacity)
-                    
-                case .main:
-                    MainContainerView()
-                        .transition(.opacity)
+            SystemColorSchemeObserver(themeManager: themeManager) {
+                ZStack {
+                    switch currentState {
+                    case .login:
+                        LoginView()
+                            .transition(.opacity)
+                        
+                    case .emailVerification:
+                        EmailVerificationView()
+                            .transition(.opacity)
+                            .onAppear {
+                                startVerificationPolling()
+                            }
+                            .onDisappear {
+                                stopVerificationPolling()
+                            }
+                        
+                    case .onboarding:
+                        InfoGatheringView()
+                            .transition(.opacity)
+                        
+                    case .main:
+                        MainContainerView()
+                            .transition(.opacity)
+                    }
                 }
-            }
-            .animation(.easeInOut(duration: 0.3), value: currentState)
-            .environmentObject(authService)
-            .environmentObject(userProgress)
-            .environmentObject(dailyCaloriesService)
-            .environmentObject(userProfileService)
-            .onOpenURL { url in
-                GIDSignIn.sharedInstance.handle(url)
+                .animation(.easeInOut(          duration: 0.3), value: currentState)
+                .applyColorScheme(themeManager.colorScheme)
+                .environmentObject(authService)
+                .environmentObject(userProgress)
+                .environmentObject(dailyCaloriesService)
+                .environmentObject(userProfileService)
+                .environmentObject(themeManager)
+                .onOpenURL { url in
+                    GIDSignIn.sharedInstance.handle(url)
+                }
             }
         }
         .modelContainer(sharedModelContainer)
@@ -132,5 +157,29 @@ struct ModoApp: App {
                 }
             }
         }
+    }
+}
+
+// MARK: - System Color Scheme Observer
+struct SystemColorSchemeObserver<Content: View>: View {
+    @ObservedObject var themeManager: ThemeManager
+    @Environment(\.colorScheme) var systemColorScheme
+    let content: () -> Content
+    
+    init(themeManager: ThemeManager, @ViewBuilder content: @escaping () -> Content) {
+        self.themeManager = themeManager
+        self.content = content
+    }
+    
+    var body: some View {
+        content()
+            .onChange(of: systemColorScheme) { oldValue, newValue in
+                // Update theme manager when system color scheme changes
+                themeManager.updateFromSystem(systemColorScheme: newValue)
+            }
+            .onAppear {
+                // Initialize from system on appear
+                themeManager.updateFromSystem(systemColorScheme: systemColorScheme)
+            }
     }
 }

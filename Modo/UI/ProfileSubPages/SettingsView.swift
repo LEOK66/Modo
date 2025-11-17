@@ -1,9 +1,19 @@
 import SwiftUI
+import FirebaseAuth
 
 // MARK: - Settings View
 struct SettingsView: View {
-    @StateObject private var themeManager = ThemeManager()
+    @EnvironmentObject var themeManager: ThemeManager
+    @EnvironmentObject var authService: AuthService
     @State private var notificationsEnabled = true
+    
+    // Check if user can change password (only for email/password accounts)
+    private var canChangePassword: Bool {
+        guard let user = authService.currentUser else { return false }
+        return user.providerData.contains { provider in
+            provider.providerID == "password"
+        }
+    }
     
     var body: some View {
         ZStack(alignment: .top) {
@@ -42,15 +52,6 @@ struct SettingsView: View {
                             ComingSoonView()
                         }
                         
-                        SettingsRowNavigationLink(
-                            icon: "ruler",
-                            title: "Units",
-                            subtitle: "Metric (kg, km, cal)",
-                            showDivider: true
-                        ) {
-                            ComingSoonView()
-                        }
-                        
                         SettingsToggleRow(
                             icon: "bell",
                             title: "Notifications",
@@ -67,40 +68,21 @@ struct SettingsView: View {
                             icon: "shield",
                             title: "Privacy Preferences",
                             subtitle: "Data collection & sharing",
-                            showDivider: true
+                            showDivider: canChangePassword
                         ) {
-                            ComingSoonView()
+                            PrivacyPreferencesView()
                         }
                         
-                        SettingsRowNavigationLink(
-                            icon: "envelope",
-                            title: "Change Email",
-                            subtitle: "sarah.j@email.com",
-                            showDivider: true
-                        ) {
-                            ComingSoonView()
+                        if canChangePassword {
+                            SettingsRowNavigationLink(
+                                icon: "lock",
+                                title: "Change Password",
+                                subtitle: "Update your password",
+                                showDivider: false
+                            ) {
+                                ChangePasswordView()
+                            }
                         }
-                        
-                        SettingsRowNavigationLink(
-                            icon: "lock",
-                            title: "Change Password",
-                            subtitle: "Last updated 30 days ago",
-                            showDivider: false
-                        ) {
-                            ComingSoonView()
-                        }
-                    }
-                }
-                
-                // Data Management Section
-                settingsSection(title: "Data Management") {
-                    SettingsRowNavigationLink(
-                        icon: "arrow.down.doc",
-                        title: "Export Data",
-                        subtitle: "Download your information",
-                        showDivider: false
-                    ) {
-                        ComingSoonView()
                     }
                 }
                 
@@ -122,7 +104,7 @@ struct SettingsView: View {
                                 .font(.system(size: 16, weight: .medium))
                                 .foregroundColor(.primary)
                             
-                            Text("1.0.0 (Build 2025)")
+                            Text(Bundle.main.versionString)
                                 .font(.system(size: 12))
                                 .foregroundColor(.secondary)
                         }
@@ -174,5 +156,6 @@ struct SettingsView: View {
 #Preview {
     NavigationStack {
         SettingsView()
+            .environmentObject(ThemeManager())
     }
 }

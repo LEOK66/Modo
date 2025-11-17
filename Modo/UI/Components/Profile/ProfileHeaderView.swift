@@ -76,7 +76,7 @@ struct ProfileHeaderView: View {
                 HStack(spacing: 4) {
                     Text(username)
                         .font(.system(size: 24, weight: .regular))
-                        .foregroundColor(Color(hexString: "0A0A0A"))
+                        .foregroundColor(.primary)
                         .transition(.opacity.combined(with: .scale(scale: 0.95)))
                         .id(username)
                     Image(systemName: "pencil")

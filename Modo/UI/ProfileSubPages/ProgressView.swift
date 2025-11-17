@@ -8,7 +8,7 @@ class UserProgress: ObservableObject {
     @Published var progressPercent: Double = 0.0
 }
 
-struct ProgressView: View {
+struct ProgressPageView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthService
@@ -347,7 +347,7 @@ private struct GoalCard: View {
 }
 
 #Preview {
-    ProgressView()
+    ProgressPageView()
         .environmentObject(AuthService.shared)
         .environmentObject(UserProgress())
         .modelContainer(for: [UserProfile.self, DailyCompletion.self])

@@ -112,10 +112,19 @@ private struct LoginCard: View {
                         break
                     case .failure(let error):
                         isLoading = false
-                        print("Sign in error: \(error.localizedDescription)")
+                        // Debug logging
+                        let nsError = error as NSError
+                        print("🔴 Sign in error details:")
+                        print("   Description: \(error.localizedDescription)")
+                        print("   Domain: \(nsError.domain)")
+                        print("   Code: \(nsError.code)")
+                        print("   UserInfo: \(nsError.userInfo)")
+                        
                         let appError = AppError.from(error)
                         if !appError.isUserCancellation {
-                            errorMessage = appError.userMessage(context: .signIn)
+                            let userMsg = appError.userMessage(context: .signIn)
+                            print("   Converted message: \(userMsg)")
+                            errorMessage = userMsg
                             showErrorMessage = true
                             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                                 withAnimation {

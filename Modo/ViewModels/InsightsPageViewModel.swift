@@ -27,6 +27,9 @@ final class InsightsPageViewModel: ObservableObject {
     /// Whether task created toast is shown
     @Published var showTaskCreatedToast: Bool = false
     
+    /// Whether database migration error alert is shown
+    @Published var showDatabaseMigrationError: Bool = false
+    
     // MARK: - Published Properties - Attachment State
     
     /// Whether attachment menu is shown
@@ -143,6 +146,9 @@ final class InsightsPageViewModel: ObservableObject {
         
         // Observe user changes
         observeUserChanges()
+        
+        // Observe database migration errors
+        setupDatabaseErrorObserver()
     }
     
     /// Load chat history from SwiftData
@@ -174,8 +180,11 @@ final class InsightsPageViewModel: ObservableObject {
             queue: .main
         ) { [weak self] notification in
             if let keyboardFrame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect {
-                withAnimation(.easeOut(duration: 0.3)) {
-                    self?.keyboardHeight = keyboardFrame.height
+                // Use async to avoid "Publishing changes from within view updates" warning
+                DispatchQueue.main.async {
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        self?.keyboardHeight = keyboardFrame.height
+                    }
                 }
             }
         }
@@ -185,8 +194,11 @@ final class InsightsPageViewModel: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            withAnimation(.easeOut(duration: 0.3)) {
-                self?.keyboardHeight = 0
+            // Use async to avoid "Publishing changes from within view updates" warning
+            DispatchQueue.main.async {
+                withAnimation(.easeOut(duration: 0.3)) {
+                    self?.keyboardHeight = 0
+                }
             }
         }
     }
@@ -213,7 +225,8 @@ final class InsightsPageViewModel: ObservableObject {
     
     /// Clear chat history
     func clearChatHistory() {
-        coachService.clearHistory()
+        // Pass the modelContext to ensure coachService has access
+        coachService.clearHistory(with: modelContext)
         showClearConfirmation = false
     }
     
@@ -284,7 +297,53 @@ final class InsightsPageViewModel: ObservableObject {
     private func handleAcceptWithAIGenerator(for message: FirebaseChatMessage) {
         print("🎯 ========== ACCEPT BUTTON PRESSED ==========")
         print("   Message ID: \(message.id)")
+        print("   Message Type: \(message.messageType)")
         print("   Message content: \(message.content.prefix(100))")
+        
+        // ✅ PRIORITY 1: Check if message has structured plan data (from Function Calling)
+        if message.messageType == "nutrition_plan", let nutritionPlan = message.nutritionPlan {
+            print("   ✅ Found nutrition plan in message with \(nutritionPlan.meals.count) meals")
+            print("   Meals: \(nutritionPlan.meals.map { $0.name }.joined(separator: ", "))")
+            // Directly send notification using the plan data
+            for meal in nutritionPlan.meals {
+                sendNutritionTaskNotification(meal: meal, date: nutritionPlan.date)
+            }
+            return
+        }
+        
+        if message.messageType == "workout_plan", let workoutPlan = message.workoutPlan {
+            print("   ✅ Found workout plan in message with \(workoutPlan.exercises.count) exercises")
+            // Directly send notification using the plan data
+            sendWorkoutTaskNotification(plan: workoutPlan)
+            return
+        }
+        
+        if message.messageType == "multi_day_plan" {
+            // ⚠️ Safe access to multiDayPlan - may be nil for old messages from before this feature
+            if let multiDayPlan = message.multiDayPlan {
+                print("   ✅ Found multi-day plan in message with \(multiDayPlan.days.count) days")
+                print("   Type: \(multiDayPlan.planType)")
+                // Send notifications for each day
+                for day in multiDayPlan.days {
+                    if let workout = day.workout {
+                        sendWorkoutTaskNotification(plan: workout)
+                    }
+                    if let nutrition = day.nutrition {
+                        for meal in nutrition.meals {
+                            sendNutritionTaskNotification(meal: meal, date: nutrition.date)
+                        }
+                    }
+                }
+                return
+            } else {
+                print("   ⚠️ Message marked as multi_day_plan but data is nil (possibly old message)")
+                print("   Falling back to text analysis")
+                // Continue to fallback logic below
+            }
+        }
+        
+        // ✅ FALLBACK: If no structured data, use text analysis (old method)
+        print("   ⚠️ No structured plan found, falling back to text analysis")
         print("   Using unified AITaskGenerator")
         
         let content = message.content.lowercased()
@@ -633,6 +692,95 @@ final class InsightsPageViewModel: ObservableObject {
     /// Called when view disappears
     func onDisappear() {
         removeKeyboardObservers()
+    }
+    
+    /// Setup observer for database migration errors
+    private func setupDatabaseErrorObserver() {
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("DatabaseMigrationError"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.showDatabaseMigrationError = true
+        }
+    }
+    
+    // MARK: - Direct Notification Senders (from structured plan data)
+    
+    /// Send notification for nutrition task directly from meal plan data
+    /// - Parameters:
+    ///   - meal: Meal data
+    ///   - date: Date string
+    private func sendNutritionTaskNotification(meal: NutritionPlanData.Meal, date: String) {
+        print("📤 Sending nutrition task notification for: \(meal.name)")
+        
+        let foodItemsData = meal.foods.map { foodString -> [String: Any] in
+            // Simple parsing: assume "Food Name (~XXX cal)" format
+            let calories = meal.calories / meal.foods.count // Distribute equally
+            return [
+                "name": foodString,
+                "calories": calories
+            ]
+        }
+        
+        let detailedDescription = meal.foods.joined(separator: "\n")
+        
+        let userInfo: [String: Any] = [
+            "date": date,
+            "time": meal.time,
+            "duration": "0",
+            "description": detailedDescription,
+            "goal": "nutrition",
+            "exercises": [],
+            "isNutrition": true,
+            "calories": meal.calories,
+            "mealName": meal.name,
+            "foodItems": foodItemsData,
+            "isAIGenerated": true
+        ]
+        
+        NotificationCenter.default.post(
+            name: NSNotification.Name("CreateWorkoutTask"),
+            object: nil,
+            userInfo: userInfo
+        )
+    }
+    
+    /// Send notification for workout task directly from workout plan data
+    /// - Parameter plan: Workout plan data
+    private func sendWorkoutTaskNotification(plan: WorkoutPlanData) {
+        print("📤 Sending workout task notification")
+        
+        let exercisesData = plan.exercises.map { exercise -> [String: Any] in
+            return [
+                "name": exercise.name,
+                "sets": exercise.sets,
+                "reps": exercise.reps,
+                "restSec": exercise.restSec ?? 60,
+                "durationMin": 5, // Estimate
+                "calories": 50 // Estimate
+            ]
+        }
+        
+        let userInfo: [String: Any] = [
+            "date": plan.date,
+            "time": "09:00 AM",
+            "duration": String(plan.exercises.count * 15),
+            "totalDuration": plan.exercises.count * 15,
+            "description": "Generated by Modo Coach AI",
+            "theme": plan.goal.capitalized,
+            "goal": plan.goal,
+            "exercises": exercisesData,
+            "totalCalories": plan.dailyKcalTarget ?? 0,
+            "isNutrition": false,
+            "isAIGenerated": true
+        ]
+        
+        NotificationCenter.default.post(
+            name: NSNotification.Name("CreateWorkoutTask"),
+            object: nil,
+            userInfo: userInfo
+        )
     }
 }
 

@@ -10,12 +10,12 @@ struct ProgressBar: View {
                 ZStack(alignment: .leading) {
                     // Background
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(hexString: "E5E7EB"))
+                        .fill(Color.primary.opacity(0.15))
                         .frame(height: 6)
                     
                     // Progress
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.black)
+                        .fill(Color.primary)
                         .frame(width: geometry.size.width * CGFloat(currentStep) / CGFloat(totalSteps), height: 6)
                         .animation(.easeInOut(duration: 0.3), value: currentStep)
                 }

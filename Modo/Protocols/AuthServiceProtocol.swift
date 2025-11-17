@@ -51,6 +51,13 @@ protocol AuthServiceProtocol: ObservableObject {
     ///   - completion: Completion handler with result
     func resetPassword(email: String, completion: @escaping (Result<Void, Error>) -> Void)
     
+    /// Change password for the current user
+    /// - Parameters:
+    ///   - currentPassword: User's current password
+    ///   - newPassword: User's new password
+    ///   - completion: Completion handler with result
+    func changePassword(currentPassword: String, newPassword: String, completion: @escaping (Result<Void, Error>) -> Void)
+    
     /// Check if the current user's email is verified
     /// - Parameter completion: Completion handler with verification status
     func checkEmailVerification(completion: @escaping (Bool) -> Void)

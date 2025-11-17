@@ -16,6 +16,22 @@ class ModoCoachService: ObservableObject {
     // ✅ Use AIPromptBuilder for unified prompt construction
     private let promptBuilder = AIPromptBuilder()
     
+    // MARK: - Constants
+    
+    /// Maximum number of conversation history messages to include in API request
+    /// Includes both user and assistant messages (10 pairs + current message = 21 total)
+    private let maxHistoryMessages = 10
+    
+    /// Default workout exercise parameters for fallback generation
+    private struct DefaultWorkoutParams {
+        static let sets = 3
+        static let restSecModerate = 60
+        static let restSecHigh = 90
+        static let rpeModerate = 7
+        static let rpeHigh = 8
+        static let rpeLow = 5
+    }
+    
     init() {
         // Welcome message will be added after loading history
     }
@@ -59,6 +75,11 @@ class ModoCoachService: ObservableObject {
         
         do {
             let savedMessages = try context.fetch(descriptor)
+            
+            // ⚠️ REMOVED: Force loading properties can cause crashes with schema changes
+            // SwiftData will lazy-load properties when actually accessed (safer approach)
+            // The UI already has safe access patterns (e.g., safeMultiDayPlan in ChatBubble)
+            
             if savedMessages.isEmpty {
                 // First time, check if we need to send user info
                 if shouldSendUserInfo(userProfile: userProfile) {
@@ -71,6 +92,8 @@ class ModoCoachService: ObservableObject {
                 messages = savedMessages
             }
             hasLoadedHistory = true
+            
+            print("✅ Loaded \(messages.count) chat messages for user \(currentUserId)")
         } catch {
             print("Failed to load chat history: \(error)")
             addWelcomeMessage()
@@ -155,8 +178,11 @@ class ModoCoachService: ObservableObject {
     }
     
     // MARK: - Clear Chat History
-    func clearHistory() {
-        guard let context = modelContext,
+    func clearHistory(with context: ModelContext? = nil) {
+        // Use provided context or fallback to stored modelContext
+        let contextToUse = context ?? modelContext
+        
+        guard let contextToUse = contextToUse,
               let currentUserId = Auth.auth().currentUser?.uid else {
             print("⚠️ No current user or context, cannot clear chat history")
             return
@@ -168,13 +194,15 @@ class ModoCoachService: ObservableObject {
                 message.userId == currentUserId
             }
             let descriptor = FetchDescriptor<FirebaseChatMessage>(predicate: predicate)
-            let userMessages = try context.fetch(descriptor)
+            
+            // ⚠️ CRITICAL: Fetching old messages may fail if schema has changed
+            let userMessages = try contextToUse.fetch(descriptor)
             
             for message in userMessages {
-                context.delete(message)
+                contextToUse.delete(message)
             }
             
-            try context.save()
+            try contextToUse.save()
             
             // Clear in-memory messages
             messages.removeAll()
@@ -182,8 +210,26 @@ class ModoCoachService: ObservableObject {
             // Add welcome message
             addWelcomeMessage()
             
+            print("✅ Chat history cleared successfully")
+            
         } catch {
-            print("Failed to clear chat history: \(error)")
+            print("❌ Failed to clear chat history: \(error)")
+            print("🔄 This is likely due to schema migration issues")
+            print("💡 Recommendation: Delete and reinstall the app to clear old database")
+            
+            // Try to at least clear in-memory messages
+            messages.removeAll()
+            addWelcomeMessage()
+            
+            // Show error to user
+            DispatchQueue.main.async {
+                // You could post a notification here to show an alert to user
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("DatabaseMigrationError"),
+                    object: nil,
+                    userInfo: ["error": error.localizedDescription]
+                )
+            }
         }
     }
     
@@ -324,9 +370,9 @@ class ModoCoachService: ObservableObject {
             ]
             
             // Create messages using FirebaseAIService
-            let messages: [FirebaseFirebaseChatMessage] = [
-                FirebaseFirebaseChatMessage(role: "system", content: systemPrompt),
-                FirebaseFirebaseChatMessage(role: "user", multimodalContent: userContent)
+            let messages: [ChatMessage] = [
+                ChatMessage(role: "system", content: systemPrompt),
+                ChatMessage(role: "user", multimodalContent: userContent)
             ]
             
             // Call Firebase AI Service with reduced maxTokens for food analysis
@@ -334,7 +380,7 @@ class ModoCoachService: ObservableObject {
                 messages: messages,
                 functions: nil,
                 functionCall: nil,
-                maxTokens: 300
+                maxTokens: OpenAIConfig.maxTokensForVision
             )
             
             // Extract content from response
@@ -355,8 +401,20 @@ class ModoCoachService: ObservableObject {
         } catch {
             await MainActor.run {
                 print("Vision API Error: \(error)")
+                
+                // Convert to ModoAIError for friendly message
+                let modoError = ModoAIError.from(error)
+                
+                var errorText = "抱歉，无法分析这张图片。"
+                if let description = modoError.errorDescription {
+                    errorText = description
+                }
+                if let suggestion = modoError.recoverySuggestion {
+                    errorText += "\n\n💡 \(suggestion)"
+                }
+                
                 let errorMessage = FirebaseChatMessage(
-                    content: "Sorry, I couldn't analyze the image. Please make sure it's a clear photo of food and try again.",
+                    content: errorText,
                     isFromUser: false
                 )
                 self.messages.append(errorMessage)
@@ -370,59 +428,56 @@ class ModoCoachService: ObservableObject {
     private func processWithOpenAI(_ text: String, userProfile: UserProfile?) async {
         do {
             // Build conversation history
-            var apiMessages: [FirebaseFirebaseChatMessage] = []
+            var apiMessages: [ChatMessage] = []
             
             // ✅ Use AIPromptBuilder for unified prompt construction
             let systemPrompt = promptBuilder.buildChatSystemPrompt(userProfile: userProfile)
-            apiMessages.append(FirebaseFirebaseChatMessage(
+            apiMessages.append(ChatMessage(
                 role: "system",
                 content: systemPrompt
             ))
             
-            // Add recent conversation history (last 10 messages)
-            let recentMessages = messages.suffix(11) // 10 + current message
+            // Add recent conversation history
+            let recentMessages = messages.suffix(maxHistoryMessages * 2 + 1) // pairs + current
             for msg in recentMessages.dropLast() {
-                apiMessages.append(FirebaseFirebaseChatMessage(
+                apiMessages.append(ChatMessage(
                     role: msg.isFromUser ? "user" : "assistant",
                     content: msg.content
                 ))
             }
             
             // Add current user message
-            apiMessages.append(FirebaseFirebaseChatMessage(
+            apiMessages.append(ChatMessage(
                 role: "user",
                 content: text
             ))
             
-            // Call Firebase AI Service
+            // Enable Function Calling with strict: true
+            // Use unified maxTokens (sufficient for both single-day and multi-day plans)
             let response = try await firebaseAIService.sendChatRequest(
                 messages: apiMessages,
-                functions: nil,
-                functionCall: nil
+                functions: firebaseAIService.buildFunctions(),
+                functionCall: "auto",
+                parallelToolCalls: false
             )
             
             await MainActor.run {
                 self.isProcessing = false
                 
-                // Check if OpenAI wants to call a function
-                if let functionCall = response.choices.first?.message.functionCall {
-                    print("🔧 Function call detected: \(functionCall.name)")
-                    
-                    // Handle function calls
-                    if functionCall.name == "generate_workout_plan" {
-                        handleWorkoutPlanFunction(arguments: functionCall.arguments, userProfile: userProfile)
-                    } else if functionCall.name == "lookup_food_calorie" {
-                        handleFoodCalorieFunction(arguments: functionCall.arguments)
-                    }
-                }
-                // Regular text response
-                else if let content = response.choices.first?.message.content {
+                // Always show text response first (user visible)
+                if let textContent = response.choices.first?.message.content, !textContent.isEmpty {
                     let responseMessage = FirebaseChatMessage(
-                        content: content,
+                        content: textContent,
                         isFromUser: false
                     )
                     self.messages.append(responseMessage)
                     self.saveMessage(responseMessage)
+                }
+                
+                // If there is a Function Call, create task (background)
+                if let functionCall = response.choices.first?.message.effectiveFunctionCall {
+                    print("🔧 Function called: \(functionCall.name)")
+                    self.handleFunctionCall(functionCall, userProfile: userProfile)
                 }
             }
             
@@ -431,9 +486,17 @@ class ModoCoachService: ObservableObject {
                 self.isProcessing = false
                 print("❌ Error processing with OpenAI: \(error)")
                 
-                // Fallback response
+                // Convert to ModoAIError for friendly message
+                let modoError = ModoAIError.from(error)
+                
+                // Build user-friendly error message
+                var errorText = modoError.errorDescription ?? "抱歉，出现了一些问题"
+                if let suggestion = modoError.recoverySuggestion {
+                    errorText += "\n\n💡 \(suggestion)"
+                }
+                
                 let errorMessage = FirebaseChatMessage(
-                    content: "Sorry, I'm having trouble connecting right now. Please try again in a moment.",
+                    content: errorText,
                     isFromUser: false
                 )
                 self.messages.append(errorMessage)
@@ -442,13 +505,33 @@ class ModoCoachService: ObservableObject {
         }
     }
     
-    // MARK: - Handle Workout Plan Function
-    private func handleWorkoutPlanFunction(arguments: String, userProfile: UserProfile?) {
-        guard let jsonData = arguments.data(using: .utf8) else { return }
+    // MARK: - Handle Function Call
+    private func handleFunctionCall(_ functionCall: ChatCompletionResponse.Choice.Message.FunctionCall, userProfile: UserProfile?) {
+        guard let data = functionCall.arguments.data(using: .utf8) else {
+            print("❌ Failed to convert arguments to data")
+            return
+        }
         
+        switch functionCall.name {
+        case "generate_workout_plan":
+            handleWorkoutPlanFunction(data: data, userProfile: userProfile)
+            
+        case "generate_nutrition_plan":
+            handleNutritionPlanFunction(data: data, userProfile: userProfile)
+            
+        case "generate_multi_day_plan":
+            handleMultiDayPlanFunction(data: data, userProfile: userProfile)
+            
+        default:
+            print("⚠️ Unknown function: \(functionCall.name)")
+        }
+    }
+    
+    // MARK: - Handle Workout Plan Function
+    private func handleWorkoutPlanFunction(data: Data, userProfile: UserProfile?) {
         do {
             let decoder = JSONDecoder()
-            let functionResponse = try decoder.decode(WorkoutPlanFunctionResponse.self, from: jsonData)
+            let functionResponse = try decoder.decode(WorkoutPlanFunctionResponse.self, from: data)
             
             // Validate exercises
             guard let exercises = functionResponse.exercises, !exercises.isEmpty else {
@@ -495,13 +578,258 @@ class ModoCoachService: ObservableObject {
         } catch {
             print("Failed to decode workout plan: \(error)")
             // Print raw JSON for debugging
-            if let jsonString = String(data: jsonData, encoding: .utf8) {
+            if let jsonString = String(data: data, encoding: .utf8) {
                 print("Raw JSON: \(jsonString)")
             }
             
             // Fallback to local generation
             sendErrorMessage("Had trouble generating that plan. Let me create one for you using our standard template.")
             generateWorkoutPlan(userProfile: userProfile)
+        }
+    }
+    
+    // MARK: - Handle Nutrition Plan Function
+    private func handleNutritionPlanFunction(data: Data, userProfile: UserProfile?) {
+        do {
+            let decoder = JSONDecoder()
+            let functionResponse = try decoder.decode(NutritionPlanFunctionResponse.self, from: data)
+            
+            print("✅ Successfully decoded nutrition plan with \(functionResponse.meals.count) meals")
+            print("   Date: \(functionResponse.date)")
+            print("   Goal: \(functionResponse.goal)")
+            
+            // Convert to NutritionPlanData
+            let convertedMeals = functionResponse.meals.map { meal in
+                let totalCalories = meal.foods.reduce(0) { $0 + $1.calories }
+                let totalProtein = meal.foods.reduce(0.0) { $0 + ($1.protein ?? 0) }
+                let totalCarbs = meal.foods.reduce(0.0) { $0 + ($1.carbs ?? 0) }
+                let totalFat = meal.foods.reduce(0.0) { $0 + ($1.fat ?? 0) }
+                
+                print("   Meal: \(meal.mealType) - \(totalCalories)kcal")
+                
+                return NutritionPlanData.Meal(
+                    name: meal.mealType.capitalized,
+                    time: meal.time ?? getDefaultMealTime(for: meal.mealType),
+                    foods: meal.foods.map { "\($0.name) (\($0.portion))" },
+                    calories: totalCalories,
+                    protein: totalProtein,
+                    carbs: totalCarbs,
+                    fat: totalFat
+                )
+            }
+            
+            // Calculate daily totals
+            let dailyCalories = functionResponse.dailyTotals?.calories ?? convertedMeals.reduce(0) { $0 + $1.calories }
+            
+            let plan = NutritionPlanData(
+                date: functionResponse.date,
+                goal: functionResponse.goal,
+                dailyKcalTarget: dailyCalories,
+                meals: convertedMeals,
+                notes: nil
+            )
+            
+            print("   Created NutritionPlanData with \(plan.meals.count) meals")
+            
+            let response = FirebaseChatMessage(
+                content: "Here's your personalized nutrition plan 🍽️:\n\(formatDate(plan.date)) – \(plan.goal)",
+                isFromUser: false,
+                messageType: "nutrition_plan",
+                nutritionPlan: plan
+            )
+            
+            print("   Created message with type: \(response.messageType)")
+            print("   Message has nutritionPlan: \(response.nutritionPlan != nil)")
+            
+            messages.append(response)
+            saveMessage(response)
+            
+            print("   ✅ Nutrition plan message saved successfully")
+            
+        } catch {
+            print("❌ Failed to decode nutrition plan: \(error)")
+            if let jsonString = String(data: data, encoding: .utf8) {
+                print("Raw JSON: \(jsonString)")
+            }
+            
+            sendErrorMessage("Had trouble generating that nutrition plan. Please try again.")
+        }
+    }
+    
+    // MARK: - Handle Multi-Day Plan Function
+    private func handleMultiDayPlanFunction(data: Data, userProfile: UserProfile?) {
+        do {
+            let decoder = JSONDecoder()
+            let functionResponse = try decoder.decode(MultiDayPlanFunctionResponse.self, from: data)
+            
+            print("✅ Successfully decoded multi-day plan with \(functionResponse.days.count) days")
+            print("   Type: \(functionResponse.planType)")
+            print("   Date range: \(functionResponse.startDate) to \(functionResponse.endDate)")
+            
+            // Convert to MultiDayPlanData
+            let convertedDays = functionResponse.days.map { day in
+                var workoutPlan: WorkoutPlanData? = nil
+                var nutritionPlan: NutritionPlanData? = nil
+                
+                // Convert workout if present
+                if let workout = day.workout {
+                    let convertedExercises = workout.exercises.map { exercise in
+                        WorkoutPlanData.Exercise(
+                            name: exercise.name,
+                            sets: exercise.sets,
+                            reps: exercise.reps,
+                            restSec: exercise.restSec,
+                            targetRPE: exercise.targetRPE,
+                            alternatives: exercise.alternatives
+                        )
+                    }
+                    
+                    workoutPlan = WorkoutPlanData(
+                        date: day.date,
+                        goal: workout.goal,
+                        dailyKcalTarget: workout.dailyKcalTarget,
+                        exercises: convertedExercises,
+                        notes: workout.notes
+                    )
+                }
+                
+                // Convert nutrition if present
+                if let nutrition = day.nutrition {
+                    let convertedMeals = nutrition.meals.map { meal in
+                        let foodNames = meal.foods.map { "\($0.name) (\($0.portion))" }
+                        return NutritionPlanData.Meal(
+                            name: meal.mealType.capitalized,
+                            time: meal.time,
+                            foods: foodNames,
+                            calories: meal.calories,
+                            protein: meal.protein,
+                            carbs: meal.carbs,
+                            fat: meal.fat
+                        )
+                    }
+                    
+                    let dailyCalories = nutrition.dailyTotals?.calories ?? convertedMeals.reduce(0) { $0 + $1.calories }
+                    
+                    nutritionPlan = NutritionPlanData(
+                        date: day.date,
+                        goal: nutrition.goal,
+                        dailyKcalTarget: dailyCalories,
+                        meals: convertedMeals,
+                        notes: nil
+                    )
+                }
+                
+                return MultiDayPlanData.DayPlan(
+                    date: day.date,
+                    dayName: day.dayName,
+                    workout: workoutPlan,
+                    nutrition: nutritionPlan
+                )
+            }
+            
+            let plan = MultiDayPlanData(
+                startDate: functionResponse.startDate,
+                endDate: functionResponse.endDate,
+                planType: functionResponse.planType,
+                days: convertedDays,
+                notes: functionResponse.notes
+            )
+            
+            print("   Created MultiDayPlanData with \(plan.days.count) days")
+            
+            let planTypeText = functionResponse.planType == "both" ? "workout & nutrition" : functionResponse.planType
+            let response = FirebaseChatMessage(
+                content: "Here's your \(plan.days.count)-day \(planTypeText) plan 📅",
+                isFromUser: false,
+                messageType: "multi_day_plan",
+                multiDayPlan: plan
+            )
+            
+            print("   Created message with type: \(response.messageType)")
+            print("   Message has multiDayPlan: \(response.multiDayPlan != nil)")
+            
+            messages.append(response)
+            saveMessage(response)
+            
+            print("   ✅ Multi-day plan message saved successfully")
+            
+        } catch {
+            print("❌ Failed to decode multi-day plan: \(error)")
+            if let jsonString = String(data: data, encoding: .utf8) {
+                print("Raw JSON (first 500 chars): \(jsonString.prefix(500))")
+                print("Raw JSON length: \(jsonString.count) characters")
+                
+                // Check if JSON was truncated
+                if !jsonString.hasSuffix("}") {
+                    print("⚠️ JSON appears to be truncated (doesn't end with })")
+                    sendErrorMessage("The plan was too large and got cut off. Please try asking for fewer days (e.g., 3-5 days instead of 7).")
+                    return
+                }
+            }
+            
+            sendErrorMessage("Had trouble generating that multi-day plan. Please try asking for fewer days.")
+        }
+    }
+    
+    // MARK: - Create Nutrition Tasks from Function
+    private func createNutritionTasksFromFunction(_ nutritionPlan: NutritionPlanFunctionResponse) {
+        for meal in nutritionPlan.meals {
+            let mealTime = meal.time ?? getDefaultMealTime(for: meal.mealType)
+            
+            // Convert foods to dictionary
+            let foodsData = meal.foods.map { food -> [String: Any] in
+                var foodDict: [String: Any] = [
+                    "name": food.name,
+                    "portion": food.portion,
+                    "calories": food.calories
+                ]
+                if let protein = food.protein {
+                    foodDict["protein"] = protein
+                }
+                if let carbs = food.carbs {
+                    foodDict["carbs"] = carbs
+                }
+                if let fat = food.fat {
+                    foodDict["fat"] = fat
+                }
+                return foodDict
+            }
+            
+            // Calculate total calories for the meal
+            let totalCalories = meal.foods.reduce(0) { $0 + $1.calories }
+            
+            let userInfo: [String: Any] = [
+                "date": nutritionPlan.date,
+                "time": mealTime,
+                "theme": "Nutrition",
+                "mealType": meal.mealType.capitalized,
+                "foods": foodsData,
+                "totalCalories": totalCalories,
+                "isNutrition": true,
+                "isAIGenerated": true
+            ]
+            
+            NotificationCenter.default.post(
+                name: NSNotification.Name("CreateNutritionTask"),
+                object: nil,
+                userInfo: userInfo
+            )
+        }
+    }
+    
+    // MARK: - Get Default Meal Time
+    private func getDefaultMealTime(for mealType: String) -> String {
+        switch mealType.lowercased() {
+        case "breakfast":
+            return "08:00 AM"
+        case "lunch":
+            return "12:00 PM"
+        case "dinner":
+            return "06:00 PM"
+        case "snack":
+            return "03:00 PM"
+        default:
+            return "12:00 PM"
         }
     }
     
@@ -550,10 +878,34 @@ class ModoCoachService: ObservableObject {
     // MARK: - Generate Workout Plan
     private func generateWorkoutPlan(userProfile: UserProfile?) {
         let exercises = [
-            WorkoutPlanData.Exercise(name: "Squats", sets: 3, reps: "10", restSec: 90, targetRPE: 7),
-            WorkoutPlanData.Exercise(name: "Push-ups", sets: 3, reps: "8", restSec: 60, targetRPE: 8),
-            WorkoutPlanData.Exercise(name: "Dumbbell Rows", sets: 3, reps: "12", restSec: 90, targetRPE: 7),
-            WorkoutPlanData.Exercise(name: "15 min brisk walk or light jog", sets: 1, reps: "15 min", restSec: nil, targetRPE: 5)
+            WorkoutPlanData.Exercise(
+                name: "Squats", 
+                sets: DefaultWorkoutParams.sets, 
+                reps: "10", 
+                restSec: DefaultWorkoutParams.restSecHigh, 
+                targetRPE: DefaultWorkoutParams.rpeModerate
+            ),
+            WorkoutPlanData.Exercise(
+                name: "Push-ups", 
+                sets: DefaultWorkoutParams.sets, 
+                reps: "8", 
+                restSec: DefaultWorkoutParams.restSecModerate, 
+                targetRPE: DefaultWorkoutParams.rpeHigh
+            ),
+            WorkoutPlanData.Exercise(
+                name: "Dumbbell Rows", 
+                sets: DefaultWorkoutParams.sets, 
+                reps: "12", 
+                restSec: DefaultWorkoutParams.restSecHigh, 
+                targetRPE: DefaultWorkoutParams.rpeModerate
+            ),
+            WorkoutPlanData.Exercise(
+                name: "15 min brisk walk or light jog", 
+                sets: 1, 
+                reps: "15 min", 
+                restSec: nil, 
+                targetRPE: DefaultWorkoutParams.rpeLow
+            )
         ]
         
         let plan = WorkoutPlanData(
