@@ -16,6 +16,17 @@ class ModoCoachService: ObservableObject {
     // ✅ Use AIPromptBuilder for unified prompt construction
     private let promptBuilder = AIPromptBuilder()
     
+    // ✅ Use AICoordinator for unified AI operations
+    private let aiCoordinator: AICoordinator
+    
+    // ✅ Use specialized services
+    private let contentModerator: ContentModerationService
+    private let imageAnalyzer: ImageAnalysisService
+    private let taskResponder: TaskResponseService
+    
+    // ✅ Use AIFunctionCallCoordinator for CRUD operations
+    private let functionCoordinator = AIFunctionCallCoordinator.shared
+    
     // MARK: - Constants
     
     /// Maximum number of conversation history messages to include in API request
@@ -33,7 +44,27 @@ class ModoCoachService: ObservableObject {
     }
     
     init() {
+        // Initialize services
+        self.aiCoordinator = AICoordinator()
+        self.contentModerator = ContentModerationService()
+        self.imageAnalyzer = ImageAnalysisService()
+        self.taskResponder = TaskResponseService()
+        
         // Welcome message will be added after loading history
+        
+        // ✅ Register CRUD function handlers
+        registerFunctionHandlers()
+    }
+    
+    // MARK: - Register Function Handlers
+    private func registerFunctionHandlers() {
+        functionCoordinator.registerHandlers([
+            QueryTasksHandler(),
+            CreateTasksHandler(),
+            UpdateTaskHandler(),
+            DeleteTaskHandler()
+        ])
+        print("✅ Registered \(functionCoordinator.getRegisteredFunctions().count) CRUD handlers")
     }
     
     // ✅ Reset state when user changes
@@ -289,23 +320,75 @@ class ModoCoachService: ObservableObject {
     // MARK: - Send Message
     func sendMessage(_ text: String, userProfile: UserProfile?) {
         // Check for inappropriate content before sending
-        if isInappropriate(text) {
-            refuseInappropriate()
+        if contentModerator.isInappropriate(text) {
+            let refusalMessage = contentModerator.generateRefusalMessage()
+            let message = FirebaseChatMessage(content: refusalMessage, isFromUser: false)
+            messages.append(message)
+            saveMessage(message)
             return
         }
         
-        // Add user message
-        let userMessage = FirebaseChatMessage(content: text, isFromUser: true)
-        messages.append(userMessage)
-        saveMessage(userMessage)
-        
-        // Process with AI
+        // Process with AI using AICoordinator
         isProcessing = true
         
-        // Call real OpenAI API
-        Task {
-            await processWithOpenAI(text, userProfile: userProfile)
+        // Convert messages to ChatMessage format (include system prompt with user profile)
+        // Note: Don't add user message yet - AICoordinator will add it
+        let history = convertToChatMessages(includeSystemPrompt: true, userProfile: userProfile)
+        
+        // Use AICoordinator for unified processing
+        aiCoordinator.processMessage(text, history: history) { [weak self] result in
+            guard let self = self else { return }
+            
+            DispatchQueue.main.async {
+                // Add user message to local history (after AI processes it)
+                let userMessage = FirebaseChatMessage(content: text, isFromUser: true)
+                self.messages.append(userMessage)
+                self.saveMessage(userMessage)
+                
+                self.isProcessing = false
+                
+                switch result {
+                case .success(let responseText):
+                    print("✅ Got AI response: \(responseText.prefix(100))...")
+                    let aiMessage = FirebaseChatMessage(content: responseText, isFromUser: false)
+                    self.messages.append(aiMessage)
+                    self.saveMessage(aiMessage)
+                    
+                case .failure(let error):
+                    print("❌ AI processing failed: \(error.localizedDescription)")
+                    let errorMessage = FirebaseChatMessage(
+                        content: "抱歉，处理您的请求时出现了问题。请稍后再试。",
+                        isFromUser: false
+                    )
+                    self.messages.append(errorMessage)
+                    self.saveMessage(errorMessage)
+                }
+            }
         }
+    }
+    
+    // MARK: - Convert Messages
+    private func convertToChatMessages(includeSystemPrompt: Bool = false, userProfile: UserProfile? = nil) -> [ChatMessage] {
+        var chatMessages: [ChatMessage] = []
+        
+        // Add system prompt if requested
+        if includeSystemPrompt {
+            let systemPrompt = promptBuilder.buildSystemPrompt(userProfile: userProfile)
+            chatMessages.append(ChatMessage(role: "system", content: systemPrompt))
+        }
+        
+        // Get recent message history (limit to maxHistoryMessages pairs)
+        let recentMessages = Array(messages.suffix(maxHistoryMessages * 2))
+        
+        let historyMessages = recentMessages.map { message in
+            ChatMessage(
+                role: message.isFromUser ? "user" : "assistant",
+                content: message.content
+            )
+        }
+        
+        chatMessages.append(contentsOf: historyMessages)
+        return chatMessages
     }
     
     // MARK: - Send Text Message (without AI processing)
@@ -512,6 +595,25 @@ class ModoCoachService: ObservableObject {
             return
         }
         
+        // ✅ Check if new CRUD handler exists
+        if functionCoordinator.hasHandler(for: functionCall.name) {
+            Task {
+                do {
+                    try await functionCoordinator.handleFunctionCall(
+                        name: functionCall.name,
+                        arguments: functionCall.arguments
+                    )
+                } catch {
+                    print("❌ CRUD function call failed: \(error.localizedDescription)")
+                    await MainActor.run {
+                        sendErrorMessage("Failed to process your request. Please try again.")
+                    }
+                }
+            }
+            return
+        }
+        
+        // ✅ Fallback to legacy handlers for existing functions
         switch functionCall.name {
         case "generate_workout_plan":
             handleWorkoutPlanFunction(data: data, userProfile: userProfile)

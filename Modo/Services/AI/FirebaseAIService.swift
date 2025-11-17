@@ -334,6 +334,222 @@ class FirebaseAIService {
                     "additionalProperties": false
                 ],
                 strict: true
+            ),
+            
+            // Query Tasks Function
+            FunctionDefinition(
+                name: "query_tasks",
+                description: """
+                Query existing tasks from the user's schedule.
+                Use this when user asks: "What tasks do I have?", "Show me today's workouts", "What's on my schedule?", etc.
+                """,
+                parameters: [
+                    "type": "object",
+                    "properties": [
+                        "date": [
+                            "type": "string",
+                            "description": "Target date in YYYY-MM-DD format (default: today)"
+                        ],
+                        "date_range": [
+                            "type": "integer",
+                            "description": "Number of days to include (1 = single day, 7 = week)",
+                            "minimum": 1,
+                            "maximum": 30
+                        ],
+                        "category": [
+                            "type": ["string", "null"],
+                            "description": "Filter by category: fitness, diet, or null for all"
+                        ],
+                        "is_done": [
+                            "type": ["boolean", "null"],
+                            "description": "Filter by completion status: true (done), false (pending), null (all)"
+                        ]
+                    ],
+                    "required": ["date", "date_range", "category", "is_done"],
+                    "additionalProperties": false
+                ],
+                strict: true
+            ),
+            
+            // Create Tasks Function
+            FunctionDefinition(
+                name: "create_tasks",
+                description: """
+                Create one or multiple new tasks in the user's schedule.
+                Use this when user asks to: "Add a workout", "Create a meal plan", "Schedule this for tomorrow", etc.
+                """,
+                parameters: [
+                    "type": "object",
+                    "properties": [
+                        "tasks": [
+                            "type": "array",
+                            "description": "Array of tasks to create",
+                            "items": [
+                                "type": "object",
+                                "properties": [
+                                    "type": [
+                                        "type": "string",
+                                        "description": "Task type",
+                                        "enum": ["workout", "nutrition", "custom"]
+                                    ],
+                                    "title": [
+                                        "type": "string",
+                                        "description": "Task title"
+                                    ],
+                                    "subtitle": [
+                                        "type": ["string", "null"],
+                                        "description": "Task subtitle or description"
+                                    ],
+                                    "date": [
+                                        "type": "string",
+                                        "description": "Task date in YYYY-MM-DD format"
+                                    ],
+                                    "time": [
+                                        "type": "string",
+                                        "description": "Task time (e.g., '9:00 AM', '14:30')"
+                                    ],
+                                    "category": [
+                                        "type": "string",
+                                        "description": "Task category",
+                                        "enum": ["fitness", "diet", "others"]
+                                    ],
+                                    "exercises": [
+                                        "type": ["array", "null"],
+                                        "description": "Exercise details (for fitness tasks)",
+                                        "items": [
+                                            "type": "object",
+                                            "properties": [
+                                                "name": ["type": "string"],
+                                                "sets": ["type": "integer"],
+                                                "reps": ["type": "string"],
+                                                "rest_sec": ["type": "integer"],
+                                                "duration_min": ["type": "integer"],
+                                                "calories": ["type": "integer"],
+                                                "target_RPE": ["type": ["integer", "null"]],
+                                                "alternatives": [
+                                                    "type": ["array", "null"],
+                                                    "items": ["type": "string"]
+                                                ]
+                                            ],
+                                            "required": ["name", "sets", "reps", "rest_sec", "duration_min", "calories", "target_RPE", "alternatives"],
+                                            "additionalProperties": false
+                                        ]
+                                    ],
+                                    "meals": [
+                                        "type": ["array", "null"],
+                                        "description": "Meal details (for diet tasks)",
+                                        "items": [
+                                            "type": "object",
+                                            "properties": [
+                                                "name": ["type": "string"],
+                                                "time": ["type": "string"],
+                                                "foods": [
+                                                    "type": "array",
+                                                    "items": [
+                                                        "type": "object",
+                                                        "properties": [
+                                                            "name": ["type": "string"],
+                                                            "portion": ["type": "string"],
+                                                            "calories": ["type": "integer"],
+                                                            "macros": [
+                                                                "type": ["object", "null"],
+                                                                "properties": [
+                                                                    "protein": ["type": "number"],
+                                                                    "carbs": ["type": "number"],
+                                                                    "fat": ["type": "number"]
+                                                                ],
+                                                                "required": ["protein", "carbs", "fat"],
+                                                                "additionalProperties": false
+                                                            ]
+                                                        ],
+                                                        "required": ["name", "portion", "calories", "macros"],
+                                                        "additionalProperties": false
+                                                    ]
+                                                ],
+                                                "total_calories": ["type": "integer"]
+                                            ],
+                                            "required": ["name", "time", "foods", "total_calories"],
+                                            "additionalProperties": false
+                                        ]
+                                    ]
+                                ],
+                                "required": ["type", "title", "subtitle", "date", "time", "category", "exercises", "meals"],
+                                "additionalProperties": false
+                            ]
+                        ]
+                    ],
+                    "required": ["tasks"],
+                    "additionalProperties": false
+                ],
+                strict: true
+            ),
+            
+            // Update Task Function
+            FunctionDefinition(
+                name: "update_task",
+                description: """
+                Update an existing task in the user's schedule.
+                Use this when user asks to: "Change my workout time", "Mark this as done", "Update the meal", etc.
+                IMPORTANT: User must first query tasks to get the task ID, then update it.
+                """,
+                parameters: [
+                    "type": "object",
+                    "properties": [
+                        "task_id": [
+                            "type": "string",
+                            "description": "UUID of the task to update (from query_tasks result)"
+                        ],
+                        "updates": [
+                            "type": "object",
+                            "description": "Fields to update (all fields are optional, only include fields that need to change)",
+                            "properties": [
+                                "title": [
+                                    "type": ["string", "null"],
+                                    "description": "New title"
+                                ],
+                                "time": [
+                                    "type": ["string", "null"],
+                                    "description": "New time"
+                                ],
+                                "is_done": [
+                                    "type": ["boolean", "null"],
+                                    "description": "Completion status"
+                                ]
+                            ],
+                            "required": ["title", "time", "is_done"],
+                            "additionalProperties": false
+                        ]
+                    ],
+                    "required": ["task_id", "updates"],
+                    "additionalProperties": false
+                ],
+                strict: true
+            ),
+            
+            // Delete Task Function
+            FunctionDefinition(
+                name: "delete_task",
+                description: """
+                Delete a task from the user's schedule.
+                Use this when user asks to: "Remove this workout", "Delete today's meal", "Cancel this task", etc.
+                IMPORTANT: User must first query tasks to get the task ID, then delete it.
+                """,
+                parameters: [
+                    "type": "object",
+                    "properties": [
+                        "task_id": [
+                            "type": "string",
+                            "description": "UUID of the task to delete (from query_tasks result)"
+                        ],
+                        "reason": [
+                            "type": ["string", "null"],
+                            "description": "Optional reason for deletion"
+                        ]
+                    ],
+                    "required": ["task_id", "reason"],
+                    "additionalProperties": false
+                ],
+                strict: true
             )
         ]
     }
