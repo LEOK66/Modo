@@ -70,21 +70,21 @@ jobs:
           set -o pipefail
           echo "🧪 Testing on iOS Simulator"
           
-          # Try common iPhone simulators available on macOS 15 (Xcode 16.x)
-          # These should support iOS 17+ which is our deployment target
-          for DEVICE in "iPhone 15" "iPhone 15 Pro" "iPhone 16" "iPhone 14"; do
-            echo "🔍 Trying $DEVICE..."
-            if xcodebuild -project Modo.xcodeproj -scheme Modo -showdestinations 2>/dev/null | grep -q "name=$DEVICE"; then
-              DESTINATION="platform=iOS Simulator,name=$DEVICE"
-              echo "✅ Found available simulator: $DESTINATION"
-              break
-            fi
-          done
+          # Extract the first available iPhone simulator from xcodebuild output
+          # Format: { platform:iOS Simulator, arch:arm64, id:..., OS:18.4, name:iPhone 16 }
+          DESTINATION=$(xcodebuild -project Modo.xcodeproj -scheme Modo -showdestinations 2>/dev/null | \
+            grep "platform:iOS Simulator" | \
+            grep "name:iPhone" | \
+            grep -E "OS:(1[89]|[2-9][0-9])\." | \
+            head -1 | \
+            sed -E 's/.*name:([^,}]+).*/platform=iOS Simulator,name=\1/')
           
           if [ -z "$DESTINATION" ]; then
-            echo "⚠️  No common simulator found, using iPhone 15 as fallback"
-            DESTINATION="platform=iOS Simulator,name=iPhone 15"
+            echo "⚠️  No iPhone simulator found, trying iPhone 16 as fallback"
+            DESTINATION="platform=iOS Simulator,name=iPhone 16"
           fi
+          
+          echo "✅ Using destination: $DESTINATION"
           
           # Note: Tests now use MockAuthService and MockDatabaseService, so they should run without Firebase setup
           xcodebuild test \
