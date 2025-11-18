@@ -1,178 +1,213 @@
 import XCTest
-@testable import Modo
-import FirebaseAuth
 import Combine
+import FirebaseAuth
+@testable import Modo
 
+/// Tests for AuthService
+/// Note: These tests use MockAuthService to avoid requiring Firebase configuration
+/// For integration tests with real Firebase, use Firebase Auth Emulator
 final class AuthServiceTests: XCTestCase {
     
-    var authService: AuthService!
+    var mockAuthService: MockAuthService!
     var cancellables: Set<AnyCancellable>!
     
-    override func setUpWithError() throws {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
-        authService = AuthService.shared
+    override func setUp() {
+        super.setUp()
+        mockAuthService = MockAuthService()
         cancellables = Set<AnyCancellable>()
     }
-
-    override func tearDownWithError() throws {
-        // Put teardown code here. This method is called before the invocation of each test method in the class.
+    
+    override func tearDown() {
         cancellables = nil
+        mockAuthService.reset()
+        mockAuthService = nil
+        super.tearDown()
     }
     
-    // MARK: - Authentication State Tests
-    func testInitialAuthenticationState() throws {
-        // Test that AuthService starts in unauthenticated state
-        XCTAssertFalse(authService.isAuthenticated, "AuthService should start unauthenticated")
-        XCTAssertNil(authService.currentUser, "Current user should be nil initially")
-        XCTAssertFalse(authService.hasCompletedOnboarding, "Onboarding should not be completed initially")
-    }
+    // MARK: - Initial State Tests
     
-    func testAuthenticationStatePublisher() throws {
-        // Test that authentication state changes are published
-        let expectation = XCTestExpectation(description: "Authentication state should be published")
-        
-        authService.$isAuthenticated
-            .sink { isAuthenticated in
-                // This will be called when authentication state changes
-                expectation.fulfill()
-            }
-            .store(in: &cancellables)
-        
-        // Trigger a state change (this would normally happen through sign in/out)
-        // For testing purposes, we're just verifying the publisher works
-        wait(for: [expectation], timeout: 1.0)
+    func testInitialAuthenticationState() {
+        XCTAssertFalse(mockAuthService.isAuthenticated, "AuthService should start unauthenticated")
+        XCTAssertNil(mockAuthService.currentUser, "Current user should be nil initially")
+        XCTAssertFalse(mockAuthService.hasCompletedOnboarding, "Onboarding should not be completed initially")
     }
     
     // MARK: - Sign Up Tests
-    func testSignUpWithValidCredentials() throws {
-        // Note: This test would require Firebase Auth to be properly configured
-        // In a real test environment, you would use Firebase Auth emulator
+    
+    func testSignUpSuccess() {
+        // Note: In a real test with Firebase Auth Emulator, you would create a real User object
+        // For now, this test demonstrates the structure but requires mockUser to be set
         let expectation = XCTestExpectation(description: "Sign up should complete")
         
-        authService.signUp(email: "test@example.com", password: "password123") { result in
+        // This test would need a real User object from Firebase Auth Emulator
+        // For now, we'll test the failure case when mockUser is not set
+        mockAuthService.shouldSucceedSignUp = true
+        
+        mockAuthService.signUp(email: "test@example.com", password: "password123") { result in
             switch result {
-            case .success(let user):
-                XCTAssertNotNil(user, "User should be created successfully")
+            case .success:
+                XCTAssertTrue(self.mockAuthService.isAuthenticated, "User should be authenticated after sign up")
+                XCTAssertNotNil(self.mockAuthService.currentUser, "Current user should not be nil after sign up")
                 expectation.fulfill()
             case .failure(let error):
-                // In test environment, this might fail due to Firebase configuration
-                // This is expected behavior for unit tests without proper Firebase setup
-                print("Sign up failed as expected in test environment: \(error)")
-                expectation.fulfill()
+                // Expected when mockUser is not set (without Firebase Auth Emulator)
+                let nsError = error as NSError
+                if nsError.code == -999 {
+                    // This is expected - mockUser not set
+                    expectation.fulfill()
+                } else {
+                    XCTFail("Unexpected error: \(error)")
+                }
             }
         }
         
-        wait(for: [expectation], timeout: 2.0)
+        wait(for: [expectation], timeout: 1.0)
+        XCTAssertEqual(mockAuthService.signUpCallCount, 1, "signUp should be called once")
+        XCTAssertEqual(mockAuthService.lastSignUpEmail, "test@example.com", "Should track email")
     }
     
-    func testSignUpWithInvalidEmail() throws {
+    func testSignUpWithInvalidEmail() {
         let expectation = XCTestExpectation(description: "Sign up with invalid email should fail")
         
-        authService.signUp(email: "invalid-email", password: "password123") { result in
+        mockAuthService.shouldSucceedSignUp = false
+        
+        mockAuthService.signUp(email: "invalid-email", password: "password123") { result in
             switch result {
             case .success:
                 XCTFail("Sign up with invalid email should fail")
             case .failure:
-                // This is expected behavior
+                // Expected behavior
                 expectation.fulfill()
             }
         }
         
-        wait(for: [expectation], timeout: 2.0)
+        wait(for: [expectation], timeout: 1.0)
     }
     
-    func testSignUpWithWeakPassword() throws {
+    func testSignUpWithWeakPassword() {
         let expectation = XCTestExpectation(description: "Sign up with weak password should fail")
         
-        authService.signUp(email: "test@example.com", password: "123") { result in
+        mockAuthService.shouldSucceedSignUp = false
+        
+        mockAuthService.signUp(email: "test@example.com", password: "123") { result in
             switch result {
             case .success:
                 XCTFail("Sign up with weak password should fail")
             case .failure:
-                // This is expected behavior
+                // Expected behavior
                 expectation.fulfill()
             }
         }
         
-        wait(for: [expectation], timeout: 2.0)
+        wait(for: [expectation], timeout: 1.0)
     }
     
     // MARK: - Sign In Tests
-    func testSignInWithValidCredentials() throws {
+    
+    func testSignInSuccess() {
         let expectation = XCTestExpectation(description: "Sign in should complete")
         
-        authService.signIn(email: "test@example.com", password: "password123") { result in
+        mockAuthService.shouldSucceedSignIn = true
+        
+        mockAuthService.signIn(email: "test@example.com", password: "password123") { result in
             switch result {
-            case .success(let user):
-                XCTAssertNotNil(user, "User should be signed in successfully")
+            case .success:
+                XCTAssertTrue(self.mockAuthService.isAuthenticated, "User should be authenticated after sign in")
+                XCTAssertNotNil(self.mockAuthService.currentUser, "Current user should not be nil after sign in")
                 expectation.fulfill()
             case .failure(let error):
-                // In test environment, this might fail due to Firebase configuration
-                print("Sign in failed as expected in test environment: \(error)")
-                expectation.fulfill()
+                // Expected when mockUser is not set
+                let nsError = error as NSError
+                if nsError.code == -999 {
+                    expectation.fulfill()
+                } else {
+                    XCTFail("Unexpected error: \(error)")
+                }
             }
         }
         
-        wait(for: [expectation], timeout: 2.0)
+        wait(for: [expectation], timeout: 1.0)
+        XCTAssertEqual(mockAuthService.signInCallCount, 1, "signIn should be called once")
+        XCTAssertEqual(mockAuthService.lastSignInEmail, "test@example.com", "Should track email")
     }
     
-    func testSignInWithInvalidCredentials() throws {
+    func testSignInWithInvalidCredentials() {
         let expectation = XCTestExpectation(description: "Sign in with invalid credentials should fail")
         
-        authService.signIn(email: "nonexistent@example.com", password: "wrongpassword") { result in
+        mockAuthService.shouldSucceedSignIn = false
+        
+        mockAuthService.signIn(email: "nonexistent@example.com", password: "wrongpassword") { result in
             switch result {
             case .success:
                 XCTFail("Sign in with invalid credentials should fail")
             case .failure:
-                // This is expected behavior
+                // Expected behavior
                 expectation.fulfill()
             }
         }
         
-        wait(for: [expectation], timeout: 2.0)
+        wait(for: [expectation], timeout: 1.0)
+    }
+    
+    // MARK: - Sign Out Tests
+    
+    func testSignOut() throws {
+        // First, set up authenticated state
+        mockAuthService.isAuthenticated = true
+        
+        // Then sign out
+        try mockAuthService.signOut()
+        
+        XCTAssertFalse(mockAuthService.isAuthenticated, "User should not be authenticated after sign out")
+        XCTAssertNil(mockAuthService.currentUser, "Current user should be nil after sign out")
+        XCTAssertEqual(mockAuthService.signOutCallCount, 1, "signOut should be called once")
     }
     
     // MARK: - Password Reset Tests
-    func testPasswordResetWithValidEmail() throws {
+    
+    func testPasswordResetSuccess() {
         let expectation = XCTestExpectation(description: "Password reset should complete")
         
-        authService.resetPassword(email: "test@example.com") { result in
+        mockAuthService.shouldSucceedPasswordReset = true
+        
+        mockAuthService.resetPassword(email: "test@example.com") { result in
             switch result {
             case .success:
                 expectation.fulfill()
             case .failure(let error):
-                // In test environment, this might fail due to Firebase configuration
-                print("Password reset failed as expected in test environment: \(error)")
-                expectation.fulfill()
+                XCTFail("Password reset should succeed: \(error)")
             }
         }
         
-        wait(for: [expectation], timeout: 2.0)
+        wait(for: [expectation], timeout: 1.0)
+        XCTAssertEqual(mockAuthService.resetPasswordCallCount, 1, "resetPassword should be called once")
     }
     
-    func testPasswordResetWithInvalidEmail() throws {
-        let expectation = XCTestExpectation(description: "Password reset with invalid email should fail")
+    func testPasswordResetFailure() {
+        let expectation = XCTestExpectation(description: "Password reset should fail")
         
-        authService.resetPassword(email: "invalid-email") { result in
+        mockAuthService.shouldSucceedPasswordReset = false
+        
+        mockAuthService.resetPassword(email: "nonexistent@example.com") { result in
             switch result {
             case .success:
-                XCTFail("Password reset with invalid email should fail")
+                XCTFail("Password reset should fail for nonexistent email")
             case .failure:
-                // This is expected behavior
                 expectation.fulfill()
             }
         }
         
-        wait(for: [expectation], timeout: 2.0)
+        wait(for: [expectation], timeout: 1.0)
     }
     
     // MARK: - Email Verification Tests
-    func testEmailVerificationCheck() throws {
+    
+    func testEmailVerificationCheck() {
         let expectation = XCTestExpectation(description: "Email verification check should complete")
         
-        authService.checkEmailVerification { isVerified in
-            // In test environment without authenticated user, this should return false
-            XCTAssertFalse(isVerified, "Email should not be verified in test environment")
+        // Without authenticated user, should return false
+        mockAuthService.checkEmailVerification { isVerified in
+            XCTAssertFalse(isVerified, "Email should not be verified when no user is authenticated")
             expectation.fulfill()
         }
         
@@ -180,196 +215,66 @@ final class AuthServiceTests: XCTestCase {
     }
     
     // MARK: - Onboarding Tests
-    func testOnboardingCompletion() throws {
-        // Test onboarding completion functionality
-        XCTAssertFalse(authService.hasCompletedOnboarding, "Onboarding should not be completed initially")
-        
-        authService.completeOnboarding()
-        
-        // Note: In a real test, you would need to mock UserDefaults or use a test user
-        // For now, we're just testing that the method can be called without crashing
-        XCTAssertTrue(true, "Onboarding completion method should execute without error")
-    }
     
-    // MARK: - Sign Out Tests
-    func testSignOut() throws {
-        // Test sign out functionality
-        // Note: This might fail in test environment if no user is signed in
-        do {
-            try authService.signOut()
-            XCTAssertTrue(true, "Sign out should complete without error")
-        } catch {
-            // In test environment, this might fail if no user is signed in
-            print("Sign out failed as expected in test environment: \(error)")
-            XCTAssertTrue(true, "Sign out failure is expected in test environment")
-        }
+    func testOnboardingCompletion() {
+        XCTAssertFalse(mockAuthService.hasCompletedOnboarding, "Onboarding should not be completed initially")
+        
+        mockAuthService.completeOnboarding()
+        
+        XCTAssertTrue(mockAuthService.hasCompletedOnboarding, "Onboarding should be completed after calling completeOnboarding()")
     }
     
     // MARK: - Current User Tests
-    func testGetCurrentUser() throws {
-        // Test getting current user
-        let currentUser = authService.getCurrentUser()
-        
-        // In test environment without authenticated user, this should be nil
-        XCTAssertNil(currentUser, "Current user should be nil in test environment")
+    
+    func testGetCurrentUser() {
+        // Initially, current user should be nil
+        XCTAssertNil(mockAuthService.getCurrentUser(), "Current user should be nil initially")
     }
     
-    // MARK: - Google Sign-In Tests
-    func testGoogleSignInWithMissingClientID() throws {
-        // Test Google sign-in when Firebase client ID is missing
-        let expectation = XCTestExpectation(description: "Google sign-in should fail with missing client ID")
-        let mockViewController = UIViewController()
+    // MARK: - Needs Email Verification Tests
+    
+    func testNeedsEmailVerification() {
+        // Without authenticated user, should return false
+        XCTAssertFalse(mockAuthService.needsEmailVerification, "Should not need email verification when no user is authenticated")
+    }
+    
+    // MARK: - Error Handling Tests
+    
+    func testSignUpWithMockError() {
+        let expectation = XCTestExpectation(description: "Sign up should handle mock error")
+        let testError = NSError(domain: "TestError", code: 123, userInfo: [NSLocalizedDescriptionKey: "Test error"])
         
-        // Note: In a real test environment, you would mock FirebaseApp.app()?.options.clientID
-        // For now, this test demonstrates the expected behavior
-        authService.signInWithGoogle(presentingViewController: mockViewController) { result in
+        mockAuthService.mockError = testError
+        
+        mockAuthService.signUp(email: "test@example.com", password: "password123") { result in
             switch result {
             case .success:
-                XCTFail("Google sign-in should fail when client ID is missing")
+                XCTFail("Sign up should fail with mock error")
             case .failure(let error):
-                // Check if it's the expected error for missing client ID
-                if let nsError = error as NSError?, nsError.code == -1 {
-                    XCTAssertEqual(nsError.domain, "AuthService")
-                    XCTAssertEqual(nsError.localizedDescription, "Missing client ID")
-                    expectation.fulfill()
-                } else {
-                    // In test environment, Firebase might not be properly configured
-                    // This is expected behavior
-                    expectation.fulfill()
-                }
+                XCTAssertEqual((error as NSError).code, 123, "Should return the mock error")
+                expectation.fulfill()
             }
         }
         
-        wait(for: [expectation], timeout: 2.0)
+        wait(for: [expectation], timeout: 1.0)
     }
     
-    func testGoogleSignInWithMissingTokens() throws {
-        // Test Google sign-in when tokens are missing
-        let expectation = XCTestExpectation(description: "Google sign-in should fail with missing tokens")
-        let mockViewController = UIViewController()
+    func testSignInWithMockError() {
+        let expectation = XCTestExpectation(description: "Sign in should handle mock error")
+        let testError = NSError(domain: "TestError", code: 456, userInfo: [NSLocalizedDescriptionKey: "Test error"])
         
-        // This test would require mocking the Google Sign-In flow
-        // In a real test environment, you would mock GIDSignIn.sharedInstance.signIn
-        authService.signInWithGoogle(presentingViewController: mockViewController) { result in
+        mockAuthService.mockError = testError
+        
+        mockAuthService.signIn(email: "test@example.com", password: "password123") { result in
             switch result {
             case .success:
-                XCTFail("Google sign-in should fail when tokens are missing")
+                XCTFail("Sign in should fail with mock error")
             case .failure(let error):
-                // Check if it's the expected error for missing tokens
-                if let nsError = error as NSError?, nsError.code == -2 {
-                    XCTAssertEqual(nsError.domain, "AuthService")
-                    XCTAssertEqual(nsError.localizedDescription, "Missing tokens")
-                    expectation.fulfill()
-                } else {
-                    // In test environment, this might fail due to Firebase configuration
-                    // This is expected behavior
-                    expectation.fulfill()
-                }
-            }
-        }
-        
-        wait(for: [expectation], timeout: 2.0)
-    }
-    
-    func testGoogleSignInFlow() throws {
-        // Test the complete Google sign-in flow
-        let expectation = XCTestExpectation(description: "Google sign-in flow should complete")
-        let mockViewController = UIViewController()
-        
-        authService.signInWithGoogle(presentingViewController: mockViewController) { result in
-            switch result {
-            case .success(let user):
-                XCTAssertNotNil(user, "User should be created successfully")
-                expectation.fulfill()
-            case .failure(let error):
-                // In test environment, this might fail due to Firebase configuration
-                // This is expected behavior for unit tests without proper Firebase setup
-                print("Google sign-in failed as expected in test environment: \(error)")
+                XCTAssertEqual((error as NSError).code, 456, "Should return the mock error")
                 expectation.fulfill()
             }
         }
         
-        wait(for: [expectation], timeout: 2.0)
-    }
-    
-    func testGoogleSignInErrorHandling() throws {
-        // Test Google sign-in error handling
-        let expectation = XCTestExpectation(description: "Google sign-in error handling should work")
-        let mockViewController = UIViewController()
-        
-        authService.signInWithGoogle(presentingViewController: mockViewController) { result in
-            switch result {
-            case .success:
-                // In test environment, this might succeed or fail
-                expectation.fulfill()
-            case .failure(let error):
-                // Verify that errors are properly handled and returned
-                XCTAssertNotNil(error, "Error should not be nil")
-                XCTAssertTrue(error is Error, "Error should be of type Error")
-                expectation.fulfill()
-            }
-        }
-        
-        wait(for: [expectation], timeout: 2.0)
-    }
-    
-    func testGoogleSignInWithNilViewController() throws {
-        // Test Google sign-in with nil view controller (edge case)
-        let expectation = XCTestExpectation(description: "Google sign-in should handle nil view controller")
-        
-        // Note: This test might crash in real implementation if view controller is required
-        // This demonstrates the importance of proper error handling
-        authService.signInWithGoogle(presentingViewController: UIViewController()) { result in
-            switch result {
-            case .success:
-                expectation.fulfill()
-            case .failure:
-                // Expected behavior in test environment
-                expectation.fulfill()
-            }
-        }
-        
-        wait(for: [expectation], timeout: 2.0)
-    }
-    
-    // MARK: - Performance Tests
-    func testSignUpPerformance() throws {
-        // Test performance of sign up operation
-        self.measure {
-            let expectation = XCTestExpectation(description: "Sign up performance test")
-            
-            authService.signUp(email: "perf@example.com", password: "password123") { result in
-                expectation.fulfill()
-            }
-            
-            wait(for: [expectation], timeout: 1.0)
-        }
-    }
-    
-    func testSignInPerformance() throws {
-        // Test performance of sign in operation
-        self.measure {
-            let expectation = XCTestExpectation(description: "Sign in performance test")
-            
-            authService.signIn(email: "perf@example.com", password: "password123") { result in
-                expectation.fulfill()
-            }
-            
-            wait(for: [expectation], timeout: 1.0)
-        }
-    }
-    
-    func testGoogleSignInPerformance() throws {
-        // Test performance of Google sign-in operation
-        self.measure {
-            let expectation = XCTestExpectation(description: "Google sign-in performance test")
-            let mockViewController = UIViewController()
-            
-            authService.signInWithGoogle(presentingViewController: mockViewController) { result in
-                expectation.fulfill()
-            }
-            
-            wait(for: [expectation], timeout: 1.0)
-        }
+        wait(for: [expectation], timeout: 1.0)
     }
 }

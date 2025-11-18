@@ -240,6 +240,11 @@ final class TaskCacheService {
         
         let key = getCacheKey(for: userId)
         UserDefaults.standard.removeObject(forKey: key)
+        
+        // Also clear metadata when clearing cache
+        let metadataKey = getMetadataKey(for: userId)
+        UserDefaults.standard.removeObject(forKey: metadataKey)
+        
         print("🗑️ TaskCacheService: Cache cleared for user \(userId)")
         
         // Also clear Firebase if requested and database service is provided

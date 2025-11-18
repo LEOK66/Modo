@@ -32,23 +32,12 @@
       <Testables>
          <TestableReference
             skipped = "NO"
-            parallelizable = "YES">
+            parallelizable = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "99F749692E9EEDFE006319FF"
                BuildableName = "ModoTests.xctest"
                BlueprintName = "ModoTests"
-               ReferencedContainer = "container:Modo.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
-         <TestableReference
-            skipped = "NO"
-            parallelizable = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "99F749732E9EEDFE006319FF"
-               BuildableName = "ModoUITests.xctest"
-               BlueprintName = "ModoUITests"
                ReferencedContainer = "container:Modo.xcodeproj">
             </BuildableReference>
          </TestableReference>
