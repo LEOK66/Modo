@@ -1,0 +1,94 @@
+name: iOS CI
+
+on:
+  push:
+    branches-ignore:
+      - develop
+      - main
+  pull_request:
+    branches: [develop, main]
+
+jobs:
+  test:
+    name: Build and Test
+    runs-on: macos-15  # Use macOS 15 which has Xcode 16.x
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Use default Xcode on macOS 15 (Xcode 16.x)
+      # No need to setup-xcode as macOS 15 comes with appropriate version
+
+      - name: Clean build artifacts
+        run: |
+          rm -rf ~/Library/Developer/Xcode/DerivedData
+          rm -rf ~/Library/Caches/com.apple.dt.Xcode
+
+      - name: Cache SPM packages
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData/*/SourcePackages
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
+      - name: Create GoogleService-Info.plist
+        run: |
+          mkdir -p Modo
+          cat > Modo/GoogleService-Info.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>API_KEY</key>
+              <string>AIzaSyDummyKeyForCI</string>
+              <key>GCM_SENDER_ID</key>
+              <string>123456789</string>
+              <key>PROJECT_ID</key>
+              <string>modo-ci-test</string>
+              <key>STORAGE_BUCKET</key>
+              <string>modo-ci-test.appspot.com</string>
+              <key>GOOGLE_APP_ID</key>
+              <string>1:123456789:ios:abc123def456</string>
+              <key>CLIENT_ID</key>
+              <string>123456789-abcdefg.apps.googleusercontent.com</string>
+              <key>REVERSED_CLIENT_ID</key>
+              <string>com.googleusercontent.apps.123456789-abcdefg</string>
+          </dict>
+          </plist>
+          EOF
+
+      - name: List Available Simulators
+        run: |
+          echo "📱 Available destinations for scheme 'Modo':"
+          xcodebuild -project Modo.xcodeproj -scheme Modo -showdestinations | grep "iPhone" | head -10
+
+      - name: Build and Test
+        timeout-minutes: 20
+        run: |
+          set -o pipefail
+          echo "🧪 Testing on iOS Simulator"
+          
+          # Use iPhone 16 with iOS 18.4 - available on macOS 15 (Xcode 16.x)
+          # Note: Tests now use MockAuthService and MockDatabaseService, so they should run without Firebase setup
+          xcodebuild test \
+            -project Modo.xcodeproj \
+            -scheme Modo \
+            -destination "platform=iOS Simulator,name=iPhone 16,OS=18.4" \
+            -only-testing:ModoTests \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            ONLY_ACTIVE_ARCH=YES \
+            -resultBundlePath TestResults \
+            2>&1 | tee xcodebuild.log
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            xcodebuild.log
+            TestResults
