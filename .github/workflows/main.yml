@@ -59,27 +59,38 @@ jobs:
           </plist>
           EOF
 
-      - name: List and Select Simulator
+      - name: List Available Simulators
         run: |
           echo "📱 Available destinations for scheme 'Modo':"
           xcodebuild -project Modo.xcodeproj -scheme Modo -showdestinations | grep "iPhone" | head -10
-          
-          echo ""
-          echo "🎯 Will use first available iPhone simulator with iOS 17+ (xcodebuild will auto-select)"
 
       - name: Build and Test
         timeout-minutes: 20
         run: |
           set -o pipefail
-          echo "🧪 Testing on iOS Simulator (auto-selected by xcodebuild)"
+          echo "🧪 Testing on iOS Simulator"
           
-          # Use generic destination - xcodebuild will pick the first available iPhone simulator
-          # that matches the deployment target (iOS 17.0)
+          # Try common iPhone simulators available on macOS 15 (Xcode 16.x)
+          # These should support iOS 17+ which is our deployment target
+          for DEVICE in "iPhone 15" "iPhone 15 Pro" "iPhone 16" "iPhone 14"; do
+            echo "🔍 Trying $DEVICE..."
+            if xcodebuild -project Modo.xcodeproj -scheme Modo -showdestinations 2>/dev/null | grep -q "name=$DEVICE"; then
+              DESTINATION="platform=iOS Simulator,name=$DEVICE"
+              echo "✅ Found available simulator: $DESTINATION"
+              break
+            fi
+          done
+          
+          if [ -z "$DESTINATION" ]; then
+            echo "⚠️  No common simulator found, using iPhone 15 as fallback"
+            DESTINATION="platform=iOS Simulator,name=iPhone 15"
+          fi
+          
           # Note: Tests now use MockAuthService and MockDatabaseService, so they should run without Firebase setup
           xcodebuild test \
             -project Modo.xcodeproj \
             -scheme Modo \
-            -destination 'generic/platform=iOS Simulator' \
+            -destination "$DESTINATION" \
             -only-testing:ModoTests \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
