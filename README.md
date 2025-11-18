@@ -34,27 +34,22 @@ Before installing Modo, ensure you have the following:
    ```bash
    git clone https://github.com/LEOK66/Modo.git
    cd Modo
-   ```
+   ``` 
    
-2. **Checkout develop branch**
-   ```bash
-   git checkout develop
-   ```
-   
-3. **Open in Xcode**
+2. **Open in Xcode**
    ```bash
    open Modo.xcodeproj
    ```
    
-4. **Install Dependencies**
+3. **Install Dependencies**
    - Xcode will automatically resolve Swift Package Manager dependencies
    - Wait for package resolution to complete (Firebase, Google Sign-In, etc.)
 
-5. **Configure Firebase** (Already configured)
+4. **Configure Firebase** (Already configured)
    - The `GoogleService-Info.plist` file is already included
    - Firebase project is set up for authentication and data storage
 
-6. **Build and Run**
+5. **Build and Run**
    - Select your target device or simulator
    - Press `Cmd + R` to build and run the app
 
