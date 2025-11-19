@@ -3,6 +3,8 @@ import SwiftUI
 /// AI Toolbar component for AddTaskView
 /// Displays "Ask AI" and "AI Generate" buttons
 struct AIToolbarView: View {
+    @Environment(\.colorScheme) var colorScheme
+    
     let isAIGenerating: Bool
     let onAskAITapped: () -> Void
     let onAIGenerateTapped: () -> Void
@@ -12,30 +14,30 @@ struct AIToolbarView: View {
             Button(action: onAskAITapped) {
                 HStack(spacing: 6) {
                     Image(systemName: "questionmark.circle")
-                        .foregroundColor(.white)
+                        .foregroundColor(Color(.systemBackground))
                     Text("Ask AI")
-                        .foregroundColor(.white)
+                        .foregroundColor(Color(.systemBackground))
                         .lineLimit(1)
                 }
                 .font(.system(size: 14, weight: .medium))
                 .frame(height: 32)
                 .padding(.horizontal, 10)
-                .background(Color(hexString: "9810FA"))
+                .background(colorScheme == .dark ? Color(hexString: "B855FF") : Color(hexString: "9810FA"))
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
             Spacer()
             Button(action: onAIGenerateTapped) {
                 HStack(spacing: 6) {
                     Image(systemName: "wand.and.stars")
-                        .foregroundColor(.white)
+                        .foregroundColor(Color(.systemBackground))
                     Text(isAIGenerating ? "..." : "AI Generate")
-                        .foregroundColor(.white)
+                        .foregroundColor(Color(.systemBackground))
                         .lineLimit(1)
                 }
                 .font(.system(size: 14, weight: .medium))
                 .frame(height: 32)
                 .padding(.horizontal, 10)
-                .background(isAIGenerating ? Color.gray : Color.black)
+                .background(isAIGenerating ? Color(.systemGray4) : (colorScheme == .dark ? Color(.systemGray6) : Color(.label)))
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
             .disabled(isAIGenerating)
@@ -59,6 +61,7 @@ struct AIToolbarView: View {
     }
     .padding()
 }
+
 
 
 

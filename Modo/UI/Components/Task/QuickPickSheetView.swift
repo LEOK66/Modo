@@ -94,12 +94,12 @@ struct QuickPickSheetView: View {
         }) {
             HStack {
                 Image(systemName: "square.and.pencil")
-                    .foregroundColor(Color(hexString: "6B7280"))
+                    .foregroundColor(.secondary)
                 Text("Customize Diet")
                 Spacer()
             }
             .padding(12)
-            .background(Color(hexString: "F9FAFB"))
+            .background(Color(.secondarySystemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -108,7 +108,7 @@ struct QuickPickSheetView: View {
         if !recentFoods.isEmpty {
             Text("Recent")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(Color(hexString: "6A7282"))
+                .foregroundColor(.secondary)
             ForEach(recentFoods) { item in
                 foodItemRow(item: item)
             }
@@ -117,7 +117,7 @@ struct QuickPickSheetView: View {
         if !local.isEmpty {
             Text("Local results")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(Color(hexString: "6A7282"))
+                .foregroundColor(.secondary)
             ForEach(local) { item in
                 foodItemRow(item: item)
             }
@@ -126,13 +126,13 @@ struct QuickPickSheetView: View {
         if isOnlineLoading {
             Text("Searching online")
                 .font(.system(size: 12))
-                .foregroundColor(Color(hexString: "6A7282"))
+                .foregroundColor(.secondary)
         }
         
         if !onlineFoods.isEmpty {
             Text("Online results")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(Color(hexString: "6A7282"))
+                .foregroundColor(.secondary)
             ForEach(onlineFoods) { item in
                 foodItemRow(item: item)
             }
@@ -154,12 +154,12 @@ struct QuickPickSheetView: View {
         }) {
             HStack {
                 Image(systemName: "square.and.pencil")
-                    .foregroundColor(Color(hexString: "6B7280"))
+                    .foregroundColor(.secondary)
                 Text("Customize Exercise")
                 Spacer()
             }
             .padding(12)
-            .background(Color(hexString: "F9FAFB"))
+            .background(Color(.secondarySystemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -168,7 +168,7 @@ struct QuickPickSheetView: View {
         if !recentExercises.isEmpty {
             Text("Recent")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(Color(hexString: "6A7282"))
+                .foregroundColor(.secondary)
             ForEach(recentExercises) { item in
                 exerciseItemRow(item: item)
             }
@@ -177,7 +177,7 @@ struct QuickPickSheetView: View {
         if !filteredExercises.isEmpty {
             Text("Local results")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(Color(hexString: "6A7282"))
+                .foregroundColor(.secondary)
             ForEach(filteredExercises) { item in
                 exerciseItemRow(item: item)
             }
@@ -186,13 +186,13 @@ struct QuickPickSheetView: View {
                 VStack(spacing: 8) {
                     Image(systemName: "figure.run")
                         .font(.system(size: 24))
-                        .foregroundColor(Color(hexString: "D1D5DB"))
+                        .foregroundColor(Color.secondary.opacity(0.6))
                     Text("No exercises found")
                         .font(.system(size: 14))
-                        .foregroundColor(Color(hexString: "6B7280"))
+                        .foregroundColor(.secondary)
                     Text("Try a different search term")
                         .font(.system(size: 12))
-                        .foregroundColor(Color(hexString: "9CA3AF"))
+                        .foregroundColor(Color.secondary.opacity(0.6))
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 32)
@@ -232,10 +232,10 @@ struct QuickPickSheetView: View {
                 Text(item.name)
                 Spacer()
                 Text(quickPickCaloriesLabel(food: item))
-                    .foregroundColor(Color(hexString: "6A7282"))
+                    .foregroundColor(.secondary)
             }
             .padding(12)
-            .background(Color(hexString: "F9FAFB"))
+            .background(Color(.secondarySystemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -263,10 +263,10 @@ struct QuickPickSheetView: View {
                 Text(item.name)
                 Spacer()
                 Text("~\(item.calPer30Min) cal / 30m")
-                    .foregroundColor(Color(hexString: "6A7282"))
+                    .foregroundColor(.secondary)
             }
             .padding(12)
-            .background(Color(hexString: "F9FAFB"))
+            .background(Color(.secondarySystemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .buttonStyle(.plain)
