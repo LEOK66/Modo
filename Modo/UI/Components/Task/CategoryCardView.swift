@@ -73,7 +73,7 @@ struct CategoryCardView: View {
                 .foregroundColor(.primary)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .background(Color(.tertiarySystemBackground))
+                .background(Color(.secondarySystemBackground))
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.plain)

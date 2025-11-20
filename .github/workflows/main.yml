@@ -59,47 +59,24 @@ jobs:
           </plist>
           EOF
 
-      - name: Setup OpenAI API Key from Secret
-        run: |
-          echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> $GITHUB_ENV
-
-      - name: List and Select Simulator
+      - name: List Available Simulators
         run: |
           echo "📱 Available destinations for scheme 'Modo':"
           xcodebuild -project Modo.xcodeproj -scheme Modo -showdestinations | grep "iPhone" | head -10
-          
-          echo ""
-          echo "🎯 Will use first available iPhone simulator (xcodebuild will auto-select)"
 
       - name: Build and Test
         timeout-minutes: 20
         run: |
           set -o pipefail
-          echo "🧪 Testing on iOS Simulator (auto-selected by xcodebuild)"
+          echo "🧪 Testing on iOS Simulator"
           
-          # Let xcodebuild pick the first available iOS Simulator
-          # This is the most reliable approach - no manual device detection needed
+          # Use iPhone 16 with iOS 18.4 - available on macOS 15 (Xcode 16.x)
+          # Note: Tests now use MockAuthService and MockDatabaseService, so they should run without Firebase setup
           xcodebuild test \
             -project Modo.xcodeproj \
             -scheme Modo \
-            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -destination "platform=iOS Simulator,name=iPhone 16,OS=18.4" \
             -only-testing:ModoTests \
-            -skip-testing:ModoUITests \
-            -skip-testing:ModoTests/AuthServiceTests/testGoogleSignInErrorHandling \
-            -skip-testing:ModoTests/AuthServiceTests/testGoogleSignInFlow \
-            -skip-testing:ModoTests/AuthServiceTests/testGoogleSignInPerformance \
-            -skip-testing:ModoTests/AuthServiceTests/testGoogleSignInWithMissingClientID \
-            -skip-testing:ModoTests/AuthServiceTests/testGoogleSignInWithMissingTokens \
-            -skip-testing:ModoTests/AuthServiceTests/testGoogleSignInWithNilViewController \
-            -skip-testing:ModoTests/AuthServiceTests/testSignInPerformance \
-            -skip-testing:ModoTests/AuthServiceTests/testSignUpPerformance \
-            -skip-testing:ModoTests/AuthServiceTests/testSignUpWithWeakPassword \
-            -skip-testing:ModoTests/AuthServiceTests/testSignUpWithValidCredentials \
-            -skip-testing:ModoTests/AuthServiceTests/testSignInWithValidCredentials \
-            -skip-testing:ModoTests/AuthServiceTests/testSignInWithInvalidCredentials \
-            -skip-testing:ModoTests/AuthServiceTests/testPasswordResetWithValidEmail \
-            -skip-testing:ModoTests/AuthServiceTests/testPasswordResetWithInvalidEmail \
-            -skip-testing:ModoTests/AuthServiceTests/testSignUpWithInvalidEmail \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
