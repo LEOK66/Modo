@@ -488,9 +488,35 @@ class FirebaseAIService {
             FunctionDefinition(
                 name: "update_task",
                 description: """
-                Update an existing task in the user's schedule.
-                Use this when user asks to: "Change my workout time", "Mark this as done", "Update the meal", etc.
-                IMPORTANT: User must first query tasks to get the task ID, then update it.
+                **THIS FUNCTION MUST BE CALLED IMMEDIATELY AFTER query_tasks WHEN USER ASKS TO MODIFY A TASK**
+                
+                This function ACTUALLY MODIFIES the task in the database. You CANNOT update tasks without calling this.
+                
+                WHEN TO USE (ALWAYS REQUIRED):
+                - User says: "Change X to Y", "Update X", "Modify X", "Edit X", "Make X into Y"
+                - Examples: "Change breakfast time to 9am", "Update workout to 5pm", "Edit meal portions"
+                
+                CRITICAL - YOU MUST FOLLOW THIS EXACT SEQUENCE:
+                1. IF user asks to update → query_tasks (to get task_id)
+                2. IMMEDIATELY call update_task in the SAME RESPONSE (not a separate message!)
+                3. THEN say: "I've updated [task]: [changes]"
+                
+                YOU ARE FORBIDDEN FROM:
+                ❌ Saying "I've updated..." without calling this function (that's lying!)
+                ❌ Saying "One moment" or "Let me do that" (just call the function!)
+                ❌ Only calling query_tasks and stopping (you MUST also call update_task!)
+                ❌ Describing what you'll update without actually updating (ACTION REQUIRED!)
+                
+                CORRECT BEHAVIOR:
+                User: "Change workout to 5pm"
+                → Call query_tasks (find task)
+                → Call update_task (with task_id and time="5:00 PM") **IN SAME RESPONSE**
+                → Respond: "I've updated Morning Run to 5:00 PM"
+                
+                WRONG BEHAVIOR:
+                User: "Change workout to 5pm"
+                → Call query_tasks
+                → Stop and say "I'll update that for you" ❌ NO! CALL update_task NOW!
                 """,
                 parameters: [
                     "type": "object",
@@ -501,22 +527,54 @@ class FirebaseAIService {
                         ],
                         "updates": [
                             "type": "object",
-                            "description": "Fields to update (all fields are optional, only include fields that need to change)",
+                            "description": "All fields to update. Copy the query_tasks result and modify only what user wants to change.",
                             "properties": [
                                 "title": [
                                     "type": ["string", "null"],
-                                    "description": "New title"
+                                    "description": "Task title. Use value from query_tasks if not changing."
                                 ],
                                 "time": [
                                     "type": ["string", "null"],
-                                    "description": "New time"
+                                    "description": "Task time. Use value from query_tasks if not changing."
                                 ],
                                 "is_done": [
                                     "type": ["boolean", "null"],
-                                    "description": "Completion status"
+                                    "description": "Completion status. Use value from query_tasks if not changing."
+                                ],
+                                "exercises": [
+                                    "type": ["array", "null"],
+                                    "description": "Complete exercises list. Copy from query_tasks and modify only the specific exercise/field user wants to change. Set to null if task has no exercises.",
+                                    "items": [
+                                        "type": "object",
+                                        "properties": [
+                                            "name": ["type": "string", "description": "Exercise name"],
+                                            "sets": ["type": "integer", "description": "Number of sets"],
+                                            "reps": ["type": "string", "description": "Reps per set (e.g., '10', '8-12')"],
+                                            "rest_sec": ["type": "integer", "description": "Rest between sets in seconds"],
+                                            "duration_min": ["type": "integer", "description": "Duration in minutes"],
+                                            "calories": ["type": "integer", "description": "Estimated calories burned"],
+                                            "target_RPE": ["type": ["integer", "null"], "description": "Target RPE (1-10, or null if not specified)"]
+                                        ],
+                                        "required": ["name", "sets", "reps", "rest_sec", "duration_min", "calories", "target_RPE"],
+                                        "additionalProperties": false
+                                    ]
+                                ],
+                                "foods": [
+                                    "type": ["array", "null"],
+                                    "description": "Complete foods list. Copy from query_tasks and modify only the specific food/field user wants to change. Set to null if task has no foods.",
+                                    "items": [
+                                        "type": "object",
+                                        "properties": [
+                                            "name": ["type": "string", "description": "Food name"],
+                                            "portion": ["type": "string", "description": "Portion size (e.g., '100g', '1 cup')"],
+                                            "calories": ["type": "integer", "description": "Calories"]
+                                        ],
+                                        "required": ["name", "portion", "calories"],
+                                        "additionalProperties": false
+                                    ]
                                 ]
                             ],
-                            "required": ["title", "time", "is_done"],
+                            "required": ["title", "time", "is_done", "exercises", "foods"],
                             "additionalProperties": false
                         ]
                     ],
@@ -530,9 +588,35 @@ class FirebaseAIService {
             FunctionDefinition(
                 name: "delete_task",
                 description: """
-                Delete a task from the user's schedule.
-                Use this when user asks to: "Remove this workout", "Delete today's meal", "Cancel this task", etc.
-                IMPORTANT: User must first query tasks to get the task ID, then delete it.
+                **THIS FUNCTION MUST BE CALLED IMMEDIATELY AFTER query_tasks WHEN USER ASKS TO DELETE A TASK**
+                
+                This function ACTUALLY REMOVES the task from the database. You CANNOT delete tasks without calling this.
+                
+                WHEN TO USE (ALWAYS REQUIRED):
+                - User says: "Delete X", "Remove X", "Cancel X", "Get rid of X"
+                - Examples: "Delete this workout", "Remove breakfast", "Cancel today's task"
+                
+                CRITICAL - YOU MUST FOLLOW THIS EXACT SEQUENCE:
+                1. IF user asks to delete → query_tasks (to get task_id)
+                2. IMMEDIATELY call delete_task in the SAME RESPONSE (not a separate message!)
+                3. THEN say: "I've deleted [task] from [date]"
+                
+                YOU ARE FORBIDDEN FROM:
+                ❌ Saying "I've deleted..." without calling this function (that's lying!)
+                ❌ Saying "One moment" or "Let me do that" (just call the function!)
+                ❌ Only calling query_tasks and stopping (you MUST also call delete_task!)
+                ❌ Asking for confirmation (just delete it if user asks!)
+                
+                CORRECT BEHAVIOR:
+                User: "Delete today's workout"
+                → Call query_tasks (find task)
+                → Call delete_task (with task_id) **IN SAME RESPONSE**
+                → Respond: "I've deleted Morning Run from November 20, 2025"
+                
+                WRONG BEHAVIOR:
+                User: "Delete today's workout"
+                → Call query_tasks
+                → Stop and say "I'll delete that for you" ❌ NO! CALL delete_task NOW!
                 """,
                 parameters: [
                     "type": "object",

@@ -11,9 +11,9 @@ class TaskResponseService {
     /// - Returns: Friendly acceptance message
     func generateAcceptanceMessage() -> String {
         return """
-        太好了！任务已添加到您的日程中。
-        
-        您可以在主页查看和管理这个任务。祝您训练顺利！💪
+        good job! the task has been added to your schedule.
+        you can view and manage this task on the home page.
+        good luck with your training!💪
         """
     }
     
@@ -21,9 +21,12 @@ class TaskResponseService {
     /// - Returns: Friendly rejection message
     func generateRejectionMessage() -> String {
         return """
-        好的，已取消这个任务。
-        
-        如果您需要其他类型的任务或有特殊要求，随时告诉我！
+        no problem! let me know what you'd like to adjust.
+        would you prefer:
+        - different exercises
+        - more/less intensity
+        - shorter/longer workout
+        - just tell me what works better for you!
         """
     }
     

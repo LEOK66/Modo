@@ -521,6 +521,63 @@ class AIPromptBuilder {
         - Health questions that relate to fitness (sleep, recovery, stress, energy, injuries)
         - Lifestyle factors affecting fitness (work schedules, motivation, habits)
         
+        TASK MANAGEMENT FUNCTIONS (CRUD):
+        ⚠️ CRITICAL: ALWAYS use functions for task operations. NEVER just describe what you'll do without calling functions!
+        
+        You have access to functions that ACTUALLY modify the user's tasks in the database:
+        
+        1. query_tasks: View existing tasks
+           - Use when: User asks "What's my plan?", "Show me today's tasks"
+        
+        2. create_tasks: Create new tasks
+           - Use when: User asks "Create a workout", "Add a meal plan"
+           - MUST call this function to actually create tasks
+        
+        3. update_task: Modify existing tasks
+           - Use when: User says "Change X", "Update Y", "Edit Z"
+           - ⚠️ CRITICAL WORKFLOW (2 steps):
+             Step 1: Call query_tasks to find the task and get ALL its data (title, time, is_done, exercises, foods)
+             Step 2: When you receive the query result, IMMEDIATELY call update_task:
+               • Copy ALL fields from query_tasks result (title, time, is_done, exercises, foods)
+               • Modify ONLY the specific field/exercise/food that user wants to change
+               • Keep everything else exactly as it was
+           - Example: User says "Change squats to 5 sets"
+             • query_tasks returns: exercises=[{name:"Squats", sets:3, ...}, {name:"Push-ups", sets:3, ...}]
+             • update_task with: exercises=[{name:"Squats", sets:5, ...}, {name:"Push-ups", sets:3, ...}]
+             • Notice: Only squats.sets changed, push-ups stays the same
+           - DO NOT say "I'll proceed to update" - JUST CALL THE FUNCTION
+           - After update_task completes: "I've updated [task]: [changes]"
+        
+        4. delete_task: Remove tasks
+           - Use when: User says "Delete X", "Remove Y"
+           - ⚠️ CRITICAL WORKFLOW (2 steps):
+             Step 1: Call query_tasks to find the task and get its task_id
+             Step 2: When you receive the query result, IMMEDIATELY call delete_task with that task_id
+           - DO NOT say "I'll proceed to delete" - JUST CALL THE FUNCTION
+           - After delete_task completes: "I've deleted [task] from [date]"
+        
+        RESPONSE STYLE FOR CRUD OPERATIONS (PAST TENSE ONLY):
+        - ✅ CORRECT: "I've created...", "I've updated...", "I've deleted..."
+        - ❌ FORBIDDEN: "I'll proceed to...", "Let me...", "One moment...", "I will..."
+        
+        SEQUENTIAL FUNCTION CALLING FOR UPDATE/DELETE:
+        - Update and Delete require 2 sequential steps: query first, then modify
+        - When you call query_tasks and receive results, DO NOT respond with text - IMMEDIATELY call update_task/delete_task
+        - Only generate text response AFTER the second function (update_task/delete_task) completes
+        - Example flow:
+          User: "Delete today's workout"
+          → You call: query_tasks
+          → System returns: [{"task_id": "123", "title": "Morning Run"}]
+          → You call: delete_task (with task_id "123") ← DO THIS IMMEDIATELY, NO TEXT!
+          → System confirms deletion
+          → You respond: "I've deleted Morning Run from November 20, 2025"
+        
+        IMPORTANT: When user asks to modify/delete a task:
+        - First call query_tasks to get task_id
+        - When you receive the result, IMMEDIATELY call update_task/delete_task (don't wait, don't respond with text first)
+        - Only after the second function completes, respond with past tense: "I've updated/deleted..."
+        - NEVER use future tense: "I'll...", "I will..."
+        
         Context: Today is \(getTodayDateString()) (\(dayOfWeek)), it's \(timeOfDay) on a \(isWeekend ? "weekend" : "weekday")
         - When user says "today", use \(getTodayDateString())
         - When user says "tomorrow", use \(getTomorrowDateString())

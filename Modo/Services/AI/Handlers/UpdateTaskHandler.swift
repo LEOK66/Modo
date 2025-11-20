@@ -46,15 +46,22 @@ class UpdateTaskHandler: AIFunctionCallHandler {
         }
         
         print("✅ Task updated successfully")
+        print("   Updated task: \(updatedTask.title)")
+        print("   Task ID: \(updatedTask.id)")
+        print("   Time: \(updatedTask.time)")
+        print("   Done: \(updatedTask.isDone)")
         
-        // Post response
-        notificationManager.postResponse(
+        // Post response with detailed info
+        let dto = AITaskDTO.from(updatedTask)
+        notificationManager.postResponse<AITaskDTO>(
             type: .taskUpdateResponse,
             requestId: requestId,
             success: true,
-            data: AITaskDTO.from(updatedTask),
+            data: dto,
             error: nil
         )
+        
+        print("📤 Posted update response for task: \(dto.title)")
     }
     
     // MARK: - Private Methods
@@ -73,13 +80,64 @@ class UpdateTaskHandler: AIFunctionCallHandler {
         let time = updatesJson["time"] as? String
         let isDone = updatesJson["is_done"] as? Bool
         
+        // Parse exercises
+        var exercises: [AITaskDTO.Exercise]? = nil
+        if let exercisesArray = updatesJson["exercises"] as? [[String: Any]] {
+            exercises = exercisesArray.compactMap { exerciseJson -> AITaskDTO.Exercise? in
+                guard let name = exerciseJson["name"] as? String,
+                      let sets = exerciseJson["sets"] as? Int,
+                      let reps = exerciseJson["reps"] as? String,
+                      let restSec = exerciseJson["rest_sec"] as? Int,
+                      let durationMin = exerciseJson["duration_min"] as? Int,
+                      let calories = exerciseJson["calories"] as? Int else {
+                    return nil
+                }
+                let targetRPE = exerciseJson["target_RPE"] as? Int
+                
+                return AITaskDTO.Exercise(
+                    name: name,
+                    sets: sets,
+                    reps: reps,
+                    restSec: restSec,
+                    durationMin: durationMin,
+                    calories: calories,
+                    targetRPE: targetRPE,
+                    alternatives: nil
+                )
+            }
+        }
+        
+        // Parse foods (as a meal)
+        var meals: [AITaskDTO.Meal]? = nil
+        if let foodsArray = updatesJson["foods"] as? [[String: Any]] {
+            let foods = foodsArray.compactMap { foodJson -> AITaskDTO.Food? in
+                guard let name = foodJson["name"] as? String,
+                      let portion = foodJson["portion"] as? String,
+                      let calories = foodJson["calories"] as? Int else {
+                    return nil
+                }
+                return AITaskDTO.Food(name: name, portion: portion, calories: calories, macros: nil)
+            }
+            
+            if !foods.isEmpty {
+                let totalCalories = foods.reduce(0) { $0 + $1.calories }
+                meals = [AITaskDTO.Meal(
+                    name: title ?? "Meal",
+                    time: time ?? "12:00 PM",
+                    foods: foods,
+                    totalCalories: totalCalories,
+                    macros: nil
+                )]
+            }
+        }
+        
         let updates = TaskUpdateParams(
             title: title,
             time: time,
             date: nil,
             isDone: isDone,
-            exercises: nil,
-            meals: nil
+            exercises: exercises,
+            meals: meals
         )
         
         return (taskId, updates)
@@ -90,20 +148,29 @@ class UpdateTaskHandler: AIFunctionCallHandler {
         let taskDate = Date() // We'll search recent dates
         var foundTask: TaskItem?
         
-        // Search last 30 days
+        print("🔍 Searching for task \(taskId) in cache...")
+        
+        // Search last 30 days and next 30 days (total 61 days)
         for dayOffset in -30...30 {
             guard let searchDate = Calendar.current.date(byAdding: .day, value: dayOffset, to: taskDate) else {
                 continue
             }
             let tasks = cacheService.getTasks(for: searchDate, userId: userId)
+            
+            if !tasks.isEmpty && dayOffset % 10 == 0 {
+                print("   - Checked \(searchDate): \(tasks.count) tasks")
+            }
+            
             if let task = tasks.first(where: { $0.id == taskId }) {
                 foundTask = task
+                print("✅ Found task on \(searchDate): \(task.title)")
                 break
             }
         }
         
         guard let oldTask = foundTask else {
-            print("❌ Task not found: \(taskId)")
+            print("❌ Task not found in cache: \(taskId)")
+            print("   Try checking if task is loaded in TaskListViewModel")
             return nil
         }
         
@@ -113,6 +180,39 @@ class UpdateTaskHandler: AIFunctionCallHandler {
         let newTitle = updates.title ?? oldTask.title
         let newTime = updates.time ?? oldTask.time
         let newIsDone = updates.isDone ?? oldTask.isDone
+        
+        // Convert exercises to fitness entries if provided
+        var newFitnessEntries = oldTask.fitnessEntries
+        if let exercises = updates.exercises {
+            newFitnessEntries = exercises.map { exercise in
+                FitnessEntry(
+                    customName: exercise.name,
+                    minutesInt: exercise.durationMin,
+                    caloriesText: String(exercise.calories),
+                    sets: exercise.sets,
+                    reps: exercise.reps,
+                    restSec: exercise.restSec,
+                    targetRPE: exercise.targetRPE
+                )
+            }
+            print("  - Exercises updated: \(exercises.count) exercises")
+        }
+        
+        // Convert meals to diet entries if provided
+        var newDietEntries = oldTask.dietEntries
+        if let meals = updates.meals {
+            newDietEntries = meals.flatMap { meal in
+                meal.foods.map { food in
+                    DietEntry(
+                        customName: food.name,
+                        quantityText: food.portion,
+                        unit: "serving",
+                        caloriesText: String(food.calories)
+                    )
+                }
+            }
+            print("  - Foods updated: \(newDietEntries.count) food items")
+        }
         
         // Log updates
         if updates.title != nil {
@@ -137,8 +237,8 @@ class UpdateTaskHandler: AIFunctionCallHandler {
             isDone: newIsDone,
             emphasisHex: oldTask.emphasisHex,
             category: oldTask.category,
-            dietEntries: oldTask.dietEntries,
-            fitnessEntries: oldTask.fitnessEntries,
+            dietEntries: newDietEntries,
+            fitnessEntries: newFitnessEntries,
             createdAt: oldTask.createdAt,
             updatedAt: Date(),
             isAIGenerated: oldTask.isAIGenerated,
@@ -150,7 +250,18 @@ class UpdateTaskHandler: AIFunctionCallHandler {
             taskService.updateTask(updatedTask, oldTask: oldTask, userId: userId) { result in
                 switch result {
                 case .success:
-                    print("✅ Task updated successfully")
+                    print("✅ Task updated in Firebase successfully")
+                    
+                    // Force cache update on main thread
+                    Task { @MainActor in
+                        self.cacheService.updateTask(
+                            updatedTask,
+                            oldDate: Calendar.current.startOfDay(for: oldTask.timeDate),
+                            userId: userId
+                        )
+                        print("✅ Task cache updated")
+                    }
+                    
                     continuation.resume(returning: updatedTask)
                 case .failure(let error):
                     print("❌ Failed to update task: \(error.localizedDescription)")
@@ -160,4 +271,3 @@ class UpdateTaskHandler: AIFunctionCallHandler {
         }
     }
 }
-

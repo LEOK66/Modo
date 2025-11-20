@@ -94,12 +94,12 @@ extension AITaskDTO {
         let exercises: [Exercise]? = taskItem.fitnessEntries.isEmpty ? nil : taskItem.fitnessEntries.map { entry in
             Exercise(
                 name: entry.customName.isEmpty ? (entry.exercise?.name ?? "Exercise") : entry.customName,
-                sets: 3, // Default value, not stored in TaskItem
-                reps: "10", // Default value
-                restSec: 60, // Default value
+                sets: entry.sets ?? 3, // ✅ Use stored value or default to 3
+                reps: entry.reps ?? "10", // ✅ Use stored value or default to "10"
+                restSec: entry.restSec ?? 60, // ✅ Use stored value or default to 60
                 durationMin: entry.minutesInt,
                 calories: Int(entry.caloriesText) ?? 0,
-                targetRPE: nil,
+                targetRPE: entry.targetRPE, // ✅ Use stored value (can be nil)
                 alternatives: nil
             )
         }
@@ -184,7 +184,11 @@ extension AITaskDTO {
             FitnessEntry(
                 customName: exercise.name,
                 minutesInt: exercise.durationMin,
-                caloriesText: String(exercise.calories)
+                caloriesText: String(exercise.calories),
+                sets: exercise.sets, // ✅ Preserve training parameters
+                reps: exercise.reps,
+                restSec: exercise.restSec,
+                targetRPE: exercise.targetRPE
             )
         } ?? []
         

@@ -52,12 +52,12 @@ class DeleteTaskHandler: AIFunctionCallHandler {
         
         print("✅ Task deleted successfully")
         
-        // Post response
+        // Post response with Bool indicating success
         notificationManager.postResponse(
             type: .taskDeleteResponse,
             requestId: requestId,
             success: true,
-            data: ["task_id": taskId.uuidString, "reason": reason ?? "No reason provided"],
+            data: true,
             error: nil
         )
     }
