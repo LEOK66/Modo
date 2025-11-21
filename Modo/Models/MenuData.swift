@@ -8,7 +8,26 @@ public enum MenuData {
         public let caloriesPer100g: Double?
         public let caloriesPerServing: Int?
         public let defaultUnit: String?
-        public init(id: UUID = UUID(), name: String, calories: Int) { self.id = id; self.name = name; self.calories = calories; self.caloriesPer100g = nil; self.caloriesPerServing = calories; self.defaultUnit = "serving" }
+        
+        // Legacy initializer for backward compatibility
+        public init(id: UUID = UUID(), name: String, calories: Int) {
+            self.id = id
+            self.name = name
+            self.calories = calories
+            self.caloriesPer100g = nil
+            self.caloriesPerServing = calories
+            self.defaultUnit = "serving"
+        }
+        
+        // Full initializer with all parameters
+        public init(id: UUID = UUID(), name: String, calories: Int?, caloriesPer100g: Double?, caloriesPerServing: Int?, defaultUnit: String?) {
+            self.id = id
+            self.name = name
+            self.calories = calories
+            self.caloriesPer100g = caloriesPer100g
+            self.caloriesPerServing = caloriesPerServing
+            self.defaultUnit = defaultUnit
+        }
         private enum CodingKeys: String, CodingKey { case name, calories, caloriesPer100g, caloriesPerServing, defaultUnit }
         public init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)

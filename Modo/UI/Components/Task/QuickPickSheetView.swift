@@ -71,8 +71,12 @@ struct QuickPickSheetView: View {
                 searchFieldFocused = false
             }
         }
-        .onChange(of: searchText) { _, newValue in
-            guard mode == .food else { return }
+        .onChange(of: searchText) { oldValue, newValue in
+            print("🔍 QuickPickSheetView: searchText changed from '\(oldValue)' to '\(newValue)'")
+            guard mode == .food else {
+                print("⚠️ QuickPickSheetView: Mode is not .food, skipping search")
+                return
+            }
             handleFoodSearch(query: newValue)
         }
     }
@@ -286,13 +290,17 @@ struct QuickPickSheetView: View {
     }
     
     private func handleFoodSearch(query: String) {
+        print("🔍 QuickPickSheetView.handleFoodSearch: Called with query '\(query)'")
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard q.count >= 2 else {
+            print("⚠️ QuickPickSheetView.handleFoodSearch: Query too short: '\(q)' (count: \(q.count))")
             onlineFoods = []
             return
         }
+        print("🔍 QuickPickSheetView.handleFoodSearch: Query valid, calling onSearchFoods for '\(q)'")
         isOnlineLoading = true
         onSearchFoods(q) { results in
+            print("🔍 QuickPickSheetView.handleFoodSearch: Received \(results.count) results for '\(q)'")
             isOnlineLoading = false
             onlineFoods = results
         }

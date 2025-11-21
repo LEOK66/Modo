@@ -556,15 +556,19 @@ final class AddTaskViewModel: ObservableObject {
     
     /// Search foods with debounce
     func searchFoods(query: String, completion: @escaping ([MenuData.FoodItem]) -> Void) {
+        print("🔍 AddTaskViewModel.searchFoods: Called with query '\(query)'")
         searchDebounceWork?.cancel()
         let work = DispatchWorkItem { [weak self] in
+            print("🔍 AddTaskViewModel.searchFoods: Debounce completed, calling OffClient.searchFoodsCached for '\(query)'")
             OffClient.searchFoodsCached(query: query, limit: 50) { results in
+                print("🔍 AddTaskViewModel.searchFoods: Received \(results.count) results for '\(query)'")
                 DispatchQueue.main.async {
                     completion(results)
                 }
             }
         }
         searchDebounceWork = work
+        print("🔍 AddTaskViewModel.searchFoods: Scheduling debounced search for '\(query)' (0.5s delay)")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
     }
     

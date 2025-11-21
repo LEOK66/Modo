@@ -224,11 +224,11 @@ struct DailyChallengeCardView: View {
                             .foregroundColor(Color(hexString: "F59E0B"))
                         
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("挑战完成！")
+                            Text("Challenge Completed！")
                                 .font(.system(size: 16, weight: .bold))
                                 .foregroundColor(.primary)
                             
-                            Text("太棒了！你完成了今日挑战！🎉")
+                            Text("Greate！You finished your Daily Challenge！🎉")
                                 .font(.system(size: 13))
                                 .foregroundColor(.secondary)
                         }

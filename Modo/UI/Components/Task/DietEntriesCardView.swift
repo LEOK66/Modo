@@ -250,6 +250,13 @@ struct DietEntriesCardView: View {
                 }
             }
             
+            // Macro nutrients display (read-only)
+            HStack(spacing: 8) {
+                macroNutrientView(label: "Protein", value: macroValue(for: entry, type: .protein))
+                macroNutrientView(label: "Fat", value: macroValue(for: entry, type: .fat))
+                macroNutrientView(label: "Carbs", value: macroValue(for: entry, type: .carbs))
+            }
+            
             if entry.food == nil {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Customize Diet")
@@ -299,6 +306,39 @@ struct DietEntriesCardView: View {
         case "kg": return "kg"
         default: return "serving"
         }
+    }
+    
+    private enum MacroType {
+        case protein
+        case fat
+        case carbs
+    }
+    
+    private func macroValue(for entry: DietEntry, type: MacroType) -> String {
+        // TODO: Replace with actual macro data from food item when available
+        // For now, return placeholder or empty string
+        guard let food = entry.food else { return "-" }
+        
+        // This will be populated when macro data is added to FoodItem
+        // Example: return food.proteinPer100g, food.fatPer100g, food.carbsPer100g
+        return "-"
+    }
+    
+    private func macroNutrientView(label: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("\(label)(g)")
+                .font(.system(size: 11))
+                .foregroundColor(.secondary)
+            Text(value)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(.primary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(Color(.tertiarySystemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        }
+        .frame(maxWidth: .infinity)
     }
     
     @ViewBuilder
