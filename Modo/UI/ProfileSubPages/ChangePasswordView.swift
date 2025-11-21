@@ -10,6 +10,7 @@ struct ChangePasswordView: View {
     @State private var showCurrentPasswordError: Bool = false
     @State private var showNewPasswordError: Bool = false
     @State private var showConfirmPasswordError: Bool = false
+    @State private var showSamePasswordError: Bool = false
     @State private var isChanging: Bool = false
     @State private var showSuccessMessage: Bool = false
     @State private var showErrorMessage: Bool = false
@@ -51,16 +52,31 @@ struct ChangePasswordView: View {
                         .padding(.horizontal, 24)
                         
                         // New Password
-                        ValidatedInputField(
-                            placeholder: "New Password",
-                            text: $newPassword,
-                            showError: $showNewPasswordError,
-                            errorMessage: "At least 8 characters with letters and numbers",
-                            isSecure: true,
-                            textContentType: .newPassword,
-                            showPasswordToggle: true
-                        )
+                        VStack(alignment: .leading, spacing: 4) {
+                            ValidatedInputField(
+                                placeholder: "New Password",
+                                text: $newPassword,
+                                showError: $showNewPasswordError,
+                                errorMessage: "At least 8 characters with letters and numbers",
+                                isSecure: true,
+                                textContentType: .newPassword,
+                                showPasswordToggle: true
+                            )
+                            
+                            if showSamePasswordError {
+                                Text("New password must be different from current password")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.red)
+                                    .padding(.leading, 12)
+                            }
+                        }
                         .padding(.horizontal, 24)
+                        .onChange(of: newPassword) { _, _ in
+                            // Clear same password error when user starts typing
+                            if showSamePasswordError {
+                                showSamePasswordError = false
+                            }
+                        }
                         
                         // Confirm Password
                         ValidatedInputField(
@@ -113,6 +129,7 @@ struct ChangePasswordView: View {
         showCurrentPasswordError = false
         showNewPasswordError = false
         showConfirmPasswordError = false
+        showSamePasswordError = false
         
         // Validate inputs
         var hasError = false
@@ -124,6 +141,12 @@ struct ChangePasswordView: View {
         
         if newPassword.isEmpty || !newPassword.isValidPassword {
             showNewPasswordError = true
+            hasError = true
+        }
+        
+        // Check if new password is the same as current password
+        if !newPassword.isEmpty && newPassword == currentPassword {
+            showSamePasswordError = true
             hasError = true
         }
         
@@ -188,4 +211,6 @@ struct ChangePasswordView: View {
             .environmentObject(AuthService.shared)
     }
 }
+
+
 

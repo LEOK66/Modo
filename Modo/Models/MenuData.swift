@@ -8,14 +8,27 @@ public enum MenuData {
         public let caloriesPer100g: Double?
         public let caloriesPerServing: Int?
         public let defaultUnit: String?
-
-        // macro fields
-        public let proteinPer100g: Double?
-        public let carbsPer100g: Double?
-        public let fatPer100g: Double?
-
-        public init(id: UUID = UUID(), name: String, calories: Int, proteinPer100g: Double, carbsPer100g: Double, fatPer100g: Double) { self.id = id; self.name = name; self.calories = calories; self.caloriesPer100g = nil; self.caloriesPerServing = calories; self.defaultUnit = "serving"; self.proteinPer100g = proteinPer100g; self.carbsPer100g = carbsPer100g; self.fatPer100g = fatPer100g;}
-        private enum CodingKeys: String, CodingKey { case name, calories, caloriesPer100g, caloriesPerServing, defaultUnit, proteinPer100g, carbsPer100g, fatPer100g }
+        
+        // Legacy initializer for backward compatibility
+        public init(id: UUID = UUID(), name: String, calories: Int) {
+            self.id = id
+            self.name = name
+            self.calories = calories
+            self.caloriesPer100g = nil
+            self.caloriesPerServing = calories
+            self.defaultUnit = "serving"
+        }
+        
+        // Full initializer with all parameters
+        public init(id: UUID = UUID(), name: String, calories: Int?, caloriesPer100g: Double?, caloriesPerServing: Int?, defaultUnit: String?) {
+            self.id = id
+            self.name = name
+            self.calories = calories
+            self.caloriesPer100g = caloriesPer100g
+            self.caloriesPerServing = caloriesPerServing
+            self.defaultUnit = defaultUnit
+        }
+        private enum CodingKeys: String, CodingKey { case name, calories, caloriesPer100g, caloriesPerServing, defaultUnit }
         public init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             self.name = try container.decode(String.self, forKey: .name)

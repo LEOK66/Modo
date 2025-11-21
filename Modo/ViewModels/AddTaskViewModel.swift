@@ -167,6 +167,9 @@ final class AddTaskViewModel: ObservableObject {
     /// Cancellables for Combine subscriptions
     private var cancellables = Set<AnyCancellable>()
     
+    /// Whether form can be saved (published property, updated only when relevant properties change)
+    @Published var canSave: Bool = false
+    
     /// Current user ID
     private var userId: String? {
         Auth.auth().currentUser?.uid
@@ -213,6 +216,9 @@ final class AddTaskViewModel: ObservableObject {
         
         // Set initial time to selected date
         self.timeDate = selectedDate
+        
+        // Setup canSave to update only when relevant properties change
+        setupCanSaveObserver()
     }
     
     deinit {
@@ -550,30 +556,46 @@ final class AddTaskViewModel: ObservableObject {
     
     /// Search foods with debounce
     func searchFoods(query: String, completion: @escaping ([MenuData.FoodItem]) -> Void) {
+        print("🔍 AddTaskViewModel.searchFoods: Called with query '\(query)'")
         searchDebounceWork?.cancel()
         let work = DispatchWorkItem { [weak self] in
+            print("🔍 AddTaskViewModel.searchFoods: Debounce completed, calling OffClient.searchFoodsCached for '\(query)'")
             OffClient.searchFoodsCached(query: query, limit: 50) { results in
+                print("🔍 AddTaskViewModel.searchFoods: Received \(results.count) results for '\(query)'")
                 DispatchQueue.main.async {
                     completion(results)
                 }
             }
         }
         searchDebounceWork = work
+        print("🔍 AddTaskViewModel.searchFoods: Scheduling debounced search for '\(query)' (0.5s delay)")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
     }
     
-    /// Check if form can be saved
-    var canSave: Bool {
-        let hasTitle = !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        guard let category = selectedCategory else { return false }
-        switch category {
-        case .diet:
-            return hasTitle
-        case .fitness:
-            return hasTitle && !fitnessEntries.isEmpty
-        case .others:
-            return hasTitle
+    // MARK: - Private Methods - Setup
+    
+    /// Setup canSave observer to update only when relevant properties change
+    private func setupCanSaveObserver() {
+        // Combine publishers for title, selectedCategory, and fitnessEntries
+        Publishers.CombineLatest3(
+            $title,
+            $selectedCategory,
+            $fitnessEntries
+        )
+        .map { title, category, fitnessEntries -> Bool in
+            print("canSave triggered")
+            let hasTitle = !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            guard let category = category else { return false }
+            switch category {
+            case .diet:
+                return hasTitle
+            case .fitness:
+                return hasTitle && !fitnessEntries.isEmpty
+            case .others:
+                return hasTitle
+            }
         }
+        .assign(to: &$canSave)
     }
     
     /// Total fitness duration in minutes
