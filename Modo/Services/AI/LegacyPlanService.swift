@@ -61,9 +61,7 @@ class LegacyPlanService {
                     name: exercise.name,
                     sets: exercise.sets,
                     reps: exercise.reps,
-                    restSec: exercise.restSec,
-                    targetRPE: exercise.targetRPE,
-                    alternatives: exercise.alternatives
+                    restSec: exercise.restSec
                 )
             }
             
@@ -203,9 +201,7 @@ class LegacyPlanService {
                             name: exercise.name,
                             sets: exercise.sets,
                             reps: exercise.reps,
-                            restSec: exercise.restSec,
-                            targetRPE: exercise.targetRPE,
-                            alternatives: exercise.alternatives
+                            restSec: exercise.restSec
                         )
                     }
                     

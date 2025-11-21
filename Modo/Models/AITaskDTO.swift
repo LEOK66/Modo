@@ -54,8 +54,6 @@ struct AITaskDTO: Codable, Identifiable {
         let restSec: Int
         let durationMin: Int
         let calories: Int
-        let targetRPE: Int?
-        let alternatives: [String]?
     }
     
     struct Meal: Codable {
@@ -91,16 +89,19 @@ extension AITaskDTO {
                              taskItem.category == .diet ? .nutrition : .custom
         
         // Convert fitness entries to exercises
-        let exercises: [Exercise]? = taskItem.fitnessEntries.isEmpty ? nil : taskItem.fitnessEntries.map { entry in
-            Exercise(
+        let exercises: [Exercise]? = taskItem.fitnessEntries.isEmpty ? nil : taskItem.fitnessEntries.compactMap { entry in
+            // Only include entries that have at least sets and reps defined
+            guard let sets = entry.sets, let reps = entry.reps else {
+                return nil
+            }
+            
+            return Exercise(
                 name: entry.customName.isEmpty ? (entry.exercise?.name ?? "Exercise") : entry.customName,
-                sets: entry.sets ?? 3, // ✅ Use stored value or default to 3
-                reps: entry.reps ?? "10", // ✅ Use stored value or default to "10"
-                restSec: entry.restSec ?? 60, // ✅ Use stored value or default to 60
+                sets: sets,
+                reps: reps,
+                restSec: entry.restSec ?? 60, // Rest has a reasonable default
                 durationMin: entry.minutesInt,
-                calories: Int(entry.caloriesText) ?? 0,
-                targetRPE: entry.targetRPE, // ✅ Use stored value (can be nil)
-                alternatives: nil
+                calories: Int(entry.caloriesText) ?? 0
             )
         }
         
@@ -187,8 +188,7 @@ extension AITaskDTO {
                 caloriesText: String(exercise.calories),
                 sets: exercise.sets, // ✅ Preserve training parameters
                 reps: exercise.reps,
-                restSec: exercise.restSec,
-                targetRPE: exercise.targetRPE
+                restSec: exercise.restSec
             )
         } ?? []
         
@@ -227,9 +227,7 @@ extension AITaskDTO {
                 reps: ex.reps,
                 restSec: ex.restSec,
                 durationMin: ex.durationMin,
-                calories: ex.calories,
-                targetRPE: nil,
-                alternatives: nil
+                calories: ex.calories
             )
         }
         

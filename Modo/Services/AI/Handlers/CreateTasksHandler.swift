@@ -134,18 +134,13 @@ class CreateTasksHandler: AIFunctionCallHandler {
                 return nil
             }
             
-            let targetRPE = exerciseJson["target_RPE"] as? Int
-            let alternatives = exerciseJson["alternatives"] as? [String]
-            
             return AITaskDTO.Exercise(
                 name: name,
                 sets: sets,
                 reps: reps,
                 restSec: restSec,
                 durationMin: durationMin,
-                calories: calories,
-                targetRPE: targetRPE,
-                alternatives: alternatives
+                calories: calories
             )
         }
         

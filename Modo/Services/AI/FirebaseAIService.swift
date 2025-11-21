@@ -56,20 +56,9 @@ class FirebaseAIService {
                                     "rest_sec": [
                                         "type": "integer",
                                         "description": "Rest period in seconds"
-                                    ],
-                                    "target_RPE": [
-                                        "type": "integer",
-                                        "description": "Target RPE (Rate of Perceived Exertion) 1-10"
-                                    ],
-                                    "alternatives": [
-                                        "type": "array",
-                                        "description": "Alternative exercises",
-                                        "items": [
-                                            "type": "string"
-                                        ]
                                     ]
                                 ],
-                                "required": ["name", "sets", "reps", "rest_sec", "target_RPE", "alternatives"],
+                                "required": ["name", "sets", "reps", "rest_sec"],
                                 "additionalProperties": false
                             ]
                         ],
@@ -248,14 +237,9 @@ class FirebaseAIService {
                                                         "name": ["type": "string"],
                                                         "sets": ["type": "integer"],
                                                         "reps": ["type": "string"],
-                                                        "rest_sec": ["type": "integer"],
-                                                        "target_RPE": ["type": "integer"],
-                                                        "alternatives": [
-                                                            "type": "array",
-                                                            "items": ["type": "string"]
-                                                        ]
+                                                        "rest_sec": ["type": "integer"]
                                                     ],
-                                                    "required": ["name", "sets", "reps", "rest_sec", "target_RPE", "alternatives"],
+                                                    "required": ["name", "sets", "reps", "rest_sec"],
                                                     "additionalProperties": false
                                                 ]
                                             ],
@@ -424,14 +408,9 @@ class FirebaseAIService {
                                                 "reps": ["type": "string"],
                                                 "rest_sec": ["type": "integer"],
                                                 "duration_min": ["type": "integer"],
-                                                "calories": ["type": "integer"],
-                                                "target_RPE": ["type": ["integer", "null"]],
-                                                "alternatives": [
-                                                    "type": ["array", "null"],
-                                                    "items": ["type": "string"]
-                                                ]
+                                                "calories": ["type": "integer"]
                                             ],
-                                            "required": ["name", "sets", "reps", "rest_sec", "duration_min", "calories", "target_RPE", "alternatives"],
+                                            "required": ["name", "sets", "reps", "rest_sec", "duration_min", "calories"],
                                             "additionalProperties": false
                                         ]
                                     ],
@@ -552,10 +531,9 @@ class FirebaseAIService {
                                             "reps": ["type": "string", "description": "Reps per set (e.g., '10', '8-12')"],
                                             "rest_sec": ["type": "integer", "description": "Rest between sets in seconds"],
                                             "duration_min": ["type": "integer", "description": "Duration in minutes"],
-                                            "calories": ["type": "integer", "description": "Estimated calories burned"],
-                                            "target_RPE": ["type": ["integer", "null"], "description": "Target RPE (1-10, or null if not specified)"]
+                                            "calories": ["type": "integer", "description": "Estimated calories burned"]
                                         ],
-                                        "required": ["name", "sets", "reps", "rest_sec", "duration_min", "calories", "target_RPE"],
+                                        "required": ["name", "sets", "reps", "rest_sec", "duration_min", "calories"],
                                         "additionalProperties": false
                                     ]
                                 ],

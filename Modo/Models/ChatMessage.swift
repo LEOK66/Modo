@@ -51,8 +51,6 @@ struct WorkoutPlanData: Codable {
         var sets: Int
         var reps: String
         var restSec: Int?
-        var targetRPE: Int?
-        var alternatives: [String]?
     }
 }
 

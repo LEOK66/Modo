@@ -92,7 +92,6 @@ class UpdateTaskHandler: AIFunctionCallHandler {
                       let calories = exerciseJson["calories"] as? Int else {
                     return nil
                 }
-                let targetRPE = exerciseJson["target_RPE"] as? Int
                 
                 return AITaskDTO.Exercise(
                     name: name,
@@ -100,9 +99,7 @@ class UpdateTaskHandler: AIFunctionCallHandler {
                     reps: reps,
                     restSec: restSec,
                     durationMin: durationMin,
-                    calories: calories,
-                    targetRPE: targetRPE,
-                    alternatives: nil
+                    calories: calories
                 )
             }
         }
@@ -191,8 +188,7 @@ class UpdateTaskHandler: AIFunctionCallHandler {
                     caloriesText: String(exercise.calories),
                     sets: exercise.sets,
                     reps: exercise.reps,
-                    restSec: exercise.restSec,
-                    targetRPE: exercise.targetRPE
+                    restSec: exercise.restSec
                 )
             }
             print("  - Exercises updated: \(exercises.count) exercises")

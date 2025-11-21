@@ -201,7 +201,23 @@ class AIPromptBuilder {
         Text response (what user sees):
         "Great! I've created a personalized upper body workout for you tomorrow. It includes 5 exercises focusing on chest, back, and arms - perfect for building strength. You'll do Push-ups (3×12), Dumbbell Rows (3×10), Bench Press (4×8), and more. The whole workout should take about 45 minutes. Let's get stronger together! 💪"
         
-        [THEN call generate_workout_plan() with structured exercise data]
+        [THEN call create_tasks() with structured exercise data]:
+        {
+          "tasks": [{
+            "type": "workout",
+            "title": "Upper Body Strength",
+            "date": "2025-11-22",
+            "time": "9:00 AM",
+            "category": "fitness",
+            "exercises": [
+              {"name": "Push-ups", "sets": 3, "reps": "12", "rest_sec": 60, "duration_min": 4, "calories": 40},
+              {"name": "Dumbbell Rows", "sets": 3, "reps": "10", "rest_sec": 60, "duration_min": 5, "calories": 50},
+              {"name": "Bench Press", "sets": 4, "reps": "8", "rest_sec": 90, "duration_min": 8, "calories": 80},
+              {"name": "Pull-ups", "sets": 3, "reps": "8", "rest_sec": 90, "duration_min": 5, "calories": 50},
+              {"name": "Shoulder Press", "sets": 3, "reps": "10", "rest_sec": 60, "duration_min": 5, "calories": 45}
+            ]
+          }]
+        }
         
         CRITICAL - PERSONALIZATION:
         - ALWAYS tailor recommendations to user's goal, stats, and lifestyle
@@ -532,6 +548,20 @@ class AIPromptBuilder {
         2. create_tasks: Create new tasks
            - Use when: User asks "Create a workout", "Add a meal plan"
            - MUST call this function to actually create tasks
+           - ⚠️ CRITICAL for FITNESS tasks:
+             • MUST populate the "exercises" array with multiple specific exercises
+             • Each exercise MUST include: name, sets, reps, rest_sec, duration_min, calories
+             • Example: [
+                 {name: "Push-ups", sets: 3, reps: "12", rest_sec: 60, duration_min: 5, calories: 50},
+                 {name: "Squats", sets: 4, reps: "15", rest_sec: 60, duration_min: 6, calories: 60},
+                 {name: "Plank", sets: 3, reps: "30s", rest_sec: 45, duration_min: 3, calories: 30}
+               ]
+             • DO NOT create a task with empty exercises array for fitness category
+             • A fitness task should contain 4-6 exercises minimum
+           - ⚠️ CRITICAL for DIET tasks:
+             • MUST populate the "meals" array with specific meal details
+             • Each meal MUST include: name, time, foods (with name, portion, calories)
+             • DO NOT create a task with empty meals array for diet category
         
         3. update_task: Modify existing tasks
            - Use when: User says "Change X", "Update Y", "Edit Z"

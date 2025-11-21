@@ -91,14 +91,10 @@ struct WorkoutPlanFunctionResponse: Codable {
         let sets: Int
         let reps: String
         let restSec: Int?
-        let targetRPE: Int?
-        let alternatives: [String]?
         
         enum CodingKeys: String, CodingKey {
             case name, sets, reps
             case restSec = "rest_sec"
-            case targetRPE = "target_RPE"
-            case alternatives
         }
     }
 }
@@ -202,15 +198,11 @@ struct MultiDayPlanFunctionResponse: Codable {
             let name: String
             let sets: Int
             let reps: String
-            let restSec: Int
-            let targetRPE: Int
-            let alternatives: [String]
+            let restSec: Int?
             
             enum CodingKeys: String, CodingKey {
                 case name, sets, reps
                 case restSec = "rest_sec"
-                case targetRPE = "target_RPE"
-                case alternatives
             }
         }
     }
