@@ -269,9 +269,7 @@ final class AIInfrastructureIntegrationTests: XCTestCase {
                     reps: "10",
                     restSec: 60,
                     durationMin: 5,
-                    calories: 50,
-                    targetRPE: 7,
-                    alternatives: nil
+                    calories: 50
                 )
             ],
             totalDuration: 5,
