@@ -82,33 +82,49 @@ enum OffClient {
                 let energy_kcal_100g: Double?
                 let energy_kcal_serving: Double?
                 
+                // Macro nutrients (per 100g)
+                let proteins_100g: Double?
+                let fat_100g: Double?
+                let carbohydrates_100g: Double?
+                
+                // Macro nutrients (per serving)
+                let proteins_serving: Double?
+                let fat_serving: Double?
+                let carbohydrates_serving: Double?
+                
                 private enum CodingKeys: String, CodingKey {
                     case energy_kcal_100g = "energy-kcal_100g"
                     case energy_kcal_serving = "energy-kcal_serving"
+                    case proteins_100g = "proteins_100g"
+                    case fat_100g = "fat_100g"
+                    case carbohydrates_100g = "carbohydrates_100g"
+                    case proteins_serving = "proteins_serving"
+                    case fat_serving = "fat_serving"
+                    case carbohydrates_serving = "carbohydrates_serving"
+                }
+                
+                // Helper to decode Double or String
+                private static func decodeDoubleOrString(from container: KeyedDecodingContainer<CodingKeys>, forKey key: CodingKeys) -> Double? {
+                    if let doubleValue = try? container.decode(Double.self, forKey: key) {
+                        return doubleValue
+                    } else if let stringValue = try? container.decode(String.self, forKey: key),
+                              let doubleValue = Double(stringValue) {
+                        return doubleValue
+                    }
+                    return nil
                 }
                 
                 init(from decoder: Decoder) throws {
                     let container = try decoder.container(keyedBy: CodingKeys.self)
                     
-                    // Handle energy_kcal_100g - can be Double or String
-                    if let doubleValue = try? container.decode(Double.self, forKey: .energy_kcal_100g) {
-                        energy_kcal_100g = doubleValue
-                    } else if let stringValue = try? container.decode(String.self, forKey: .energy_kcal_100g),
-                              let doubleValue = Double(stringValue) {
-                        energy_kcal_100g = doubleValue
-                    } else {
-                        energy_kcal_100g = nil
-                    }
-                    
-                    // Handle energy_kcal_serving - can be Double or String
-                    if let doubleValue = try? container.decode(Double.self, forKey: .energy_kcal_serving) {
-                        energy_kcal_serving = doubleValue
-                    } else if let stringValue = try? container.decode(String.self, forKey: .energy_kcal_serving),
-                              let doubleValue = Double(stringValue) {
-                        energy_kcal_serving = doubleValue
-                    } else {
-                        energy_kcal_serving = nil
-                    }
+                    energy_kcal_100g = Self.decodeDoubleOrString(from: container, forKey: .energy_kcal_100g)
+                    energy_kcal_serving = Self.decodeDoubleOrString(from: container, forKey: .energy_kcal_serving)
+                    proteins_100g = Self.decodeDoubleOrString(from: container, forKey: .proteins_100g)
+                    fat_100g = Self.decodeDoubleOrString(from: container, forKey: .fat_100g)
+                    carbohydrates_100g = Self.decodeDoubleOrString(from: container, forKey: .carbohydrates_100g)
+                    proteins_serving = Self.decodeDoubleOrString(from: container, forKey: .proteins_serving)
+                    fat_serving = Self.decodeDoubleOrString(from: container, forKey: .fat_serving)
+                    carbohydrates_serving = Self.decodeDoubleOrString(from: container, forKey: .carbohydrates_serving)
                 }
             }
         }
@@ -246,30 +262,39 @@ enum OffClient {
         }
         
         // Check rate limiting
+        var isRateLimited = false
+        var retryAfter: TimeInterval?
         rateLimitQueue.sync {
             if let rateLimitedUntil = rateLimitedUntil, rateLimitedUntil > Date() {
-                let retryAfter = rateLimitedUntil.timeIntervalSinceNow
-                let error = OffError.rateLimited(retryAfter: retryAfter)
-                if let onNetworkError = onNetworkError {
-                    DispatchQueue.main.async { onNetworkError(error) }
-                } else {
-                    DispatchQueue.main.async { completion([]) }
-                }
-                return
+                isRateLimited = true
+                retryAfter = rateLimitedUntil.timeIntervalSinceNow
             }
         }
         
+        if isRateLimited {
+            let error = OffError.rateLimited(retryAfter: retryAfter)
+            if let onNetworkError = onNetworkError {
+                DispatchQueue.main.async { onNetworkError(error) }
+            } else {
+                DispatchQueue.main.async { completion([]) }
+            }
+            return
+        }
+        
         // Build API URL
-        // Using the search endpoint: /cgi/search.pl
-        var components = URLComponents(string: "\(apiBaseURL)/cgi/search.pl")!
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard var components = URLComponents(string: "\(apiBaseURL)/cgi/search.pl") else {
+            DispatchQueue.main.async { completion([]) }
+            return
+        }
+        
         components.queryItems = [
             .init(name: "search_simple", value: "1"),
             .init(name: "action", value: "process"),
             .init(name: "json", value: "1"),
             .init(name: "page_size", value: String(min(limit, 100))), // Cap at 100
-            // Request only essential fields: name and calories
-            .init(name: "fields", value: "product_name,generic_name,brands,nutriments.energy-kcal_100g,nutriments.energy-kcal_serving"),
+            // Request essential fields: name, calories, and macro nutrients
+            .init(name: "fields", value: "product_name,generic_name,brands,nutriments.energy-kcal_100g,nutriments.energy-kcal_serving,nutriments.proteins_100g,nutriments.fat_100g,nutriments.carbohydrates_100g,nutriments.proteins_serving,nutriments.fat_serving,nutriments.carbohydrates_serving"),
             .init(name: "search_terms", value: trimmedQuery)
         ]
         
@@ -388,14 +413,15 @@ enum OffClient {
             }
             var productsWithBrands: [ProductWithBrand] = []
             
+            // Helper function to trim and validate names
+            let trimmedName = { (s: String?) -> String? in
+                guard let t = s?.trimmingCharacters(in: .whitespacesAndNewlines), !t.isEmpty else { return nil }
+                return t
+            }
+            
             for p in decoded.products {
                 // Extract name: prioritize product_name, then generic_name
                 // Do NOT use brands as name - skip products without product_name or generic_name
-                let trimmedName = { (s: String?) -> String? in
-                    guard let t = s?.trimmingCharacters(in: .whitespacesAndNewlines), !t.isEmpty else { return nil }
-                    return t
-                }
-                
                 // Only use product_name or generic_name, never brands as the product name
                 let name: String? = trimmedName(p.product_name) ?? trimmedName(p.generic_name)
                 
@@ -425,14 +451,23 @@ enum OffClient {
                 let caloriesPerServing: Int? = kcalServing != nil ? Int(round(kcalServing!)) : nil
                 let defaultUnit = kcal100g != nil ? "g" : "serving"
                 
-                // Create FoodItem with only name and calories
+                // Extract macro nutrients
+                let nutriments = p.nutriments
+                
+                // Create FoodItem with name, calories, and macro nutrients
                 let item = MenuData.FoodItem(
                     id: UUID(),
                     name: nameUnwrapped,
                     calories: calories,
                     caloriesPer100g: kcal100g,
                     caloriesPerServing: caloriesPerServing,
-                    defaultUnit: defaultUnit
+                    defaultUnit: defaultUnit,
+                    proteinPer100g: nutriments?.proteins_100g,
+                    fatPer100g: nutriments?.fat_100g,
+                    carbsPer100g: nutriments?.carbohydrates_100g,
+                    proteinPerServing: nutriments?.proteins_serving,
+                    fatPerServing: nutriments?.fat_serving,
+                    carbsPerServing: nutriments?.carbohydrates_serving
                 )
                 productsWithBrands.append(ProductWithBrand(item: item, brand: brand))
             }

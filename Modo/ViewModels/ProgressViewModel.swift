@@ -33,6 +33,12 @@ final class ProgressViewModel: ObservableObject {
     /// Current user profile
     private var userProfile: UserProfile?
     
+    /// Task cache service for getting today's tasks
+    private let taskCacheService = TaskCacheService.shared
+    
+    /// Today's actual macro intake (protein, fat, carbs)
+    @Published private(set) var todayMacros: (protein: Double, fat: Double, carbs: Double) = (0, 0, 0)
+    
     // MARK: - Initialization
     
     /// Initialize ViewModel with dependencies
@@ -60,6 +66,8 @@ final class ProgressViewModel: ObservableObject {
         
         // Load progress data
         loadProgressData()
+        // Load today's macro intake
+        loadTodayMacros()
     }
     
     /// Update user profile (called when profile changes)
@@ -67,6 +75,7 @@ final class ProgressViewModel: ObservableObject {
     func updateUserProfile(_ userProfile: UserProfile?) {
         self.userProfile = userProfile
         loadProgressData()
+        loadTodayMacros()
     }
     
     // MARK: - Data Loading Methods
@@ -112,6 +121,109 @@ final class ProgressViewModel: ObservableObject {
                 self.isLoading = false
             }
         }
+    }
+    
+    /// Load today's macro intake from completed diet tasks
+    func loadTodayMacros() {
+        guard let authService = authService,
+              let userId = authService.currentUser?.uid else {
+            DispatchQueue.main.async {
+                self.todayMacros = (0, 0, 0)
+            }
+            return
+        }
+        
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        
+        // Get today's tasks from cache
+        let tasks = taskCacheService.getTasks(for: today, userId: userId)
+        
+        // Filter only completed diet tasks
+        let completedDietTasks = tasks.filter { task in
+            task.category == .diet && task.isDone
+        }
+        
+        // Calculate total macros from all diet entries
+        var totalProtein: Double = 0
+        var totalFat: Double = 0
+        var totalCarbs: Double = 0
+        
+        for task in completedDietTasks {
+            for entry in task.dietEntries {
+                totalProtein += calculateMacroValue(for: entry, type: .protein)
+                totalFat += calculateMacroValue(for: entry, type: .fat)
+                totalCarbs += calculateMacroValue(for: entry, type: .carbs)
+            }
+        }
+        
+        DispatchQueue.main.async {
+            self.todayMacros = (totalProtein, totalFat, totalCarbs)
+        }
+    }
+    
+    // MARK: - Macro Calculation Helper
+    
+    private enum MacroType {
+        case protein
+        case fat
+        case carbs
+    }
+    
+    /// Calculate macro value for a diet entry
+    private func calculateMacroValue(for entry: DietEntry, type: MacroType) -> Double {
+        guard let food = entry.food else { return 0.0 }
+        
+        // Parse quantity from text
+        let quantity = Double(entry.quantityText) ?? 0.0
+        guard quantity > 0 else { return 0.0 }
+        
+        // Get base nutrient value based on type
+        let per100g: Double?
+        let perServing: Double?
+        
+        switch type {
+        case .protein:
+            per100g = food.proteinPer100g
+            perServing = food.proteinPerServing
+        case .fat:
+            per100g = food.fatPer100g
+            perServing = food.fatPerServing
+        case .carbs:
+            per100g = food.carbsPer100g
+            perServing = food.carbsPerServing
+        }
+        
+        // Calculate actual value based on unit and quantity
+        let calculatedValue: Double?
+        
+        if entry.unit == "g" {
+            // User entered grams
+            if let per100g = per100g {
+                // Use per-100g data: (per-100g value / 100) * quantity
+                calculatedValue = (per100g / 100.0) * quantity
+            } else if let perServing = perServing {
+                // Fallback to per-serving if per-100g not available
+                // This is approximate - we assume 1 serving = 100g if not specified
+                calculatedValue = (perServing / 100.0) * quantity
+            } else {
+                calculatedValue = nil
+            }
+        } else {
+            // User entered servings (or other units)
+            if let perServing = perServing {
+                // Use per-serving data: per-serving value * quantity
+                calculatedValue = perServing * quantity
+            } else if let per100g = per100g {
+                // Fallback to per-100g if per-serving not available
+                // Assume 1 serving = 100g (standard assumption)
+                calculatedValue = per100g * quantity
+            } else {
+                calculatedValue = nil
+            }
+        }
+        
+        return calculatedValue ?? 0.0
     }
     
     // MARK: - Computed Properties - Display Text
@@ -167,6 +279,49 @@ final class ProgressViewModel: ObservableObject {
     var carbText: String {
         guard let macros = recommendedMacros else { return "-" }
         return "\(macros.carbohydrates)g"
+    }
+    
+    /// Today's actual protein intake
+    var todayProtein: Double {
+        todayMacros.protein
+    }
+    
+    /// Today's actual fat intake
+    var todayFat: Double {
+        todayMacros.fat
+    }
+    
+    /// Today's actual carbs intake
+    var todayCarbs: Double {
+        todayMacros.carbs
+    }
+    
+    /// Protein progress (actual / recommended)
+    var proteinProgress: Double {
+        guard let recommended = recommendedMacros?.protein, recommended > 0 else { return 0 }
+        return min(todayMacros.protein / Double(recommended), 1.0) // Cap at 100%
+    }
+    
+    /// Fat progress (actual / recommended)
+    var fatProgress: Double {
+        guard let recommended = recommendedMacros?.fat, recommended > 0 else { return 0 }
+        return min(todayMacros.fat / Double(recommended), 1.0) // Cap at 100%
+    }
+    
+    /// Carbs progress (actual / recommended)
+    var carbsProgress: Double {
+        guard let recommended = recommendedMacros?.carbohydrates, recommended > 0 else { return 0 }
+        return min(todayMacros.carbs / Double(recommended), 1.0) // Cap at 100%
+    }
+    
+    /// Whether the user has met all macro goals for today
+    var hasMetAllMacroGoals: Bool {
+        // Use a small tolerance to avoid floating point issues
+        let threshold = 0.99
+        return proteinProgress >= threshold &&
+               fatProgress >= threshold &&
+               carbsProgress >= threshold &&
+               recommendedMacros != nil
     }
     
     /// Goal description text for display

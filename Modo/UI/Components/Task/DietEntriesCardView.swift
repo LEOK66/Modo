@@ -315,12 +315,61 @@ struct DietEntriesCardView: View {
     }
     
     private func macroValue(for entry: DietEntry, type: MacroType) -> String {
-        // TODO: Replace with actual macro data from food item when available
-        // For now, return placeholder or empty string
         guard let food = entry.food else { return "-" }
         
-        // This will be populated when macro data is added to FoodItem
-        // Example: return food.proteinPer100g, food.fatPer100g, food.carbsPer100g
+        // Parse quantity from text
+        let quantity = Double(entry.quantityText) ?? 0.0
+        guard quantity > 0 else { return "-" }
+        
+        // Get base nutrient value based on type
+        let per100g: Double?
+        let perServing: Double?
+        
+        switch type {
+        case .protein:
+            per100g = food.proteinPer100g
+            perServing = food.proteinPerServing
+        case .fat:
+            per100g = food.fatPer100g
+            perServing = food.fatPerServing
+        case .carbs:
+            per100g = food.carbsPer100g
+            perServing = food.carbsPerServing
+        }
+        
+        // Calculate actual value based on unit and quantity
+        let calculatedValue: Double?
+        
+        if entry.unit == "g" {
+            // User entered grams
+            if let per100g = per100g {
+                // Use per-100g data: (per-100g value / 100) * quantity
+                calculatedValue = (per100g / 100.0) * quantity
+            } else if let perServing = perServing {
+                // Fallback to per-serving if per-100g not available
+                // This is approximate - we assume 1 serving = 100g if not specified
+                calculatedValue = (perServing / 100.0) * quantity
+            } else {
+                calculatedValue = nil
+            }
+        } else {
+            // User entered servings (or other units)
+            if let perServing = perServing {
+                // Use per-serving data: per-serving value * quantity
+                calculatedValue = perServing * quantity
+            } else if let per100g = per100g {
+                // Fallback to per-100g if per-serving not available
+                // Assume 1 serving = 100g (standard assumption)
+                calculatedValue = per100g * quantity
+            } else {
+                calculatedValue = nil
+            }
+        }
+        
+        // Format the value (round to 1 decimal place)
+        if let value = calculatedValue {
+            return String(format: "%.1f", value)
+        }
         return "-"
     }
     
