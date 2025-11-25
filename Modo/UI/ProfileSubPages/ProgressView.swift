@@ -18,13 +18,77 @@ struct ProgressPageView: View {
     // ViewModel - manages all business logic and state
     @StateObject private var viewModel = ProgressViewModel()
     
-    // Get current user's profile
-    private var userProfile: UserProfile? {
-        guard let userId = authService.currentUser?.uid else { return nil }
-        return profiles.first { $0.userId == userId }
+    // Navigation state
+    @State private var showEditProfile = false
+    
+    // Extract userId separately to reduce optional chaining inside closures
+    private var currentUserId: String? {
+        authService.currentUser?.uid
     }
     
+    // Get current user's profile (avoid complex closure capture)
+    private var userProfile: UserProfile? {
+        guard let uid = currentUserId else { return nil }
+        for p in profiles where p.userId == uid {
+            return p
+        }
+        return nil
+    }
+    
+    // Mirror simple, Equatable-friendly values for onChange to reduce type-checking cost
+    private var goalStartDateValue: Date? { userProfile?.goalStartDate }
+    private var targetDaysValue: Int? { userProfile?.targetDays }
+    private var goalValue: String? { userProfile?.goal }
+    private var heightValue: Double? { userProfile?.heightValue }
+    private var weightValue: Double? { userProfile?.weightValue }
+    
+    // Progress data components for onChange observation
+    private var progressCompletedDays: Int { viewModel.progressData.completedDays }
+    private var progressTargetDays: Int { viewModel.progressData.targetDays }
+    
     var body: some View {
+        // Break large chains into smaller parts for the type checker
+        let view = contentView
+            .navigationBarBackButtonHidden(true)
+            .gesture(swipeGesture)
+        
+        view
+            .onAppear(perform: handleAppear)
+            .onChange(of: profiles.count) { oldValue, newValue in
+                handleProfilesCountChange(oldValue: oldValue, newValue: newValue)
+            }
+            .onChange(of: goalStartDateValue) { oldValue, newValue in
+                handleProfileChange(oldValue: oldValue, newValue: newValue)
+            }
+            .onChange(of: targetDaysValue) { oldValue, newValue in
+                handleProfileChange(oldValue: oldValue, newValue: newValue)
+            }
+            .onChange(of: goalValue) { oldValue, newValue in
+                handleProfileChange(oldValue: oldValue, newValue: newValue)
+            }
+            .onChange(of: heightValue) { oldValue, newValue in
+                handleProfileChange(oldValue: oldValue, newValue: newValue)
+            }
+            .onChange(of: weightValue) { oldValue, newValue in
+                handleProfileChange(oldValue: oldValue, newValue: newValue)
+            }
+            // Observe progress data changes (observe both components separately)
+            .onChange(of: progressCompletedDays) { oldValue, newValue in
+                handleProgressDataChange()
+            }
+            .onChange(of: progressTargetDays) { oldValue, newValue in
+                handleProgressDataChange()
+            }
+            .sheet(isPresented: $showEditProfile) {
+                NavigationStack {
+                    EditProfileView()
+                        .environmentObject(authService)
+                }
+            }
+    }
+    
+    // MARK: - View Components
+    private var contentView: some View {
         ZStack {
             Color(.systemBackground).ignoresSafeArea()
             ScrollView {
@@ -122,81 +186,104 @@ struct ProgressPageView: View {
                             .font(.system(size: 14))
                             .foregroundColor(.secondary)
                             .padding(.horizontal, 24)
-                        GoalCard(
-                            percent: userProgress.progressPercent,
-                            goalDescription: viewModel.goalDescriptionText,
-                            daysCompleted: viewModel.daysCompletedText
-                        )
-                        .padding(.horizontal, 24)
+                        
+                        if viewModel.isGoalExpired {
+                            // Show expired goal UI
+                            ExpiredGoalCard(
+                                goalDescription: viewModel.goalDescriptionText,
+                                daysCompleted: viewModel.daysCompletedText,
+                                isCompleted: viewModel.isGoalCompleted,
+                                endDate: viewModel.goalEndDateText ?? "",
+                                onResetGoal: {
+                                    showEditProfile = true
+                                }
+                            )
+                            .padding(.horizontal, 24)
+                        } else if viewModel.isGoalCompleted {
+                            // Show completed goal UI (goal reached 100% but not expired yet)
+                            CompletedGoalCard(
+                                goalDescription: viewModel.goalDescriptionText,
+                                daysCompleted: viewModel.daysCompletedText,
+                                endDate: viewModel.goalEndDateText,
+                                onSetNewGoal: {
+                                    showEditProfile = true
+                                }
+                            )
+                            .padding(.horizontal, 24)
+                        } else {
+                            // Show active goal UI
+                            GoalCard(
+                                percent: userProgress.progressPercent,
+                                goalDescription: viewModel.goalDescriptionText,
+                                daysCompleted: viewModel.daysCompletedText,
+                                startDate: viewModel.goalStartDateText,
+                                endDate: viewModel.goalEndDateText
+                            )
+                            .padding(.horizontal, 24)
+                        }
                     }
                     
                     Spacer().frame(height: 24)
                 }
             }
         }
-        .navigationBarBackButtonHidden(true)
-        .gesture(
-            DragGesture(minimumDistance: 50)
-                .onEnded { value in
-                    let horizontalAmount = value.translation.width
-                    let verticalAmount = value.translation.height
-                    
-                    // Only handle horizontal swipes (ignore vertical)
-                    // Swipe from left to right: go back to profile page
-                    if abs(horizontalAmount) > abs(verticalAmount) && horizontalAmount > 0 {
-                        dismiss()
-                    }
+    }
+    
+    // MARK: - Gestures
+    private var swipeGesture: some Gesture {
+        DragGesture(minimumDistance: 50)
+            .onEnded { value in
+                let horizontalAmount = value.translation.width
+                let verticalAmount = value.translation.height
+                
+                // Only handle horizontal swipes (ignore vertical)
+                // Swipe from left to right: go back to profile page
+                if abs(horizontalAmount) > abs(verticalAmount) && horizontalAmount > 0 {
+                    dismiss()
                 }
+            }
+    }
+    
+    // MARK: - Event Handlers
+    private func handleAppear() {
+        // Setup ViewModel with dependencies
+        viewModel.setup(
+            modelContext: modelContext,
+            authService: authService,
+            userProfile: userProfile
         )
-        .onAppear {
-            // Setup ViewModel with dependencies
-            viewModel.setup(
-                modelContext: modelContext,
-                authService: authService,
-                userProfile: userProfile
-            )
-            // Refresh macro data when view appears (in case tasks were updated)
-            viewModel.loadTodayMacros()
-        }
-        .onChange(of: profiles.count) { oldValue, newValue in
-            // Reload when profiles list changes
-            if let profile = userProfile {
-                viewModel.updateUserProfile(profile)
-            }
-        }
-        .onChange(of: userProfile?.goalStartDate) { oldValue, newValue in
-            // Only reload if we have a profile and value actually changed
-            guard userProfile != nil, oldValue != newValue else { return }
-            if let profile = userProfile {
-                viewModel.updateUserProfile(profile)
-            }
-        }
-        .onChange(of: userProfile?.targetDays) { oldValue, newValue in
-            // Only reload if we have a profile and value actually changed
-            guard userProfile != nil, oldValue != newValue else { return }
-            if let profile = userProfile {
-                viewModel.updateUserProfile(profile)
-            }
-        }
-        .onChange(of: userProfile?.goal) { oldValue, newValue in
-            // Reload when goal changes
-            if let profile = userProfile {
-                viewModel.updateUserProfile(profile)
-            }
-        }
-        .onChange(of: userProfile?.heightValue) { oldValue, newValue in
-            // Reload when profile data changes
-            if let profile = userProfile {
-                viewModel.updateUserProfile(profile)
-            }
-        }
-        .onChange(of: userProfile?.weightValue) { oldValue, newValue in
-            // Reload when profile data changes
-            if let profile = userProfile {
-                viewModel.updateUserProfile(profile)
-            }
+        // Refresh macro data when view appears (in case tasks were updated)
+        viewModel.loadTodayMacros()
+    }
+    
+    private func handleProfilesCountChange(oldValue: Int, newValue: Int) {
+        // Reload when profiles list changes
+        if let profile = userProfile {
+            viewModel.updateUserProfile(profile)
         }
     }
+    
+    /// Handle profile property changes - updates viewModel when any profile property changes
+    private func handleProfileChange<T: Equatable>(oldValue: T?, newValue: T?) {
+        // Only reload if we have a profile and value actually changed
+        guard let profile = userProfile, oldValue != newValue else { return }
+        viewModel.updateUserProfile(profile)
+    }
+    
+    private func handleProgressDataChange() {
+        // Update userProgress.progressPercent when progressData changes
+        // This ensures the progress bar updates automatically when goal is edited and saved
+        let progressData = viewModel.progressData
+        guard progressData.targetDays > 0 else {
+            userProgress.progressPercent = 0.0
+            return
+        }
+        
+        // Calculate progress percentage
+        let progress = Double(progressData.completedDays) / Double(progressData.targetDays)
+        userProgress.progressPercent = min(1.0, max(0.0, progress))
+    }
+    
 }
 
 // MARK: - MetricCard
@@ -346,6 +433,8 @@ private struct GoalCard: View {
     let percent: Double
     let goalDescription: String
     let daysCompleted: String
+    let startDate: String?
+    let endDate: String?
     var percentText: String { String(format: "%.0f%%", percent * 100) }
     
     var body: some View {
@@ -366,6 +455,26 @@ private struct GoalCard: View {
                         .font(.system(size: 14))
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+                    if let startDate = startDate {
+                        HStack(spacing: 4) {
+                            Image(systemName: "calendar")
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                            Text("Starts: \(startDate)")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    if let endDate = endDate {
+                        HStack(spacing: 4) {
+                            Image(systemName: "calendar")
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                            Text("Ends: \(endDate)")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                        }
+                    }
                 }
             }
             VStack(alignment: .leading, spacing: 8) {
@@ -401,6 +510,189 @@ private struct GoalCard: View {
         .overlay(
             RoundedRectangle(cornerRadius: 16)
                 .stroke(Color(.separator), lineWidth: 1)
+        )
+    }
+}
+
+// MARK: - Expired Goal Card
+private struct ExpiredGoalCard: View {
+    let goalDescription: String
+    let daysCompleted: String
+    let isCompleted: Bool
+    let endDate: String
+    let onResetGoal: () -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Status header
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(isCompleted ? 
+                              LinearGradient(colors: [Color(hexString: "16A34A"), Color(hexString: "22C55E")], startPoint: .topLeading, endPoint: .bottomTrailing) :
+                              LinearGradient(colors: [Color(hexString: "F59E0B"), Color(hexString: "F97316")], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .frame(width: 48, height: 48)
+                    Image(systemName: isCompleted ? "checkmark.circle.fill" : "clock.fill")
+                        .foregroundColor(.white)
+                        .font(.system(size: 24))
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(goalDescription)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.primary)
+                    Text(isCompleted ? "Goal Completed!" : "Goal Expired")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(isCompleted ? Color(hexString: "16A34A") : Color(hexString: "F59E0B"))
+                }
+                Spacer()
+            }
+            
+            // Completion details
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Final Result")
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Text(daysCompleted)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.primary)
+                }
+                
+                if !endDate.isEmpty {
+                    HStack {
+                        Text("End Date")
+                            .font(.system(size: 14))
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text(endDate)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.primary)
+                    }
+                }
+            }
+            
+            Divider()
+            
+            // Reset goal button
+            Button(action: onResetGoal) {
+                HStack {
+                    Spacer()
+                    Text("Set New Goal")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                    Spacer()
+                }
+                .padding(.vertical, 12)
+                .background(
+                    LinearGradient(
+                        colors: [Color(hexString: "7C3AED"), Color(hexString: "A78BFA")],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .cornerRadius(12)
+            }
+        }
+        .padding(16)
+        .background(Color(.systemBackground))
+        .cornerRadius(16)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(isCompleted ? Color(hexString: "16A34A").opacity(0.3) : Color(hexString: "F59E0B").opacity(0.3), lineWidth: 1.5)
+        )
+    }
+}
+
+// MARK: - Completed Goal Card
+private struct CompletedGoalCard: View {
+    let goalDescription: String
+    let daysCompleted: String
+    let endDate: String?
+    let onSetNewGoal: () -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Status header
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color(hexString: "16A34A"), Color(hexString: "22C55E")],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 48, height: 48)
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.white)
+                        .font(.system(size: 24))
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(goalDescription)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.primary)
+                    Text("Goal Completed!")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(Color(hexString: "16A34A"))
+                }
+                Spacer()
+            }
+            
+            // Completion details
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Final Result")
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Text(daysCompleted)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.primary)
+                }
+                
+                if let endDate = endDate, !endDate.isEmpty {
+                    HStack {
+                        Text("End Date")
+                            .font(.system(size: 14))
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text(endDate)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.primary)
+                    }
+                }
+            }
+            
+            Divider()
+            
+            // Set new goal button
+            Button(action: onSetNewGoal) {
+                HStack {
+                    Spacer()
+                    Text("Set New Goal")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                    Spacer()
+                }
+                .padding(.vertical, 12)
+                .background(
+                    LinearGradient(
+                        colors: [Color(hexString: "7C3AED"), Color(hexString: "A78BFA")],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .cornerRadius(12)
+            }
+        }
+        .padding(16)
+        .background(Color(.systemBackground))
+        .cornerRadius(16)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color(hexString: "16A34A").opacity(0.3), lineWidth: 1.5)
         )
     }
 }
