@@ -57,19 +57,16 @@ class FirebaseAIService {
                                         "type": "integer",
                                         "description": "Rest period in seconds"
                                     ],
-                                    "target_RPE": [
+                                    "duration_min": [
                                         "type": "integer",
-                                        "description": "Target RPE (Rate of Perceived Exertion) 1-10"
+                                        "description": "Duration in minutes for this exercise"
                                     ],
-                                    "alternatives": [
-                                        "type": "array",
-                                        "description": "Alternative exercises",
-                                        "items": [
-                                            "type": "string"
-                                        ]
+                                    "calories": [
+                                        "type": "integer",
+                                        "description": "Estimated calories burned for this exercise"
                                     ]
                                 ],
-                                "required": ["name", "sets", "reps", "rest_sec", "target_RPE", "alternatives"],
+                                "required": ["name", "sets", "reps", "rest_sec", "duration_min", "calories"],
                                 "additionalProperties": false
                             ]
                         ],
@@ -93,7 +90,10 @@ class FirebaseAIService {
                 name: "generate_nutrition_plan",
                 description: """
                 Generate a daily meal plan with specific foods and calorie information.
-                IMPORTANT: Only generate main meals (breakfast, lunch, dinner). Do NOT include snacks.
+                IMPORTANT: 
+                - Only generate the EXACT meals requested by the user (e.g., if they ask for "breakfast", generate ONLY breakfast)
+                - Only generate main meals (breakfast, lunch, dinner). Do NOT include snacks.
+                - If generating multiple meals, only include what was explicitly requested in the prompt.
                 Call this function when user explicitly asks for a meal/nutrition plan.
                 """,
                 parameters: [
@@ -198,8 +198,14 @@ class FirebaseAIService {
                 name: "generate_multi_day_plan",
                 description: """
                 Generate a multi-day plan (2-7 days) for workout and/or nutrition.
-                Use this when user asks for: "this week", "next 3 days", "7-day plan", etc.
-                IMPORTANT: Maximum 7 days per plan. Each day should have varied content.
+                Use this when user asks for: "this week", "next 3 days", "5-day plan", "week-long plan", etc.
+                
+                STRICT LIMITATIONS:
+                - Maximum 7 days per plan (HARD LIMIT - system will reject more)
+                - If user asks for 8+ days (monthly, 2 weeks, 30 days): DO NOT call this function
+                - Instead, politely refuse and suggest creating one week at a time
+                
+                IMPORTANT: Each day should have varied content (different exercises/meals).
                 """,
                 parameters: [
                     "type": "object",
@@ -220,6 +226,8 @@ class FirebaseAIService {
                         "days": [
                             "type": "array",
                             "description": "Array of daily plans (maximum 7 days)",
+                            "maxItems": 7,
+                            "minItems": 2,
                             "items": [
                                 "type": "object",
                                 "properties": [
@@ -249,13 +257,10 @@ class FirebaseAIService {
                                                         "sets": ["type": "integer"],
                                                         "reps": ["type": "string"],
                                                         "rest_sec": ["type": "integer"],
-                                                        "target_RPE": ["type": "integer"],
-                                                        "alternatives": [
-                                                            "type": "array",
-                                                            "items": ["type": "string"]
-                                                        ]
+                                                        "duration_min": ["type": "integer"],
+                                                        "calories": ["type": "integer"]
                                                     ],
-                                                    "required": ["name", "sets", "reps", "rest_sec", "target_RPE", "alternatives"],
+                                                    "required": ["name", "sets", "reps", "rest_sec", "duration_min", "calories"],
                                                     "additionalProperties": false
                                                 ]
                                             ],
@@ -334,6 +339,300 @@ class FirebaseAIService {
                     "additionalProperties": false
                 ],
                 strict: true
+            ),
+            
+            // Query Tasks Function
+            FunctionDefinition(
+                name: "query_tasks",
+                description: """
+                Query existing tasks from the user's schedule.
+                Use this when user asks: "What tasks do I have?", "Show me today's workouts", "What's on my schedule?", etc.
+                """,
+                parameters: [
+                    "type": "object",
+                    "properties": [
+                        "date": [
+                            "type": "string",
+                            "description": "Target date in YYYY-MM-DD format (default: today)"
+                        ],
+                        "date_range": [
+                            "type": "integer",
+                            "description": "Number of days to include (1 = single day, 7 = week)",
+                            "minimum": 1,
+                            "maximum": 30
+                        ],
+                        "category": [
+                            "type": ["string", "null"],
+                            "description": "Filter by category: fitness, diet, or null for all"
+                        ],
+                        "is_done": [
+                            "type": ["boolean", "null"],
+                            "description": "Filter by completion status: true (done), false (pending), null (all)"
+                        ]
+                    ],
+                    "required": ["date", "date_range", "category", "is_done"],
+                    "additionalProperties": false
+                ],
+                strict: true
+            ),
+            
+            // Create Tasks Function
+            FunctionDefinition(
+                name: "create_tasks",
+                description: """
+                Create one or multiple new tasks in the user's schedule.
+                Use this when user asks to: "Add a workout", "Create a meal plan", "Schedule this for tomorrow", etc.
+                """,
+                parameters: [
+                    "type": "object",
+                    "properties": [
+                        "tasks": [
+                            "type": "array",
+                            "description": "Array of tasks to create",
+                            "items": [
+                                "type": "object",
+                                "properties": [
+                                    "type": [
+                                        "type": "string",
+                                        "description": "Task type",
+                                        "enum": ["workout", "nutrition", "custom"]
+                                    ],
+                                    "title": [
+                                        "type": "string",
+                                        "description": "Task title"
+                                    ],
+                                    "subtitle": [
+                                        "type": ["string", "null"],
+                                        "description": "Task subtitle or description"
+                                    ],
+                                    "date": [
+                                        "type": "string",
+                                        "description": "Task date in YYYY-MM-DD format"
+                                    ],
+                                    "time": [
+                                        "type": "string",
+                                        "description": "Task time (e.g., '9:00 AM', '14:30')"
+                                    ],
+                                    "category": [
+                                        "type": "string",
+                                        "description": "Task category",
+                                        "enum": ["fitness", "diet", "others"]
+                                    ],
+                                    "exercises": [
+                                        "type": ["array", "null"],
+                                        "description": "Exercise details (for fitness tasks)",
+                                        "items": [
+                                            "type": "object",
+                                            "properties": [
+                                                "name": ["type": "string"],
+                                                "sets": ["type": "integer"],
+                                                "reps": ["type": "string"],
+                                                "rest_sec": ["type": "integer"],
+                                                "duration_min": ["type": "integer"],
+                                                "calories": ["type": "integer"]
+                                            ],
+                                            "required": ["name", "sets", "reps", "rest_sec", "duration_min", "calories"],
+                                            "additionalProperties": false
+                                        ]
+                                    ],
+                                    "meals": [
+                                        "type": ["array", "null"],
+                                        "description": "Meal details (for diet tasks)",
+                                        "items": [
+                                            "type": "object",
+                                            "properties": [
+                                                "name": ["type": "string"],
+                                                "time": ["type": "string"],
+                                                "foods": [
+                                                    "type": "array",
+                                                    "items": [
+                                                        "type": "object",
+                                                        "properties": [
+                                                            "name": ["type": "string"],
+                                                            "portion": ["type": "string"],
+                                                            "calories": ["type": "integer"],
+                                                            "macros": [
+                                                                "type": ["object", "null"],
+                                                                "properties": [
+                                                                    "protein": ["type": "number"],
+                                                                    "carbs": ["type": "number"],
+                                                                    "fat": ["type": "number"]
+                                                                ],
+                                                                "required": ["protein", "carbs", "fat"],
+                                                                "additionalProperties": false
+                                                            ]
+                                                        ],
+                                                        "required": ["name", "portion", "calories", "macros"],
+                                                        "additionalProperties": false
+                                                    ]
+                                                ],
+                                                "total_calories": ["type": "integer"]
+                                            ],
+                                            "required": ["name", "time", "foods", "total_calories"],
+                                            "additionalProperties": false
+                                        ]
+                                    ]
+                                ],
+                                "required": ["type", "title", "subtitle", "date", "time", "category", "exercises", "meals"],
+                                "additionalProperties": false
+                            ]
+                        ]
+                    ],
+                    "required": ["tasks"],
+                    "additionalProperties": false
+                ],
+                strict: true
+            ),
+            
+            // Update Task Function
+            FunctionDefinition(
+                name: "update_task",
+                description: """
+                **THIS FUNCTION MUST BE CALLED IMMEDIATELY AFTER query_tasks WHEN USER ASKS TO MODIFY A TASK**
+                
+                This function ACTUALLY MODIFIES the task in the database. You CANNOT update tasks without calling this.
+                
+                WHEN TO USE (ALWAYS REQUIRED):
+                - User says: "Change X to Y", "Update X", "Modify X", "Edit X", "Make X into Y"
+                - Examples: "Change breakfast time to 9am", "Update workout to 5pm", "Edit meal portions"
+                
+                CRITICAL - YOU MUST FOLLOW THIS EXACT SEQUENCE:
+                1. IF user asks to update → query_tasks (to get task_id)
+                2. IMMEDIATELY call update_task in the SAME RESPONSE (not a separate message!)
+                3. THEN say: "I've updated [task]: [changes]"
+                
+                YOU ARE FORBIDDEN FROM:
+                ❌ Saying "I've updated..." without calling this function (that's lying!)
+                ❌ Saying "One moment" or "Let me do that" (just call the function!)
+                ❌ Only calling query_tasks and stopping (you MUST also call update_task!)
+                ❌ Describing what you'll update without actually updating (ACTION REQUIRED!)
+                
+                CORRECT BEHAVIOR:
+                User: "Change workout to 5pm"
+                → Call query_tasks (find task)
+                → Call update_task (with task_id and time="5:00 PM") **IN SAME RESPONSE**
+                → Respond: "I've updated Morning Run to 5:00 PM"
+                
+                WRONG BEHAVIOR:
+                User: "Change workout to 5pm"
+                → Call query_tasks
+                → Stop and say "I'll update that for you" ❌ NO! CALL update_task NOW!
+                """,
+                parameters: [
+                    "type": "object",
+                    "properties": [
+                        "task_id": [
+                            "type": "string",
+                            "description": "UUID of the task to update (from query_tasks result)"
+                        ],
+                        "updates": [
+                            "type": "object",
+                            "description": "All fields to update. Copy the query_tasks result and modify only what user wants to change.",
+                            "properties": [
+                                "title": [
+                                    "type": ["string", "null"],
+                                    "description": "Task title. Use value from query_tasks if not changing."
+                                ],
+                                "time": [
+                                    "type": ["string", "null"],
+                                    "description": "Task time. Use value from query_tasks if not changing."
+                                ],
+                                "is_done": [
+                                    "type": ["boolean", "null"],
+                                    "description": "Completion status. Use value from query_tasks if not changing."
+                                ],
+                                "exercises": [
+                                    "type": ["array", "null"],
+                                    "description": "Complete exercises list. Copy from query_tasks and modify only the specific exercise/field user wants to change. Set to null if task has no exercises.",
+                                    "items": [
+                                        "type": "object",
+                                        "properties": [
+                                            "name": ["type": "string", "description": "Exercise name"],
+                                            "sets": ["type": "integer", "description": "Number of sets"],
+                                            "reps": ["type": "string", "description": "Reps per set (e.g., '10', '8-12')"],
+                                            "rest_sec": ["type": "integer", "description": "Rest between sets in seconds"],
+                                            "duration_min": ["type": "integer", "description": "Duration in minutes"],
+                                            "calories": ["type": "integer", "description": "Estimated calories burned"]
+                                        ],
+                                        "required": ["name", "sets", "reps", "rest_sec", "duration_min", "calories"],
+                                        "additionalProperties": false
+                                    ]
+                                ],
+                                "foods": [
+                                    "type": ["array", "null"],
+                                    "description": "Complete foods list. Copy from query_tasks and modify only the specific food/field user wants to change. Set to null if task has no foods.",
+                                    "items": [
+                                        "type": "object",
+                                        "properties": [
+                                            "name": ["type": "string", "description": "Food name"],
+                                            "portion": ["type": "string", "description": "Portion size (e.g., '100g', '1 cup')"],
+                                            "calories": ["type": "integer", "description": "Calories"]
+                                        ],
+                                        "required": ["name", "portion", "calories"],
+                                        "additionalProperties": false
+                                    ]
+                                ]
+                            ],
+                            "required": ["title", "time", "is_done", "exercises", "foods"],
+                            "additionalProperties": false
+                        ]
+                    ],
+                    "required": ["task_id", "updates"],
+                    "additionalProperties": false
+                ],
+                strict: true
+            ),
+            
+            // Delete Task Function
+            FunctionDefinition(
+                name: "delete_task",
+                description: """
+                **THIS FUNCTION MUST BE CALLED IMMEDIATELY AFTER query_tasks WHEN USER ASKS TO DELETE A TASK**
+                
+                This function ACTUALLY REMOVES the task from the database. You CANNOT delete tasks without calling this.
+                
+                WHEN TO USE (ALWAYS REQUIRED):
+                - User says: "Delete X", "Remove X", "Cancel X", "Get rid of X"
+                - Examples: "Delete this workout", "Remove breakfast", "Cancel today's task"
+                
+                CRITICAL - YOU MUST FOLLOW THIS EXACT SEQUENCE:
+                1. IF user asks to delete → query_tasks (to get task_id)
+                2. IMMEDIATELY call delete_task in the SAME RESPONSE (not a separate message!)
+                3. THEN say: "I've deleted [task] from [date]"
+                
+                YOU ARE FORBIDDEN FROM:
+                ❌ Saying "I've deleted..." without calling this function (that's lying!)
+                ❌ Saying "One moment" or "Let me do that" (just call the function!)
+                ❌ Only calling query_tasks and stopping (you MUST also call delete_task!)
+                ❌ Asking for confirmation (just delete it if user asks!)
+                
+                CORRECT BEHAVIOR:
+                User: "Delete today's workout"
+                → Call query_tasks (find task)
+                → Call delete_task (with task_id) **IN SAME RESPONSE**
+                → Respond: "I've deleted Morning Run from November 20, 2025"
+                
+                WRONG BEHAVIOR:
+                User: "Delete today's workout"
+                → Call query_tasks
+                → Stop and say "I'll delete that for you" ❌ NO! CALL delete_task NOW!
+                """,
+                parameters: [
+                    "type": "object",
+                    "properties": [
+                        "task_id": [
+                            "type": "string",
+                            "description": "UUID of the task to delete (from query_tasks result)"
+                        ],
+                        "reason": [
+                            "type": ["string", "null"],
+                            "description": "Optional reason for deletion"
+                        ]
+                    ],
+                    "required": ["task_id", "reason"],
+                    "additionalProperties": false
+                ],
+                strict: true
             )
         ]
     }
@@ -396,12 +695,38 @@ class FirebaseAIService {
             let result = try await callable.call(data)
             
             // Parse response
-            guard let response = result.data as? [String: Any],
-                  let success = response["success"] as? Bool,
-                  success,
-                  let responseData = response["data"] as? [String: Any] else {
+            guard let response = result.data as? [String: Any] else {
                 print("❌ [Firebase] Invalid response: \(result.data)")
                 throw ModoAIError.invalidResponse(reason: "Firebase returned data in the wrong format")
+            }
+            
+            let success = response["success"] as? Bool ?? false
+            
+            // Check for rate limit error
+            if !success {
+                if let errorMessage = response["error"] as? String,
+                   let errorType = response["errorType"] as? String {
+                    // Check if it's a rate limit error
+                    if errorType == "rate_limit" || 
+                       errorMessage.contains("RATE_LIMIT_EXCEEDED") ||
+                       errorMessage.lowercased().contains("rate limit") ||
+                       errorMessage.lowercased().contains("quota") {
+                        print("❌ [Firebase] Rate limit exceeded")
+                        throw ModoAIError.apiRateLimitExceeded
+                    }
+                    // Other errors
+                    print("❌ [Firebase] API Error: \(errorMessage)")
+                    throw ModoAIError.invalidResponse(reason: errorMessage)
+                } else {
+                    print("❌ [Firebase] Unknown error")
+                    throw ModoAIError.invalidResponse(reason: "Firebase returned an error")
+                }
+            }
+            
+            // Extract response data
+            guard let responseData = response["data"] as? [String: Any] else {
+                print("❌ [Firebase] No data in response")
+                throw ModoAIError.invalidResponse(reason: "No data in Firebase response")
             }
             
             print("✅ [Firebase] Response received successfully")

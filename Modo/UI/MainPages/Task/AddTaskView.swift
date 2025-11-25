@@ -51,11 +51,11 @@ struct AddTaskView: View {
         .sheet(isPresented: $viewModel.isAskAISheetPresented) {
             AskAIChatView(messages: $viewModel.askAIMessages)
         }
-        .sheet(isPresented: $viewModel.isDurationSheetPresented, onDismiss: {
-            viewModel.recalcCaloriesFromDurationIfNeeded()
+        .sheet(isPresented: $viewModel.isTrainingParamsSheetPresented, onDismiss: {
+            viewModel.saveTrainingParamsToEntry()
             viewModel.dismissKeyboard()
         }) {
-            durationSheet
+            trainingParamsSheet
         }
         .onChange(of: viewModel.isQuickPickPresented) { _, isPresented in
             if !isPresented {
@@ -269,45 +269,83 @@ struct AddTaskView: View {
         )
     }
     
-    private var durationSheet: some View {
-        VStack(spacing: 8) {
-            HStack {
-                VStack {
-                    Text("Hours")
-                        .font(.system(size: 14))
-                        .foregroundColor(.secondary)
-                    Picker("Hours", selection: $viewModel.durationHoursInt) {
-                        ForEach(0...5, id: \.self) { Text("\($0)") }
+    private var trainingParamsSheet: some View {
+        VStack(spacing: 16) {
+            Text("Training Parameters")
+                .font(.system(size: 18, weight: .semibold))
+            
+            VStack(spacing: 12) {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Sets")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                        Picker("Sets", selection: Binding(
+                            get: { viewModel.editingSets ?? 3 },
+                            set: { viewModel.editingSets = $0 }
+                        )) {
+                            ForEach(1...10, id: \.self) { Text("\($0)") }
+                        }
+                        .pickerStyle(.wheel)
+                        .frame(maxWidth: .infinity)
                     }
-                    .pickerStyle(.wheel)
-                    .frame(maxWidth: .infinity)
-                    .onChange(of: viewModel.durationHoursInt) { _, _ in
-                        viewModel.recalcCaloriesFromDurationIfNeeded()
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Reps per Set")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                        TextField("10", text: Binding(
+                            get: { viewModel.editingReps ?? "" },
+                            set: { viewModel.editingReps = $0.isEmpty ? nil : $0 }
+                        ))
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.center)
+                            .padding(8)
+                            .background(Color(.systemBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
                     }
                 }
-                VStack {
-                    Text("Minutes")
-                        .font(.system(size: 14))
-                        .foregroundColor(.secondary)
-                    Picker("Minutes", selection: $viewModel.durationMinutesInt) {
-                        ForEach(0...59, id: \.self) { Text("\($0)") }
+                
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Rest (seconds)")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                        Picker("Rest", selection: Binding(
+                            get: { viewModel.editingRestSec ?? 60 },
+                            set: { viewModel.editingRestSec = $0 }
+                        )) {
+                            ForEach([30, 45, 60, 90, 120, 180], id: \.self) { Text("\($0)s") }
+                        }
+                        .pickerStyle(.wheel)
+                        .frame(maxWidth: .infinity)
                     }
-                    .pickerStyle(.wheel)
-                    .frame(maxWidth: .infinity)
-                    .onChange(of: viewModel.durationMinutesInt) { _, _ in
-                        viewModel.recalcCaloriesFromDurationIfNeeded()
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Duration (min)")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                        Picker("Duration", selection: $viewModel.editingDurationMin) {
+                            ForEach(0...120, id: \.self) { Text("\($0)") }
+                        }
+                        .pickerStyle(.wheel)
+                        .frame(maxWidth: .infinity)
                     }
                 }
             }
+            
             Button("Done") {
-                viewModel.recalcCaloriesFromDurationIfNeeded()
-                viewModel.isDurationSheetPresented = false
+                viewModel.saveTrainingParamsToEntry()
+                viewModel.isTrainingParamsSheetPresented = false
             }
             .font(.system(size: 16, weight: .semibold))
+            .foregroundColor(Color(.systemBackground))
             .frame(maxWidth: .infinity, minHeight: 44)
+            .background(Color.primary)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
         }
         .padding(16)
-        .presentationDetents([.fraction(0.45)])
+        .presentationDetents([.fraction(0.7)])
         .presentationDragIndicator(.visible)
     }
     
@@ -383,9 +421,11 @@ struct AddTaskView: View {
             titleText: $viewModel.title,
             fitnessNameFocusIndex: $fitnessNameFocusIndex,
             pendingScrollId: $viewModel.pendingScrollId,
-            durationHoursInt: $viewModel.durationHoursInt,
-            durationMinutesInt: $viewModel.durationMinutesInt,
-            isDurationSheetPresented: $viewModel.isDurationSheetPresented,
+            editingSets: $viewModel.editingSets,
+            editingReps: $viewModel.editingReps,
+            editingRestSec: $viewModel.editingRestSec,
+            editingDurationMin: $viewModel.editingDurationMin,
+            isTrainingParamsSheetPresented: $viewModel.isTrainingParamsSheetPresented,
             onAddExercise: {
                 viewModel.addFitnessEntry()
                 triggerHapticLight()
@@ -406,9 +446,6 @@ struct AddTaskView: View {
             },
             onDismissKeyboard: {
                 viewModel.dismissKeyboard()
-            },
-            formattedDuration: { h, m in
-                viewModel.formattedDuration(h: h, m: m)
             }
         )
     }

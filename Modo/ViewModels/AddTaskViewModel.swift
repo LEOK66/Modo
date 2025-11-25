@@ -46,14 +46,14 @@ final class AddTaskViewModel: ObservableObject {
     /// Whether time sheet is presented
     @Published var isTimeSheetPresented: Bool = false
     
-    /// Whether duration sheet is presented
-    @Published var isDurationSheetPresented: Bool = false
+    /// Training parameters for fitness entries (temporary editing values)
+    @Published var editingSets: Int? = nil
+    @Published var editingReps: String? = nil
+    @Published var editingRestSec: Int? = nil
+    @Published var editingDurationMin: Int = 0
     
-    /// Duration hours
-    @Published var durationHoursInt: Int = 0
-    
-    /// Duration minutes
-    @Published var durationMinutesInt: Int = 0
+    /// Whether training parameters sheet is presented
+    @Published var isTrainingParamsSheetPresented: Bool = false
     
     /// Whether quick pick sheet is presented
     @Published var isQuickPickPresented: Bool = false
@@ -540,16 +540,20 @@ final class AddTaskViewModel: ObservableObject {
     }
     
     /// Recalculate calories from duration if needed
-    func recalcCaloriesFromDurationIfNeeded() {
+    /// Save training parameters to fitness entry
+    func saveTrainingParamsToEntry() {
         guard selectedCategory == .fitness else { return }
         guard let idx = editingFitnessEntryIndex, idx < fitnessEntries.count else { return }
-        let h = durationHoursInt
-        let m = durationMinutesInt
-        let totalMinutes = max(0, h * 60 + m)
-        // Always persist duration, even for custom exercises (no per30)
-        fitnessEntries[idx].minutesInt = totalMinutes
+        
+        // Save training parameters
+        fitnessEntries[idx].sets = editingSets
+        fitnessEntries[idx].reps = editingReps
+        fitnessEntries[idx].restSec = editingRestSec
+        fitnessEntries[idx].minutesInt = editingDurationMin
+        
+        // Calculate calories from duration if exercise has calPer30Min
         if let per30 = fitnessEntries[idx].exercise?.calPer30Min {
-            let estimated = Int(round(Double(per30) * Double(totalMinutes) / 30.0))
+            let estimated = Int(round(Double(per30) * Double(editingDurationMin) / 30.0))
             fitnessEntries[idx].caloriesText = String(estimated)
         }
     }

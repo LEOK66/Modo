@@ -106,18 +106,37 @@ exports.chatWithAI = onCall(async (request) => {
 
       let errorMessage =
         `OpenAI API error: ${response.status} ${response.statusText}`;
+      let errorType = "unknown";
+      
       try {
         const errorJson = JSON.parse(errorText);
         if (errorJson.error && errorJson.error.message) {
           errorMessage = errorJson.error.message;
         }
+        if (errorJson.error && errorJson.error.type) {
+          errorType = errorJson.error.type;
+        }
       } catch (e) {
         // If parsing fails, use the error text as is
+      }
+
+      // Check for rate limit errors (TPM, RPM, etc.)
+      if (response.status === 429 || 
+          errorType === "rate_limit_exceeded" ||
+          errorType === "insufficient_quota" ||
+          errorMessage.toLowerCase().includes("rate limit") ||
+          errorMessage.toLowerCase().includes("quota")) {
+        return {
+          success: false,
+          error: "RATE_LIMIT_EXCEEDED: " + errorMessage,
+          errorType: "rate_limit",
+        };
       }
 
       return {
         success: false,
         error: errorMessage,
+        errorType: errorType,
       };
     }
 

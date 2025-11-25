@@ -50,7 +50,7 @@ enum ModoAIError: LocalizedError {
         case .apiError(let message):
             return "service error: \(message)"
         case .apiRateLimitExceeded:
-            return "request too frequent, please try again later"
+            return "AI usage limit exceeded, please try again later"
         case .authenticationFailed:
             return "authentication failed, please login again"
         case .invalidAPIKey:
@@ -97,7 +97,7 @@ enum ModoAIError: LocalizedError {
         case .timeoutError:
             return "network is slow, please try again later"
         case .apiRateLimitExceeded:
-            return "please try again later"
+            return "our AI service is currently busy, please try again later"
         case .authenticationFailed:
             return "please login again"
         case .invalidResponse, .emptyResponse, .decodingError:

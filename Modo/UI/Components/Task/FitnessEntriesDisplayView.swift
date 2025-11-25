@@ -8,19 +8,6 @@ struct FitnessEntriesDisplayView: View {
         entries.map { Int($0.caloriesText) ?? 0 }.reduce(0, +)
     }
     
-    private func durationText(forMinutes minutes: Int) -> String {
-        let total = max(0, minutes)
-        let hours: Int = total / 60
-        let mins: Int = total % 60
-        if hours > 0 && mins > 0 {
-            return "\(hours)h \(mins)m"
-        } else if hours > 0 {
-            return "\(hours)h"
-        } else {
-            return "\(mins)m"
-        }
-    }
-    
     var body: some View {
         card {
             VStack(alignment: .leading, spacing: 16) {
@@ -34,12 +21,23 @@ struct FitnessEntriesDisplayView: View {
                             .font(.system(size: 16, weight: .medium))
                             .foregroundColor(.primary)
                         HStack(spacing: 12) {
-                            Text(durationText(forMinutes: entry.minutesInt))
-                                .font(.system(size: 14))
-                                .foregroundColor(.secondary)
-                            Text("\(entry.caloriesText) cal")
-                                .font(.system(size: 14))
-                                .foregroundColor(.primary)
+                            if let sets = entry.sets, let reps = entry.reps {
+                                Text("\(sets) × \(reps)")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.primary)
+                            } else {
+                                Text("No training details")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.secondary)
+                            }
+                            if let rest = entry.restSec {
+                                Text("•")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.secondary)
+                                Text("Rest \(rest)s")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.secondary)
+                            }
                         }
                     }
                     .padding(12)
