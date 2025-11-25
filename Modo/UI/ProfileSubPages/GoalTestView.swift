@@ -14,6 +14,28 @@ struct GoalTestView: View {
         Auth.auth().currentUser?.uid ?? "test_user"
     }
     
+    /// Get user's targetDays from UserProfile, or return default value
+    private func getUserTargetDays() -> Int {
+        guard let userId = userId else { return 14 }
+        
+        do {
+            let profileDescriptor = FetchDescriptor<UserProfile>(
+                predicate: #Predicate { profile in
+                    profile.userId == userId
+                }
+            )
+            
+            if let userProfile = try modelContext.fetch(profileDescriptor).first,
+               let targetDays = userProfile.targetDays {
+                return targetDays
+            }
+        } catch {
+            print("❌ GoalTestView: Failed to fetch user profile - \(error.localizedDescription)")
+        }
+        
+        return 14 // Default fallback
+    }
+    
     private enum GoalScenario: CaseIterable {
         case completed
         case expired
@@ -36,11 +58,11 @@ struct GoalTestView: View {
             }
         }
         
-        var configuration: (targetDays: Int, completedDays: Int, startDate: Date?) {
+        func configuration(userTargetDays: Int) -> (targetDays: Int, completedDays: Int, startDate: Date?) {
             switch self {
             case .completed:
-                // Start today, finish everything
-                return (targetDays: 14, completedDays: 14, startDate: nil)
+                // Start today, finish everything using user's targetDays
+                return (targetDays: userTargetDays, completedDays: userTargetDays, startDate: nil)
             case .expired:
                 // Start 20 days ago with a 7-day target so it is expired
                 let calendar = Calendar.current
@@ -122,7 +144,8 @@ struct GoalTestView: View {
             return
         }
         
-        let config = scenario.configuration
+        let userTargetDays = getUserTargetDays()
+        let config = scenario.configuration(userTargetDays: userTargetDays)
         print("🧪 GoalTestView: Applying scenario \(scenario.title) - targetDays: \(config.targetDays), completedDays: \(config.completedDays)")
         
         GoalTestHelper.createTestGoal(
