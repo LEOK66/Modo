@@ -89,16 +89,12 @@ extension AITaskDTO {
                              taskItem.category == .diet ? .nutrition : .custom
         
         // Convert fitness entries to exercises
-        let exercises: [Exercise]? = taskItem.fitnessEntries.isEmpty ? nil : taskItem.fitnessEntries.compactMap { entry in
-            // Only include entries that have at least sets and reps defined
-            guard let sets = entry.sets, let reps = entry.reps else {
-                return nil
-            }
-            
-            return Exercise(
+        let exercises: [Exercise]? = taskItem.fitnessEntries.isEmpty ? nil : taskItem.fitnessEntries.map { entry in
+            // Include all fitness entries, use default values if sets/reps are missing
+            Exercise(
                 name: entry.customName.isEmpty ? (entry.exercise?.name ?? "Exercise") : entry.customName,
-                sets: sets,
-                reps: reps,
+                sets: entry.sets ?? 1, // Default to 1 set if not specified
+                reps: entry.reps ?? "N/A", // Use "N/A" if not specified
                 restSec: entry.restSec ?? 60, // Rest has a reasonable default
                 durationMin: entry.minutesInt,
                 calories: Int(entry.caloriesText) ?? 0
