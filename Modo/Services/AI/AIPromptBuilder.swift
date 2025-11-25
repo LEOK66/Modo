@@ -765,17 +765,17 @@ class AIPromptBuilder {
           "targetValue": number
         }
         
-        Challenge types:
-        - fitness: steps, workout minutes, exercise sets, push-ups, squats, jumping jacks, burpees (targetValue = number)
-        - diet: water glasses, protein grams, vegetables servings, fruits servings, healthy meals, fiber grams (targetValue = number)
-        - mindfulness: meditation minutes, gratitude entries, deep breaths, journaling minutes, stretching minutes (targetValue = number)
+        Challenge types example:
+        - fitness: steps, workout minutes, exercise sets, push-ups, squats, jumping jacks, burpees (targetValue = number), etc.
+        - diet: water glasses, protein grams, vegetables servings, fruits servings, healthy meals, fiber grams (targetValue = number), carbon grams (targetValue = number), etc.
+        - mindfulness: meditation minutes, gratitude entries, deep breaths, journaling minutes, stretching minutes (targetValue = number), etc.
         
         Requirements:
         - Make it ACHIEVABLE and REALISTIC based on user's complete profile
         - Use specific numbers for targetValue that match their fitness level
         - Keep title concise and motivating
         - Choose appropriate emoji
-        - VARY the challenge type and activity for diversity
+        - VARY the challenge type and activity for diversity, don't need to follow the example above exactly, just be creative and unique.
         - No meaningful word. For example, use "30 minutes of workout" instead of "complete a 30 minute workout"
         
         Examples:
