@@ -99,6 +99,14 @@ protocol DatabaseServiceProtocol {
     ///   - completion: Completion handler with dictionary [Date: Bool] or error
     func fetchDailyCompletions(userId: String, startDate: Date, endDate: Date, completion: @escaping (Result<[Date: Bool], Error>) -> Void)
     
+    /// Delete daily completions for a date range from Firebase
+    /// - Parameters:
+    ///   - userId: User ID
+    ///   - startDate: Start date (inclusive)
+    ///   - endDate: End date (inclusive)
+    ///   - completion: Completion handler with result
+    func deleteDailyCompletions(userId: String, startDate: Date, endDate: Date, completion: ((Result<Void, Error>) -> Void)?)
+    
     // MARK: - Daily Challenge Methods
     
     /// Save daily challenge to Firebase

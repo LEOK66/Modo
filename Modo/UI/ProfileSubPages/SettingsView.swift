@@ -1,10 +1,12 @@
 import SwiftUI
+import SwiftData
 import FirebaseAuth
 
 // MARK: - Settings View
 struct SettingsView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @EnvironmentObject var authService: AuthService
+    @Environment(\.modelContext) private var modelContext
     @State private var notificationsEnabled = true
     
     // Check if user can change password (only for email/password accounts)
@@ -121,6 +123,31 @@ struct SettingsView: View {
                     }
                     .padding(20)
                 }
+                
+                // Debug Section (only in DEBUG mode)
+                #if DEBUG
+                settingsSection(title: "Debug") {
+                    VStack(spacing: 0) {
+                        SettingsRowNavigationLink(
+                            icon: "flame.fill",
+                            title: "Test Streak",
+                            subtitle: "Test streak functionality",
+                            showDivider: true
+                        ) {
+                            StreakTestView()
+                        }
+                        
+                        SettingsRowNavigationLink(
+                            icon: "target",
+                            title: "Test Goal",
+                            subtitle: "Test goal progress calculation",
+                            showDivider: false
+                        ) {
+                            GoalTestView()
+                        }
+                    }
+                }
+                #endif
                     }
                     .padding(.vertical, 16)
                 }
