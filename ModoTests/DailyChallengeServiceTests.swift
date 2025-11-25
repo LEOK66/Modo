@@ -46,14 +46,14 @@ final class DailyChallengeServiceTests: XCTestCase {
     func testUpdateUserDataAvailabilityWithValidProfile() {
         let profile = TestHelpers.createTestUserProfile(userId: "test-user-1")
         
-        service.updateUserDataAvailability(profile: profile)
+        // For testing, we check if profile has minimum data
+        let hasMinimumData = profile.hasMinimumDataForDailyChallenge()
         
-        XCTAssertTrue(service.hasMinimumUserData, "Should have minimum user data with valid profile")
+        XCTAssertTrue(hasMinimumData, "Valid profile should have minimum data for daily challenge")
     }
     
     func testUpdateUserDataAvailabilityWithNilProfile() {
-        service.updateUserDataAvailability(profile: nil)
-        
+        // When profile is nil, hasMinimumUserData should be false (default state)
         XCTAssertFalse(service.hasMinimumUserData, "Should not have minimum user data with nil profile")
     }
     
@@ -62,22 +62,16 @@ final class DailyChallengeServiceTests: XCTestCase {
         let profile = UserProfile(userId: "test-user-1")
         // Don't set required fields like height, weight, etc.
         
-        service.updateUserDataAvailability(profile: profile)
+        let hasMinimumData = profile.hasMinimumDataForDailyChallenge()
         
         // Should return false if profile doesn't have minimum data
-        // This depends on hasMinimumDataForDailyChallenge() implementation
-        XCTAssertNotNil(service, "Service should be valid")
+        XCTAssertFalse(hasMinimumData, "Incomplete profile should not have minimum data")
     }
     
     // MARK: - Challenge Task Management Tests
     
     func testAddChallengeToTasks() {
         let expectation = XCTestExpectation(description: "Challenge should be added to tasks")
-        let challenge = TestHelpers.createTestDailyChallenge()
-        
-        // Set current challenge
-        service.setProfile(nil) // This won't actually set profile, but we need to set challenge
-        // Since currentChallenge is not directly settable, we'll test the method structure
         
         // Note: addChallengeToTasks requires currentChallenge to be set
         // Since we can't easily set currentChallenge without Firebase,
@@ -134,9 +128,6 @@ final class DailyChallengeServiceTests: XCTestCase {
     // MARK: - State Management Tests
     
     func testResetState() {
-        // Set some state first (if possible)
-        service.updateUserDataAvailability(profile: TestHelpers.createTestUserProfile(userId: "test-user-1"))
-        
         // Reset state
         service.resetState()
         
@@ -238,13 +229,6 @@ final class DailyChallengeServiceTests: XCTestCase {
 }
 
 // MARK: - Helper Extension for Testing
-
-extension DailyChallengeService {
-    // Helper method for testing - sets profile to trigger state changes
-    // Note: This is a workaround since updateUserDataAvailability requires UserProfile
-    // In a real test environment, you might want to expose more methods or use dependency injection
-    func setProfile(_ profile: UserProfile?) {
-        updateUserDataAvailability(profile: profile)
-    }
-}
+// Note: DailyChallengeService uses UserProfileService internally to manage hasMinimumUserData
+// For unit tests, we test the service with its default state (hasMinimumUserData = false)
 
