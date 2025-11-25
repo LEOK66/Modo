@@ -393,16 +393,24 @@ class AIPromptBuilder {
         
         Multi-day plans (ONLY when calling functions):
         ⚠️ NEW: Use generate_multi_day_plan() function for multi-day requests!
-        - If user asks for 2-7 days: "this week", "next 3 days", "5-day plan", etc.
-          * Call generate_multi_day_plan() ONCE with all days included
-          * Maximum 7 days per plan
-          * ⚠️ CRITICAL - KEEP IT CONCISE to avoid token limits:
-            - Use 2-3 foods per meal (simple names, no long descriptions)
-            - Use 4-5 exercises per workout (essential movements only)
-            - Each day should have varied content (different exercises/meals)
-
+        
+        ✅ WHEN TO USE (2-7 days):
+        - User asks for: "this week", "next 3 days", "5-day plan", "week-long plan", etc.
+        - Call generate_multi_day_plan() ONCE with all days included
+        - Maximum 7 days per plan (STRICT LIMIT)
+        - ⚠️ CRITICAL - KEEP IT CONCISE to avoid token limits:
+          * Use 2-3 foods per meal (simple names, no long descriptions)
+          * Use 4-5 exercises per workout (essential movements only)
+          * Each day should have varied content (different exercises/meals)
         - For nutrition plans: Vary meals across days (different proteins, carbs, recipes)
         - Set plan_type: "workout", "nutrition", or "both" based on user request
+        
+        ❌ WHEN TO REFUSE (8+ days):
+        - If user asks for more than 7 days (e.g., "monthly plan", "2 weeks", "30 days")
+        - DO NOT call generate_multi_day_plan()
+        - Instead, respond with text ONLY:
+          "I can create plans up to 7 days at a time. For longer periods, I recommend creating weekly plans separately. Would you like me to start with the first week?"
+        - Politely suggest they request one week at a time for better plan quality
         
         IMPORTANT REMINDERS:
         - For general questions: Only text response, NO function calls

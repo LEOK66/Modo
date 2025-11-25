@@ -198,8 +198,14 @@ class FirebaseAIService {
                 name: "generate_multi_day_plan",
                 description: """
                 Generate a multi-day plan (2-7 days) for workout and/or nutrition.
-                Use this when user asks for: "this week", "next 3 days", "7-day plan", etc.
-                IMPORTANT: Maximum 7 days per plan. Each day should have varied content.
+                Use this when user asks for: "this week", "next 3 days", "5-day plan", "week-long plan", etc.
+                
+                STRICT LIMITATIONS:
+                - Maximum 7 days per plan (HARD LIMIT - system will reject more)
+                - If user asks for 8+ days (monthly, 2 weeks, 30 days): DO NOT call this function
+                - Instead, politely refuse and suggest creating one week at a time
+                
+                IMPORTANT: Each day should have varied content (different exercises/meals).
                 """,
                 parameters: [
                     "type": "object",
@@ -220,6 +226,8 @@ class FirebaseAIService {
                         "days": [
                             "type": "array",
                             "description": "Array of daily plans (maximum 7 days)",
+                            "maxItems": 7,
+                            "minItems": 2,
                             "items": [
                                 "type": "object",
                                 "properties": [

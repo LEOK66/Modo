@@ -200,6 +200,13 @@ class LegacyPlanService {
             print("   Type: \(functionResponse.planType)")
             print("   Date range: \(functionResponse.startDate) to \(functionResponse.endDate)")
             
+            // Validate maximum 7 days limit
+            guard functionResponse.days.count <= 7 else {
+                print("   ❌ Rejected: Plan exceeds 7-day maximum (requested: \(functionResponse.days.count) days)")
+                completion(.failure(ModoAIError.invalidResponse(reason: "Cannot generate plans longer than 7 days. Please request a shorter plan.")))
+                return
+            }
+            
             // Convert to MultiDayPlanData
             let convertedDays = functionResponse.days.map { day in
                 var workoutPlan: WorkoutPlanData? = nil
