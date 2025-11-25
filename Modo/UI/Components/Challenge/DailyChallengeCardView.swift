@@ -159,10 +159,11 @@ struct DailyChallengeCardView: View {
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(.primary)
                     
-                    Text("Please add your health data in Progress")
+                    Text("Fill out the info to get the daily challenge feature!")
                         .font(.system(size: 14))
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
+                        .padding(.horizontal, 16)
                     
                     NavigationLink(destination: ProgressPageView()) {
                         Text("Go to Setup")
@@ -186,11 +187,6 @@ struct DailyChallengeCardView: View {
         .animation(.easeInOut(duration: 0.3), value: viewModel.hasMinimumUserData)
         .animation(.easeInOut(duration: 0.3), value: viewModel.isGenerating)
         .animation(.spring(response: 0.5, dampingFraction: 0.7), value: viewModel.challenge?.id)
-        .onAppear {
-            // ✅ No need to update data availability - Service automatically observes profile changes
-            // Load daily challenge when view appears (like image loading)
-            viewModel.loadTodayChallenge()
-        }
         .onChange(of: viewModel.isCompleted) { oldValue, newValue in
             // ✅ Only show toast if challenge just completed AND toast hasn't been shown yet
             if !previousCompletionState && newValue && !viewModel.hasShownCompletionToast {
