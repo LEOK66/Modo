@@ -60,7 +60,6 @@ class AIFunctionCallCoordinator {
     /// - Parameter handler: Handler to register
     func registerHandler(_ handler: AIFunctionCallHandler) {
         handlers[handler.functionName] = handler
-        print("✅ Registered handler for: \(handler.functionName)")
     }
     
     /// Register multiple handlers

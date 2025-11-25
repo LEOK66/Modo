@@ -56,9 +56,17 @@ class FirebaseAIService {
                                     "rest_sec": [
                                         "type": "integer",
                                         "description": "Rest period in seconds"
+                                    ],
+                                    "duration_min": [
+                                        "type": "integer",
+                                        "description": "Duration in minutes for this exercise"
+                                    ],
+                                    "calories": [
+                                        "type": "integer",
+                                        "description": "Estimated calories burned for this exercise"
                                     ]
                                 ],
-                                "required": ["name", "sets", "reps", "rest_sec"],
+                                "required": ["name", "sets", "reps", "rest_sec", "duration_min", "calories"],
                                 "additionalProperties": false
                             ]
                         ],
@@ -82,7 +90,10 @@ class FirebaseAIService {
                 name: "generate_nutrition_plan",
                 description: """
                 Generate a daily meal plan with specific foods and calorie information.
-                IMPORTANT: Only generate main meals (breakfast, lunch, dinner). Do NOT include snacks.
+                IMPORTANT: 
+                - Only generate the EXACT meals requested by the user (e.g., if they ask for "breakfast", generate ONLY breakfast)
+                - Only generate main meals (breakfast, lunch, dinner). Do NOT include snacks.
+                - If generating multiple meals, only include what was explicitly requested in the prompt.
                 Call this function when user explicitly asks for a meal/nutrition plan.
                 """,
                 parameters: [
@@ -237,9 +248,11 @@ class FirebaseAIService {
                                                         "name": ["type": "string"],
                                                         "sets": ["type": "integer"],
                                                         "reps": ["type": "string"],
-                                                        "rest_sec": ["type": "integer"]
+                                                        "rest_sec": ["type": "integer"],
+                                                        "duration_min": ["type": "integer"],
+                                                        "calories": ["type": "integer"]
                                                     ],
-                                                    "required": ["name", "sets", "reps", "rest_sec"],
+                                                    "required": ["name", "sets", "reps", "rest_sec", "duration_min", "calories"],
                                                     "additionalProperties": false
                                                 ]
                                             ],
@@ -674,12 +687,38 @@ class FirebaseAIService {
             let result = try await callable.call(data)
             
             // Parse response
-            guard let response = result.data as? [String: Any],
-                  let success = response["success"] as? Bool,
-                  success,
-                  let responseData = response["data"] as? [String: Any] else {
+            guard let response = result.data as? [String: Any] else {
                 print("❌ [Firebase] Invalid response: \(result.data)")
                 throw ModoAIError.invalidResponse(reason: "Firebase returned data in the wrong format")
+            }
+            
+            let success = response["success"] as? Bool ?? false
+            
+            // Check for rate limit error
+            if !success {
+                if let errorMessage = response["error"] as? String,
+                   let errorType = response["errorType"] as? String {
+                    // Check if it's a rate limit error
+                    if errorType == "rate_limit" || 
+                       errorMessage.contains("RATE_LIMIT_EXCEEDED") ||
+                       errorMessage.lowercased().contains("rate limit") ||
+                       errorMessage.lowercased().contains("quota") {
+                        print("❌ [Firebase] Rate limit exceeded")
+                        throw ModoAIError.apiRateLimitExceeded
+                    }
+                    // Other errors
+                    print("❌ [Firebase] API Error: \(errorMessage)")
+                    throw ModoAIError.invalidResponse(reason: errorMessage)
+                } else {
+                    print("❌ [Firebase] Unknown error")
+                    throw ModoAIError.invalidResponse(reason: "Firebase returned an error")
+                }
+            }
+            
+            // Extract response data
+            guard let responseData = response["data"] as? [String: Any] else {
+                print("❌ [Firebase] No data in response")
+                throw ModoAIError.invalidResponse(reason: "No data in Firebase response")
             }
             
             print("✅ [Firebase] Response received successfully")

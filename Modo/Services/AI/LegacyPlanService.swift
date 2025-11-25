@@ -61,7 +61,9 @@ class LegacyPlanService {
                     name: exercise.name,
                     sets: exercise.sets,
                     reps: exercise.reps,
-                    restSec: exercise.restSec
+                    restSec: exercise.restSec,
+                    durationMin: exercise.durationMin,
+                    calories: exercise.calories
                 )
             }
             
@@ -125,10 +127,19 @@ class LegacyPlanService {
                 
                 print("   Meal: \(meal.mealType) - \(totalCalories)kcal")
                 
+                // Convert foods to detailed Food struct
+                let convertedFoods = meal.foods.map { food in
+                    NutritionPlanData.Food(
+                        name: food.name,
+                        portion: food.portion,
+                        calories: food.calories
+                    )
+                }
+                
                 return NutritionPlanData.Meal(
                     name: meal.mealType.capitalized,
                     time: meal.time ?? getDefaultMealTime(for: meal.mealType),
-                    foods: meal.foods.map { "\($0.name) (\($0.portion))" },
+                    foods: convertedFoods,
                     calories: totalCalories,
                     protein: totalProtein,
                     carbs: totalCarbs,
@@ -201,7 +212,9 @@ class LegacyPlanService {
                             name: exercise.name,
                             sets: exercise.sets,
                             reps: exercise.reps,
-                            restSec: exercise.restSec
+                            restSec: exercise.restSec,
+                            durationMin: exercise.durationMin,
+                            calories: exercise.calories
                         )
                     }
                     
@@ -217,11 +230,19 @@ class LegacyPlanService {
                 // Convert nutrition if present
                 if let nutrition = day.nutrition {
                     let convertedMeals = nutrition.meals.map { meal in
-                        let foodNames = meal.foods.map { "\($0.name) (\($0.portion))" }
+                        // Convert foods to detailed Food struct
+                        let convertedFoods = meal.foods.map { food in
+                            NutritionPlanData.Food(
+                                name: food.name,
+                                portion: food.portion,
+                                calories: food.calories
+                            )
+                        }
+                        
                         return NutritionPlanData.Meal(
                             name: meal.mealType.capitalized,
                             time: meal.time,
-                            foods: foodNames,
+                            foods: convertedFoods,
                             calories: meal.calories,
                             protein: meal.protein,
                             carbs: meal.carbs,

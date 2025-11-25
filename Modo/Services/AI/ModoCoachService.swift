@@ -347,8 +347,20 @@ class ModoCoachService: ObservableObject {
             print("❌ AI request failed: \(error.localizedDescription)")
             await MainActor.run {
                 self.isProcessing = false
+                
+                // Convert to ModoAIError for better error messages
+                let modoError = ModoAIError.from(error)
+                
+                // Build user-friendly error message
+                var errorText = modoError.errorDescription ?? "sorry, something went wrong"
+                
+                // Add recovery suggestion for better UX
+                if let suggestion = modoError.recoverySuggestion {
+                    errorText += "\n\n💡 \(suggestion)"
+                }
+                
                 let errorMessage = FirebaseChatMessage(
-                    content: "Sorry, there was an error processing your request. Please try again.",
+                    content: errorText,
                     isFromUser: false
                 )
                 self.messages.append(errorMessage)
@@ -415,8 +427,21 @@ class ModoCoachService: ObservableObject {
         } catch {
             await MainActor.run {
                 self.isProcessing = false
+                
+                // Convert to ModoAIError for friendly message
+                let modoError = ModoAIError.from(error)
+                
+                // Build user-friendly error message
+                var errorText = "Sorry, I couldn't analyze this image."
+                if let description = modoError.errorDescription {
+                    errorText += "\n\n\(description)"
+                }
+                if let suggestion = modoError.recoverySuggestion {
+                    errorText += "\n\n💡 \(suggestion)"
+                }
+                
                 let errorMessage = FirebaseChatMessage(
-                    content: "sorry, i couldn't analyze this image. \n\n💡 \(error.localizedDescription)",
+                    content: errorText,
                     isFromUser: false
                 )
                 self.messages.append(errorMessage)
@@ -491,7 +516,7 @@ class ModoCoachService: ObservableObject {
                 let modoError = ModoAIError.from(error)
                 
                 // Build user-friendly error message
-                var errorText = modoError.errorDescription ?? "sorry, there was an error processing your request. please try again."
+                var errorText = modoError.errorDescription ?? "Sorry, there was an error processing your request. Please try again."
                 if let suggestion = modoError.recoverySuggestion {
                     errorText += "\n\n💡 \(suggestion)"
                 }
