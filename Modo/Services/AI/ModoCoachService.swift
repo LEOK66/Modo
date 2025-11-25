@@ -167,12 +167,9 @@ class ModoCoachService: ObservableObject {
             // The UI already has safe access patterns (e.g., safeMultiDayPlan in ChatBubble)
             
             if savedMessages.isEmpty {
-                // First time, check if we need to send user info
-                if shouldSendUserInfo(userProfile: userProfile) {
-                    sendInitialUserInfo(userProfile: userProfile)
-                } else {
-                    addWelcomeMessage()
-                }
+                // First time - show welcome message
+                // User info is already in system prompt, no need to send as user message
+                addWelcomeMessage()
             } else {
                 // Load existing messages
                 messages = savedMessages
@@ -184,82 +181,6 @@ class ModoCoachService: ObservableObject {
             print("Failed to load chat history: \(error)")
             addWelcomeMessage()
             hasLoadedHistory = true
-        }
-    }
-    
-    // MARK: - Check if should send user info
-    private func shouldSendUserInfo(userProfile: UserProfile?) -> Bool {
-        // Check if user has completed profile setup
-        guard let profile = userProfile else { return false }
-        
-        // Check if user has basic info
-        let hasBasicInfo = profile.age != nil && 
-                          profile.weightValue != nil && 
-                          profile.heightValue != nil &&
-                          profile.goal != nil
-        
-        return hasBasicInfo
-    }
-    
-    // MARK: - Send Initial User Info to AI
-    private func sendInitialUserInfo(userProfile: UserProfile?) {
-        guard let profile = userProfile else {
-            addWelcomeMessage()
-            return
-        }
-        
-        isProcessing = true
-        
-        // Build user info message
-        var userInfoText = "Hi! I just signed up. Here's my confirmed profile information:\n\n"
-        
-        if let age = profile.age {
-            userInfoText += "Age: \(age) years old\n"
-        }
-        
-        if let gender = profile.gender {
-            // Convert gender code to readable format
-            let genderText: String
-            switch gender.lowercased() {
-            case "male", "m":
-                genderText = "Male"
-            case "female", "f":
-                genderText = "Female"
-            case "other", "non-binary", "nb":
-                genderText = "Non-binary"
-            default:
-                genderText = gender.capitalized
-            }
-            userInfoText += "Gender: \(genderText)\n"
-        }
-        
-        // Keep user's original units - don't convert
-        if let weightValue = profile.weightValue, let weightUnit = profile.weightUnit {
-            userInfoText += "Weight: \(weightValue) \(weightUnit)\n"
-        }
-        
-        if let heightValue = profile.heightValue, let heightUnit = profile.heightUnit {
-            userInfoText += "Height: \(heightValue) \(heightUnit)\n"
-        }
-        
-        if let goal = profile.goal {
-            userInfoText += "Goal: \(goal)\n"
-        }
-        
-        if let lifestyle = profile.lifestyle {
-            userInfoText += "Lifestyle: \(lifestyle)\n"
-        }
-        
-        userInfoText += "\nI have basic gym equipment available (dumbbells, barbells, and machines). Please create personalized workout and nutrition plans based on this information. No need to ask me for these details again!"
-        
-        // Add user message
-        let userMessage = FirebaseChatMessage(content: userInfoText, isFromUser: true)
-        messages.append(userMessage)
-        saveMessage(userMessage)
-        
-        // Get AI response
-        Task {
-            await processWithOpenAI(userInfoText, userProfile: profile)
         }
     }
     
