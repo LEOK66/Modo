@@ -124,6 +124,11 @@ struct ModoApp: App {
                 }
                 .animation(.easeInOut(          duration: 0.3), value: currentState)
                 .applyColorScheme(themeManager.colorScheme)
+                .task {
+                    // ✅ Inject UserProfileService into DailyChallengeService as early as possible
+                    // Using .task ensures this runs before child views appear
+                    ServiceContainer.shared.challengeService.setUserProfileService(userProfileService)
+                }
                 .environmentObject(authService)
                 .environmentObject(userProgress)
                 .environmentObject(dailyCaloriesService)

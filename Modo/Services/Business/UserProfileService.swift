@@ -34,6 +34,8 @@ class UserProfileService: ObservableObject {
     
     /// Manually set profile (useful after updates)
     func setProfile(_ profile: UserProfile?) {
+        // Force objectWillChange to trigger UI updates
+        objectWillChange.send()
         currentProfile = profile
     }
 }

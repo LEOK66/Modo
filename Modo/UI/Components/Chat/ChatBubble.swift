@@ -321,12 +321,12 @@ struct ChatBubble: View {
                         }
                         
                         // Food items
-                        ForEach(meal.foods, id: \.self) { food in
+                        ForEach(meal.foods) { food in
                             HStack(spacing: 4) {
                                 Text("•")
                                     .font(.system(size: 14))
                                     .foregroundColor(Color(hexString: "6B7280"))
-                                Text(food)
+                                Text("\(food.name) (\(food.portion)) - \(food.calories)cal")
                                     .font(.system(size: 14))
                                     .foregroundColor(Color(hexString: "6B7280"))
                             }

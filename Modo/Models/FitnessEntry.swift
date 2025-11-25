@@ -9,12 +9,19 @@ struct FitnessEntry: Identifiable, Equatable, Codable {
     var minutesInt: Int
     var caloriesText: String
     
-    init(id: UUID = UUID(), exercise: MenuData.ExerciseItem? = nil, customName: String = "", minutesInt: Int = 0, caloriesText: String = "") {
+    var sets: Int?
+    var reps: String?
+    var restSec: Int?
+    
+    init(id: UUID = UUID(), exercise: MenuData.ExerciseItem? = nil, customName: String = "", minutesInt: Int = 0, caloriesText: String = "", sets: Int? = nil, reps: String? = nil, restSec: Int? = nil) {
         self.id = id
         self.exercise = exercise
         self.customName = customName
         self.minutesInt = minutesInt
         self.caloriesText = caloriesText
+        self.sets = sets
+        self.reps = reps
+        self.restSec = restSec
     }
     
     static func == (lhs: FitnessEntry, rhs: FitnessEntry) -> Bool {
@@ -22,7 +29,10 @@ struct FitnessEntry: Identifiable, Equatable, Codable {
         lhs.exercise?.id == rhs.exercise?.id && 
         lhs.customName == rhs.customName && 
         lhs.minutesInt == rhs.minutesInt && 
-        lhs.caloriesText == rhs.caloriesText
+        lhs.caloriesText == rhs.caloriesText &&
+        lhs.sets == rhs.sets &&
+        lhs.reps == rhs.reps &&
+        lhs.restSec == rhs.restSec
     }
 }
 

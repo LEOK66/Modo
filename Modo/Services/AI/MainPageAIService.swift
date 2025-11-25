@@ -37,7 +37,6 @@ class MainPageAIService {
         // Check if there are already AI-generated tasks
         let existingAITasks = existingTasks.filter { $0.isAIGenerated }
         let hasAITasks = !existingAITasks.isEmpty
-        let hasAnyTasks = !existingTasks.isEmpty
         
         if hasAITasks {
             // Replace mode: return IDs to be replaced

@@ -187,22 +187,20 @@ struct DailyChallengeCardView: View {
         .animation(.easeInOut(duration: 0.3), value: viewModel.isGenerating)
         .animation(.spring(response: 0.5, dampingFraction: 0.7), value: viewModel.challenge?.id)
         .onAppear {
-            // Update data availability when view appears
-            viewModel.updateUserDataAvailability(profile: userProfileService.currentProfile)
+            // ✅ No need to update data availability - Service automatically observes profile changes
             // Load daily challenge when view appears (like image loading)
             viewModel.loadTodayChallenge()
         }
-        .onChange(of: userProfileService.currentProfile) { _, newProfile in
-            // Update when profile changes
-            viewModel.updateUserDataAvailability(profile: newProfile)
-        }
         .onChange(of: viewModel.isCompleted) { oldValue, newValue in
-            // Show toast when challenge is completed
-            if !previousCompletionState && newValue {
+            // ✅ Only show toast if challenge just completed AND toast hasn't been shown yet
+            if !previousCompletionState && newValue && !viewModel.hasShownCompletionToast {
                 showCompletionToast = true
                 // Add haptic feedback
                 let generator = UINotificationFeedbackGenerator()
                 generator.notificationOccurred(.success)
+                
+                // Mark toast as shown so it won't show again
+                viewModel.markCompletionToastShown()
                 
                 // Auto hide toast after 3 seconds
                 DispatchQueue.main.asyncAfter(deadline: .now() + 3) {

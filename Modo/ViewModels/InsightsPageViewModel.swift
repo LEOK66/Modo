@@ -714,16 +714,14 @@ final class InsightsPageViewModel: ObservableObject {
     private func sendNutritionTaskNotification(meal: NutritionPlanData.Meal, date: String) {
         print("📤 Sending nutrition task notification for: \(meal.name)")
         
-        let foodItemsData = meal.foods.map { foodString -> [String: Any] in
-            // Simple parsing: assume "Food Name (~XXX cal)" format
-            let calories = meal.calories / meal.foods.count // Distribute equally
+        let foodItemsData = meal.foods.map { food -> [String: Any] in
             return [
-                "name": foodString,
-                "calories": calories
+                "name": "\(food.name) (\(food.portion))",
+                "calories": food.calories // Use actual calories from AI
             ]
         }
         
-        let detailedDescription = meal.foods.joined(separator: "\n")
+        let detailedDescription = meal.foods.map { "\($0.name) (\($0.portion))" }.joined(separator: "\n")
         
         let userInfo: [String: Any] = [
             "date": date,
@@ -757,8 +755,8 @@ final class InsightsPageViewModel: ObservableObject {
                 "sets": exercise.sets,
                 "reps": exercise.reps,
                 "restSec": exercise.restSec ?? 60,
-                "durationMin": 5, // Estimate
-                "calories": 50 // Estimate
+                "durationMin": exercise.durationMin ?? 5, // Use AI-provided value or fallback
+                "calories": exercise.calories ?? 50 // Use AI-provided value or fallback
             ]
         }
         
