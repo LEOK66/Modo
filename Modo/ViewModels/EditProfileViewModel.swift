@@ -229,6 +229,11 @@ final class EditProfileViewModel: ObservableObject {
             modelContext.insert(profile)
         }
         
+        // Save old values before updating (needed for goalStartDate logic)
+        let oldGoal = profile.goal
+        let oldTargetDays = profile.targetDays
+        let oldGoalStartDate = profile.goalStartDate
+        
         // Parse numbers softly: empty strings mean keep nil
         let heightDouble = Double(heightValue)
         let weightDouble = Double(weightValue)
@@ -254,9 +259,69 @@ final class EditProfileViewModel: ObservableObject {
             targetDays: targetDays.isEmpty ? nil : targetDaysInt
         )
         
-        // If goal changed and was set, reset start date to now
-        if let newGoal = goalCode, newGoal != profile.goal {
-            profile.goalStartDate = Date()
+        // Reset goalStartDate if:
+        // 1. Goal changed
+        // 2. Goal is nil (new goal being set) but goalCode is set
+        // 3. Current goal is expired (endDate < today) and user is setting new targetDays
+        // 4. targetDays changed significantly (user wants to restart)
+        let shouldResetStartDate: Bool
+        if let newGoal = goalCode {
+            // Goal changed
+            if newGoal != oldGoal {
+                shouldResetStartDate = true
+            } else {
+                // Same goal, check if expired or targetDays changed
+                let calendar = Calendar.current
+                let today = calendar.startOfDay(for: Date())
+                
+                if let existingStartDate = oldGoalStartDate,
+                   let existingTargetDays = oldTargetDays {
+                    let normalizedStart = calendar.startOfDay(for: existingStartDate)
+                    if let endDate = calendar.date(byAdding: .day, value: existingTargetDays, to: normalizedStart) {
+                        // Check if goal is expired
+                        let isExpired = endDate < today
+                        // Check if targetDays changed
+                        let targetDaysChanged = targetDaysInt != nil && targetDaysInt != existingTargetDays
+                        
+                        // Reset if expired or if targetDays changed (user wants to restart)
+                        shouldResetStartDate = isExpired || targetDaysChanged
+                    } else {
+                        shouldResetStartDate = false
+                    }
+                } else {
+                    // No existing start date or target days, set it
+                    shouldResetStartDate = true
+                }
+            }
+        } else {
+            // No goal set, don't reset
+            shouldResetStartDate = false
+        }
+        
+        if shouldResetStartDate {
+            let newStartDate = Date()
+            let oldStartDate = profile.goalStartDate
+            profile.goalStartDate = newStartDate
+            let formatter = DateFormatter()
+            formatter.dateFormat = "MMM d, yyyy"
+            print("✅ EditProfileViewModel: Reset goalStartDate to \(formatter.string(from: newStartDate))")
+            
+            // Clear old completion records for the new goal date range
+            // This prevents old test data from showing up when setting a new goal
+            // IMPORTANT: Clear BEFORE saving, so that when ProgressViewModel queries,
+            // it won't find any local records and won't trigger Firebase sync
+            if let targetDays = targetDaysInt, targetDays > 0 {
+                clearCompletionRecordsForNewGoal(startDate: newStartDate, targetDays: targetDays)
+            }
+            
+            // Also clear completion records for the old goal range (if it existed)
+            if let oldStart = oldStartDate, let oldTargetDays = profile.targetDays, oldTargetDays > 0 {
+                let calendar = Calendar.current
+                let normalizedOldStart = calendar.startOfDay(for: oldStart)
+                if let oldEndDate = calendar.date(byAdding: .day, value: oldTargetDays, to: normalizedOldStart) {
+                    clearCompletionRecordsForDateRange(startDate: normalizedOldStart, endDate: oldEndDate)
+                }
+            }
         }
         
         // Save to SwiftData
@@ -271,6 +336,74 @@ final class EditProfileViewModel: ObservableObject {
         
         // Refresh the shared service
         userProfileService?.setProfile(profile)
+    }
+    
+    /// Clear completion records for a new goal date range
+    /// This prevents old test data or Firebase-synced data from showing up when setting a new goal
+    /// IMPORTANT: Clears both local SwiftData and Firebase records
+    private func clearCompletionRecordsForNewGoal(startDate: Date, targetDays: Int) {
+        let calendar = Calendar.current
+        let normalizedStart = calendar.startOfDay(for: startDate)
+        guard let endDate = calendar.date(byAdding: .day, value: targetDays, to: normalizedStart) else {
+            return
+        }
+        
+        // Clear local SwiftData records
+        clearCompletionRecordsForDateRange(startDate: normalizedStart, endDate: endDate)
+        
+        // CRITICAL FIX: Also clear Firebase records to prevent them from being synced back
+        // When local records are empty, ProgressCalculationService will sync from Firebase
+        // If Firebase still has old records in the new goal date range, they will be synced back
+        // This causes the progress to show as complete even though the goal was just reset
+        if let userId = authService?.currentUser?.uid {
+            // endDate is exclusive in clearCompletionRecordsForDateRange, but Firebase uses inclusive
+            // So we need to subtract 1 day for Firebase
+            if let firebaseEndDate = calendar.date(byAdding: .day, value: -1, to: endDate) {
+                databaseService.deleteDailyCompletions(userId: userId, startDate: normalizedStart, endDate: firebaseEndDate) { result in
+                    switch result {
+                    case .success:
+                        let formatter = DateFormatter()
+                        formatter.dateFormat = "yyyy-MM-dd"
+                        print("✅ EditProfileViewModel: Cleared Firebase completion records for date range [\(formatter.string(from: normalizedStart)) to \(formatter.string(from: firebaseEndDate))]")
+                    case .failure(let error):
+                        print("❌ EditProfileViewModel: Failed to clear Firebase completion records - \(error.localizedDescription)")
+                    }
+                }
+            }
+        }
+    }
+    
+    /// Clear completion records for a date range
+    private func clearCompletionRecordsForDateRange(startDate: Date, endDate: Date) {
+        guard let userId = authService?.currentUser?.uid,
+              let modelContext = modelContext else {
+            return
+        }
+        
+        // Delete all completion records in the date range (local only)
+        let descriptor = FetchDescriptor<DailyCompletion>(
+            predicate: #Predicate { completion in
+                completion.userId == userId &&
+                completion.date >= startDate &&
+                completion.date < endDate
+            }
+        )
+        
+        do {
+            let completions = try modelContext.fetch(descriptor)
+            for completion in completions {
+                modelContext.delete(completion)
+            }
+            try modelContext.save()
+            print("🗑️ EditProfileViewModel: Cleared \(completions.count) completion records for date range [\(startDate) to \(endDate))")
+            
+            // Note: We don't create new completion records here
+            // This ensures that when querying, if there's no local data,
+            // Firebase sync will be skipped (due to our sync logic that only syncs when localCompletions.isEmpty)
+            // This prevents old Firebase data from appearing when setting a new goal
+        } catch {
+            print("❌ EditProfileViewModel: Failed to clear completion records - \(error.localizedDescription)")
+        }
     }
 }
 

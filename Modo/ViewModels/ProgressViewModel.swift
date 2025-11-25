@@ -39,6 +39,9 @@ final class ProgressViewModel: ObservableObject {
     /// Today's actual macro intake (protein, fat, carbs)
     @Published private(set) var todayMacros: (protein: Double, fat: Double, carbs: Double) = (0, 0, 0)
     
+    /// Combine cancellables for notification subscriptions
+    private var cancellables = Set<AnyCancellable>()
+    
     // MARK: - Initialization
     
     /// Initialize ViewModel with dependencies
@@ -46,6 +49,13 @@ final class ProgressViewModel: ObservableObject {
     ///   - progressService: Progress calculation service
     init(progressService: ProgressCalculationService = ProgressCalculationService.shared) {
         self.progressService = progressService
+        
+        // Observe day completion changes to reload progress data
+        NotificationCenter.default.publisher(for: .dayCompletionDidChange)
+            .sink { [weak self] _ in
+                self?.loadProgressData()
+            }
+            .store(in: &cancellables)
     }
     
     // MARK: - Setup Methods
@@ -353,6 +363,63 @@ final class ProgressViewModel: ObservableObject {
             return "0/0 days"
         }
         return "\(progressData.completedDays)/\(progressData.targetDays) days"
+    }
+    
+    /// Check if goal is expired (endDate < today)
+    var isGoalExpired: Bool {
+        guard let profile = userProfile,
+              let goalStartDate = profile.goalStartDate,
+              let targetDays = profile.targetDays else {
+            return false
+        }
+        
+        let calendar = Calendar.current
+        let normalizedStart = calendar.startOfDay(for: goalStartDate)
+        let today = calendar.startOfDay(for: Date())
+        
+        guard let endDate = calendar.date(byAdding: .day, value: targetDays, to: normalizedStart) else {
+            return false
+        }
+        
+        return endDate < today
+    }
+    
+    /// Check if goal is completed (completedDays >= targetDays)
+    var isGoalCompleted: Bool {
+        guard progressData.targetDays > 0 else { return false }
+        return progressData.completedDays >= progressData.targetDays
+    }
+    
+    /// Goal start date for display
+    var goalStartDateText: String? {
+        guard let profile = userProfile,
+              let goalStartDate = profile.goalStartDate else {
+            return nil
+        }
+        
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d, yyyy"
+        return formatter.string(from: goalStartDate)
+    }
+    
+    /// Goal end date for display
+    var goalEndDateText: String? {
+        guard let profile = userProfile,
+              let goalStartDate = profile.goalStartDate,
+              let targetDays = profile.targetDays else {
+            return nil
+        }
+        
+        let calendar = Calendar.current
+        let normalizedStart = calendar.startOfDay(for: goalStartDate)
+        
+        guard let endDate = calendar.date(byAdding: .day, value: targetDays, to: normalizedStart) else {
+            return nil
+        }
+        
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d, yyyy"
+        return formatter.string(from: endDate)
     }
     
     // MARK: - Health Calculation Methods

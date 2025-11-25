@@ -1,10 +1,14 @@
 import SwiftUI
+import SwiftData
+import FirebaseAuth
+import Combine
 
 struct CalendarPopupView: View {
     @Binding var showCalendar: Bool
     @Binding var selectedDate: Date
     let dateRange: (min: Date, max: Date)
     let tasksByDate: [Date: [TaskItem]]
+    @Environment(\.modelContext) private var modelContext
 
     @State private var currentMonth: Date = Date()
     @State private var selectedDay: Int? = nil
@@ -22,7 +26,9 @@ struct CalendarPopupView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HeaderView()
+            HeaderView(
+                tasksByDate: tasksByDate
+            )
 
             MonthNavigationView(currentMonth: $currentMonth, dateRange: dateRange)
 
@@ -66,6 +72,16 @@ struct CalendarPopupView: View {
 
 // MARK: - Header
 private struct HeaderView: View {
+    let tasksByDate: [Date: [TaskItem]]
+    @Environment(\.modelContext) private var modelContext
+    @StateObject private var streakViewModel = StreakViewModel()
+    @State private var showMilestoneCelebration = false
+    @State private var milestoneDays: Int? = nil
+    
+    private var userId: String? {
+        Auth.auth().currentUser?.uid
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 0) {
@@ -73,13 +89,13 @@ private struct HeaderView: View {
                     Text("Daily Streak")
                         .font(.system(size: 12, weight: .regular))
                         .foregroundColor(.secondary)
-                    StreakView()
+                    StreakView(streakCount: streakViewModel.streakCount)
                 }
                 Spacer()
-                // Placeholder for streak icon - logic to be implemented
-                Image(systemName: "flame.fill")
-                    .font(.system(size: 32))
-                    .foregroundColor(.secondary)
+                // Duolingo-style flame icon with animation
+                DuolingoFlameIcon(streakCount: streakViewModel.streakCount)
+                    .scaleEffect(showMilestoneCelebration ? 1.2 : 1.0)
+                    .animation(.spring(response: 0.4, dampingFraction: 0.6), value: showMilestoneCelebration)
             }
             .frame(height: 68)
             .padding(.horizontal, 24)
@@ -91,19 +107,211 @@ private struct HeaderView: View {
                 .fill(Color(.separator))
                 .frame(height: 1)
         }
+        .onAppear {
+            updateStreak()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .dayCompletionDidChange)) { _ in
+            updateStreak()
+        }
+        .id(tasksByDate.count) // Force update when tasks change
+        .onChange(of: tasksByDate.count) { _, _ in
+            // Update streak when tasks change (using count as proxy for dictionary changes)
+            updateStreak()
+        }
+        .sheet(isPresented: $showMilestoneCelebration) {
+            if let milestone = milestoneDays {
+                MilestoneCelebrationView(milestoneDays: milestone)
+            }
+        }
+    }
+    
+    private func updateStreak() {
+        guard let userId = userId else { 
+            streakViewModel.updateStreak(0)
+            return 
+        }
+        
+        let previousStreak = streakViewModel.streakCount
+        let newStreak = StreakService.shared.calculateStreak(
+            userId: userId,
+            modelContext: modelContext,
+            tasksByDate: tasksByDate
+        )
+        
+        streakViewModel.updateStreak(newStreak)
+        
+        // Check for milestone
+        if newStreak > previousStreak, let milestone = StreakService.shared.checkMilestone(streakCount: newStreak) {
+            milestoneDays = milestone
+            showMilestoneCelebration = true
+        }
     }
 }
 
+// MARK: - Streak View Model
+private class StreakViewModel: ObservableObject {
+    @Published var streakCount: Int = 0
+    
+    func updateStreak(_ count: Int) {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            streakCount = count
+        }
+    }
+}
+
+// MARK: - Duolingo-style Flame Icon
+private struct DuolingoFlameIcon: View {
+    let streakCount: Int
+    @State private var isAnimating = false
+    
+    // Flame color based on streak count (Duolingo style)
+    private var flameColor: Color {
+        if streakCount >= 30 {
+            return Color(red: 1.0, green: 0.4, blue: 0.0) // Bright orange
+        } else if streakCount >= 7 {
+            return Color(red: 1.0, green: 0.6, blue: 0.0) // Orange
+        } else if streakCount >= 3 {
+            return Color(red: 1.0, green: 0.7, blue: 0.2) // Light orange
+        } else {
+            return .secondary // Gray for 0-2 days
+        }
+    }
+    
+    // Flame size based on streak count
+    private var flameSize: CGFloat {
+        if streakCount >= 100 {
+            return 40
+        } else if streakCount >= 30 {
+            return 36
+        } else if streakCount >= 7 {
+            return 32
+        } else if streakCount >= 3 {
+            return 28
+        } else {
+            return 28 // Same size for gray
+        }
+    }
+    
+    var body: some View {
+        ZStack {
+            // Main flame
+            Image(systemName: "flame.fill")
+                .font(.system(size: flameSize, weight: .medium))
+                .foregroundColor(flameColor)
+                .scaleEffect(isAnimating ? 1.1 : 1.0)
+                .animation(
+                    Animation.easeInOut(duration: 1.5)
+                        .repeatForever(autoreverses: true),
+                    value: isAnimating
+                )
+            
+            // Subtle glow effect for higher streaks (only when streak is active)
+            if streakCount >= 3 {
+                Image(systemName: "flame.fill")
+                    .font(.system(size: flameSize * 1.3, weight: .light))
+                    .foregroundColor(flameColor.opacity(0.3))
+                    .blur(radius: 2)
+            }
+        }
+        .onAppear {
+            if streakCount >= 3 {
+                isAnimating = true
+            }
+        }
+        .onChange(of: streakCount) { oldValue, newValue in
+            if newValue >= 3 && oldValue < 3 {
+                // Start animating when reaching 3 days
+                isAnimating = true
+            } else if newValue > oldValue && newValue >= 3 {
+                // Pulse animation when streak increases (only if already animating)
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
+                    isAnimating = false
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    if newValue >= 3 {
+                        isAnimating = true
+                    }
+                }
+            } else if newValue < 3 {
+                // Stop animating if streak drops below 3
+                isAnimating = false
+            }
+        }
+    }
+}
+
+// MARK: - Streak Count Display
 private struct StreakView: View {
+    let streakCount: Int
+    
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
-            // Placeholder - streak count logic to be implemented
-            Text("--")
-                .font(.system(size: 48, weight: .regular))
+            Text("\(streakCount)")
+                .font(.system(size: 48, weight: .bold))
                 .foregroundColor(.primary)
+                .contentTransition(.numericText())
             Text("days")
                 .font(.system(size: 16, weight: .regular))
                 .foregroundColor(.secondary)
+        }
+    }
+}
+
+// MARK: - Milestone Celebration View
+private struct MilestoneCelebrationView: View {
+    let milestoneDays: Int
+    @Environment(\.dismiss) private var dismiss
+    @State private var animate = false
+    
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.9)
+                .ignoresSafeArea()
+            
+            VStack(spacing: 24) {
+                // Animated flame
+                Image(systemName: "flame.fill")
+                    .font(.system(size: 80, weight: .medium))
+                    .foregroundColor(Color(red: 1.0, green: 0.5, blue: 0.0))
+                    .scaleEffect(animate ? 1.2 : 1.0)
+                    .rotationEffect(.degrees(animate ? 5 : -5))
+                    .animation(
+                        Animation.easeInOut(duration: 0.5)
+                            .repeatForever(autoreverses: true),
+                        value: animate
+                    )
+                
+                VStack(spacing: 8) {
+                    Text("🔥 Streak Milestone! 🔥")
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundColor(.white)
+                    
+                    Text("\(milestoneDays) days!")
+                        .font(.system(size: 48, weight: .bold))
+                        .foregroundColor(Color(red: 1.0, green: 0.6, blue: 0.0))
+                    
+                    Text("Keep up the amazing work!")
+                        .font(.system(size: 18, weight: .regular))
+                        .foregroundColor(.white.opacity(0.8))
+                }
+                
+                Button(action: {
+                    dismiss()
+                }) {
+                    Text("Awesome!")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.black)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(Color(red: 1.0, green: 0.6, blue: 0.0))
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+                .padding(.horizontal, 40)
+                .padding(.top, 20)
+            }
+        }
+        .onAppear {
+            animate = true
         }
     }
 }
@@ -232,7 +440,7 @@ private struct DaysGridView: View {
         LazyVGrid(columns: columns, alignment: .leading, spacing: 6) {
             ForEach(days.indices, id: \.self) { index in
                 if let day = days[index] {
-                    let dayDate = buildDate(day: day, month: currentMonth)
+                    let dayDate = CalendarHelper.buildDate(day: day, month: currentMonth)
                     let isSelectable = isDateSelectable(day: day, in: currentMonth)
                     let normalizedDate = calendar.startOfDay(for: dayDate)
                     let hasUncompletedTasks = hasUncompletedTasks(for: normalizedDate)
@@ -277,16 +485,9 @@ private struct DaysGridView: View {
         return days
     }
     
-    // Build a Date from day number and month
-    private func buildDate(day: Int, month: Date) -> Date {
-        var components = calendar.dateComponents([.year, .month], from: month)
-        components.day = day
-        return calendar.date(from: components) ?? month
-    }
-    
     // Check if a date is within the selectable range
     private func isDateSelectable(day: Int, in month: Date) -> Bool {
-        let dayDate = buildDate(day: day, month: month)
+        let dayDate = CalendarHelper.buildDate(day: day, month: month)
         let normalizedDate = calendar.startOfDay(for: dayDate)
         return normalizedDate >= dateRange.min && normalizedDate <= dateRange.max
     }
@@ -395,15 +596,9 @@ private struct ActionButtonsView: View {
     
     private var hasValidSelection: Bool {
         guard let day = selectedDay else { return false }
-        let dayDate = buildDate(day: day, month: currentMonth)
+        let dayDate = CalendarHelper.buildDate(day: day, month: currentMonth)
         let normalizedDate = calendar.startOfDay(for: dayDate)
         return normalizedDate >= dateRange.min && normalizedDate <= dateRange.max
-    }
-    
-    private func buildDate(day: Int, month: Date) -> Date {
-        var components = calendar.dateComponents([.year, .month], from: month)
-        components.day = day
-        return calendar.date(from: components) ?? month
     }
     
     private func confirmSelection() {
@@ -412,7 +607,7 @@ private struct ActionButtonsView: View {
             return
         }
         
-        let dayDate = buildDate(day: day, month: currentMonth)
+        let dayDate = CalendarHelper.buildDate(day: day, month: currentMonth)
         let normalizedDate = calendar.startOfDay(for: dayDate)
         
         // Double-check date is in range
@@ -427,6 +622,17 @@ private struct ActionButtonsView: View {
             selectedDay = nil
             showCalendar = false
         }
+    }
+}
+
+// MARK: - Calendar Helper
+private enum CalendarHelper {
+    /// Build a Date from day number and month
+    static func buildDate(day: Int, month: Date) -> Date {
+        let calendar = Calendar.current
+        var components = calendar.dateComponents([.year, .month], from: month)
+        components.day = day
+        return calendar.date(from: components) ?? month
     }
 }
 
