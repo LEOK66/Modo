@@ -82,11 +82,38 @@ struct ProgressPageView: View {
                             .foregroundColor(.secondary)
                             .padding(.horizontal, 24)
                         VStack(spacing: 12) {
-                            NutritionRow(color: Color(hexString: "2E90FA"), title: "Protein", amount: viewModel.proteinText, icon: "shield")
-                            NutritionRow(color: Color(hexString: "22C55E"), title: "Fat", amount: viewModel.fatText, icon: "heart")
-                            NutritionRow(color: Color(hexString: "F59E0B"), title: "Carbohydrates", amount: viewModel.carbText, icon: "capsule")
+                            NutritionRow(
+                                color: Color(hexString: "2E90FA"),
+                                title: "Protein",
+                                recommended: viewModel.proteinText,
+                                actual: viewModel.todayProtein,
+                                progress: viewModel.proteinProgress,
+                                icon: "shield"
+                            )
+                            NutritionRow(
+                                color: Color(hexString: "22C55E"),
+                                title: "Fat",
+                                recommended: viewModel.fatText,
+                                actual: viewModel.todayFat,
+                                progress: viewModel.fatProgress,
+                                icon: "heart"
+                            )
+                            NutritionRow(
+                                color: Color(hexString: "F59E0B"),
+                                title: "Carbohydrates",
+                                recommended: viewModel.carbText,
+                                actual: viewModel.todayCarbs,
+                                progress: viewModel.carbsProgress,
+                                icon: "capsule"
+                            )
                         }
                         .padding(.horizontal, 24)
+                        
+                        if viewModel.hasMetAllMacroGoals {
+                            MacroGoalCelebrationView()
+                                .padding(.horizontal, 24)
+                                .transition(.opacity)
+                        }
                     }
                     
                     // Current Goal
@@ -128,6 +155,8 @@ struct ProgressPageView: View {
                 authService: authService,
                 userProfile: userProfile
             )
+            // Refresh macro data when view appears (in case tasks were updated)
+            viewModel.loadTodayMacros()
         }
         .onChange(of: profiles.count) { oldValue, newValue in
             // Reload when profiles list changes
@@ -203,29 +232,70 @@ private struct MetricCard: View {
 private struct NutritionRow: View {
     let color: Color
     let title: String
-    let amount: String
+    let recommended: String // e.g., "150g"
+    let actual: Double // Actual intake in grams
+    let progress: Double // Progress from 0.0 to 1.0
     let icon: String
     
+    private var fractionText: String {
+        let actualInt = Int(round(actual))
+        return "\(actualInt)g/\(recommended)"
+    }
+    
+    private var percentText: String {
+        String(format: "%.0f%%", progress * 100)
+    }
+    
     var body: some View {
-        HStack(spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(color.opacity(0.12))
-                    .frame(width: 44, height: 44)
-                Image(systemName: icon)
-                    .foregroundColor(color)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(color.opacity(0.12))
+                        .frame(width: 44, height: 44)
+                    Image(systemName: icon)
+                        .foregroundColor(color)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(color)
+                    Text(recommended)
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(.primary)
+                }
+                Spacer()
+                Image(systemName: "info.circle")
+                    .foregroundColor(.secondary)
             }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(color)
-                Text(amount)
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(.primary)
+            
+            // Progress section - similar to GoalCard
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Progress")
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Text(percentText)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(color)
+                }
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color(.separator))
+                            .frame(height: 8)
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(color)
+                            .frame(width: geometry.size.width * CGFloat(progress), height: 8)
+                            .animation(.easeInOut(duration: 0.5), value: progress)
+                    }
+                }
+                .frame(height: 8)
+                Text(fractionText)
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
             }
-            Spacer()
-            Image(systemName: "info.circle")
-                .foregroundColor(.secondary)
         }
         .padding(16)
         .background(Color(.systemBackground))
@@ -234,6 +304,40 @@ private struct NutritionRow: View {
             RoundedRectangle(cornerRadius: 16)
                 .stroke(Color(.separator), lineWidth: 1)
         )
+    }
+}
+
+// MARK: - Macro celebration card
+private struct MacroGoalCelebrationView: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(Color(hexString: "16A34A").opacity(0.15))
+                    .frame(width: 48, height: 48)
+                Image(systemName: "sparkles")
+                    .foregroundColor(Color(hexString: "16A34A"))
+                    .font(.system(size: 20, weight: .semibold))
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Great job!")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.primary)
+                Text("You've met today's nutrition goals.")
+                    .font(.system(size: 13))
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+        }
+        .padding(16)
+        .background(Color(.systemBackground))
+        .cornerRadius(16)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color(hexString: "16A34A").opacity(0.2), lineWidth: 1)
+        )
+        .shadow(color: Color.primary.opacity(0.04), radius: 4, x: 0, y: 2)
     }
 }
 

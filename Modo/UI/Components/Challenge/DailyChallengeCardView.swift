@@ -222,11 +222,11 @@ struct DailyChallengeCardView: View {
                             .foregroundColor(Color(hexString: "F59E0B"))
                         
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Challenge Completed!")
+                            Text("Challenge Completed！")
                                 .font(.system(size: 16, weight: .bold))
                                 .foregroundColor(.primary)
                             
-                            Text("good for you! 🎉")
+                            Text("Greate！You finished your Daily Challenge！🎉")
                                 .font(.system(size: 13))
                                 .foregroundColor(.secondary)
                         }
