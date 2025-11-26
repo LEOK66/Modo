@@ -143,14 +143,18 @@ final class DailyChallengeServiceTests: XCTestCase {
     }
     
     func testCheckAndResetForNewDay() {
-        // Check for new day
+        // Check for new day when no challenge exists
         service.checkAndResetForNewDay()
         
-        // If challenge is nil, should not do anything
-        // If challenge exists and is for a different day, should reset
-        // Since currentChallenge is not directly settable, we verify the method doesn't crash
+        // When challenge is nil, should call loadTodayChallenge()
+        // Since we can't easily test Firebase operations in unit tests,
+        // we verify the method doesn't crash and service remains valid
         
         XCTAssertNotNil(service, "Service should be valid")
+        
+        // Note: In integration tests, we would verify that:
+        // 1. If challenge is nil, loadTodayChallenge() is called
+        // 2. If challenge exists and is for a different day, it's reset
     }
     
     // MARK: - Published Properties Tests

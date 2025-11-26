@@ -65,7 +65,7 @@ final class DailyChallengeService: ObservableObject, ChallengeServiceProtocol {
     /// Setup observer for profile changes
     private func setupProfileObserver() {
         guard let userProfileService = userProfileService else {
-            print("⚠️ DailyChallengeService: No UserProfileService provided, skipping profile observer")
+            // No warning needed - profile service will be injected later when user logs in
             return
         }
         
@@ -73,8 +73,21 @@ final class DailyChallengeService: ObservableObject, ChallengeServiceProtocol {
             .sink { [weak self] newProfile in
                 guard let self = self else { return }
                 let newValue = newProfile?.hasMinimumDataForDailyChallenge() ?? false
+                
+                // Check if data availability changed
                 if self.hasMinimumUserData != newValue {
+                    let previousValue = self.hasMinimumUserData
                     self.hasMinimumUserData = newValue
+                    
+                    // ✅ If user just completed their profile (false → true), reload challenge
+                    if !previousValue && newValue {
+                        print("✅ DailyChallengeService: User profile completed, generating challenge")
+                        // Reset load flags to allow generating a new challenge
+                        self.hasLoadedChallenge = false
+                        self.lastLoadedDate = nil
+                        // Load today's challenge with the new profile data
+                        self.loadTodayChallenge()
+                    }
                 }
             }
     }
@@ -105,8 +118,8 @@ final class DailyChallengeService: ObservableObject, ChallengeServiceProtocol {
     /// Load today's challenge from Firebase or generate default
     func loadTodayChallenge() {
         guard let userId = Auth.auth().currentUser?.uid else {
-            print("⚠️ DailyChallengeService: No user logged in, using default challenge")
-            generateDefaultChallenge()
+            // Don't load challenge if user is not logged in
+            print("ℹ️ DailyChallengeService: No user logged in, skipping challenge load")
             return
         }
         
@@ -115,8 +128,11 @@ final class DailyChallengeService: ObservableObject, ChallengeServiceProtocol {
         // ✅ Check if we've already loaded today's challenge (avoid redundant loads)
         if hasLoadedChallenge, let lastLoaded = lastLoadedDate,
            Calendar.current.isDate(lastLoaded, inSameDayAs: today) {
+            print("✅ DailyChallengeService: Already loaded today's challenge, skipping")
             return
         }
+        
+        print("🔄 DailyChallengeService: Fetching challenge from Firebase for \(today)")
         
         databaseService.fetchDailyChallenge(userId: userId, date: today) { [weak self] result in
             guard let self = self else { return }
@@ -272,13 +288,10 @@ final class DailyChallengeService: ObservableObject, ChallengeServiceProtocol {
                 await generateAIChallenge(userProfile: nil)
             }
         } else {
-            print("   ⚠️ User doesn't have enough data, using default challenge")
-            // Use default random challenge
-            generateDefaultChallenge()
-            // Save default challenge to Firebase to persist across page switches
-            if let challenge = currentChallenge {
-                saveChallengeToFirebase(challenge)
-            }
+            print("   ⚠️ User doesn't have enough data, skipping challenge generation")
+            print("   💡 Challenge will be generated when user completes their profile")
+            // Don't generate challenge or mark as loaded
+            // When user fills in their profile, setupProfileObserver will trigger loadTodayChallenge()
         }
     }
     
@@ -305,6 +318,9 @@ final class DailyChallengeService: ObservableObject, ChallengeServiceProtocol {
             return
         }
         
+        // Capture current challenge before generating new one (to avoid repetition)
+        let previousChallenge = await MainActor.run { currentChallenge }
+        
         await MainActor.run {
             isGeneratingChallenge = true
             challengeGenerationError = nil
@@ -312,9 +328,12 @@ final class DailyChallengeService: ObservableObject, ChallengeServiceProtocol {
         
         do {
             print("🤖 DailyChallengeService: Generating AI challenge...")
+            if let prev = previousChallenge {
+                print("   📋 Previous challenge: \(prev.title) (\(prev.type.rawValue))")
+            }
             
-            // Build prompt
-            let prompt = promptBuilder.buildDailyChallengePrompt(userProfile: userProfile)
+            // Build prompt with previous challenge context
+            let prompt = promptBuilder.buildDailyChallengePrompt(userProfile: userProfile, previousChallenge: previousChallenge)
             
             // Create message
             let message = ChatMessage(role: "user", content: prompt)
@@ -511,15 +530,31 @@ final class DailyChallengeService: ObservableObject, ChallengeServiceProtocol {
     
     /// Check if it's a new day and reset challenge if needed
     func checkAndResetForNewDay() {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        
+        // If no challenge exists, check if we should load one
         guard let challenge = currentChallenge else {
-            print("ℹ️ DailyChallengeService: No challenge to check for date change")
+            // If user doesn't have minimum data, don't even try to load
+            // (setupProfileObserver will trigger loading when they complete their profile)
+            guard hasMinimumUserData else {
+                print("ℹ️ DailyChallengeService: No challenge and no user data, waiting for profile completion")
+                return
+            }
+            
+            // Only load if we haven't already tried today
+            if let lastLoaded = lastLoadedDate, calendar.isDate(lastLoaded, inSameDayAs: today) {
+                print("ℹ️ DailyChallengeService: Already attempted to load challenge today")
+                return
+            }
+            print("ℹ️ DailyChallengeService: No challenge exists, loading today's challenge")
+            loadTodayChallenge()
             return
         }
         
-        let calendar = Calendar.current
         let challengeDate = calendar.startOfDay(for: challenge.date)
-        let today = calendar.startOfDay(for: Date())
         
+        // If it's a new day, reset and load new challenge
         if challengeDate < today {
             print("📅 DailyChallengeService: New day detected, resetting challenge")
             // Remove old observer
@@ -529,6 +564,8 @@ final class DailyChallengeService: ObservableObject, ChallengeServiceProtocol {
             lastLoadedDate = nil
             // Load or generate new challenge for today
             loadTodayChallenge()
+        } else {
+            print("ℹ️ DailyChallengeService: Challenge is already for today, no action needed")
         }
     }
     

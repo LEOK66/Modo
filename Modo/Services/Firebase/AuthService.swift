@@ -81,6 +81,7 @@ final class AuthService: ObservableObject, AuthServiceProtocol {
                 completion(.failure(error))
             } else if let user = result?.user {
                 completion(.success(user))
+                print("✅ User signed in successfully - User ID: \(user.uid)")
             }
         }
     }

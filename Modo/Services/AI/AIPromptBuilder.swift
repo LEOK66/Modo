@@ -671,52 +671,119 @@ class AIPromptBuilder {
     // MARK: - Daily Challenge Prompts
     
     /// Build a prompt for daily challenge generation
-    func buildDailyChallengePrompt(userProfile: UserProfile?) -> String {
-        var prompt = "Generate a personalized daily challenge. "
+    /// - Parameters:
+    ///   - userProfile: User profile for personalization
+    ///   - previousChallenge: Previous challenge to avoid repeating
+    /// - Returns: Complete prompt string
+    func buildDailyChallengePrompt(userProfile: UserProfile?, previousChallenge: DailyChallenge? = nil) -> String {
+        var prompt = "Generate a personalized daily challenge based on the user's complete profile. "
         
         if let profile = userProfile {
+            prompt += "\n\nUser Profile:"
+            
             if let age = profile.age {
-                prompt += "Age: \(age). "
+                prompt += "\n- Age: \(age) years"
             }
+            
             if let gender = profile.gender {
-                prompt += "Gender: \(gender). "
+                let genderText: String
+                switch gender.lowercased() {
+                case "male", "m":
+                    genderText = "Male"
+                case "female", "f":
+                    genderText = "Female"
+                case "other", "non-binary", "nb":
+                    genderText = "Non-binary"
+                default:
+                    genderText = gender.capitalized
+                }
+                prompt += "\n- Gender: \(genderText)"
             }
+            
+            // Add height (keep user's original units)
+            if let heightValue = profile.heightValue, let heightUnit = profile.heightUnit {
+                prompt += "\n- Height: \(heightValue) \(heightUnit)"
+            }
+            
+            // Add weight (keep user's original units)
+            if let weightValue = profile.weightValue, let weightUnit = profile.weightUnit {
+                prompt += "\n- Weight: \(weightValue) \(weightUnit)"
+            }
+            
             if let goal = profile.goal {
-                prompt += "Goal: \(goal). "
+                prompt += "\n- Goal: \(goal)"
             }
+            
             if let lifestyle = profile.lifestyle {
-                prompt += "Activity level: \(lifestyle). "
+                prompt += "\n- Activity level: \(lifestyle)"
             }
+            
+            prompt += "\n"
+        }
+        
+        // Add previous challenge context to avoid repetition
+        if let previous = previousChallenge {
+            prompt += """
+            
+            IMPORTANT - AVOID REPETITION:
+            The user's current challenge is:
+            - Title: "\(previous.title)"
+            - Type: \(previous.type.rawValue)
+            - Target: \(previous.targetValue)
+            
+            You MUST generate a DIFFERENT type of challenge. Requirements:
+            1. Choose a DIFFERENT challenge type (if previous was fitness, choose diet or mindfulness)
+            2. Use DIFFERENT activities/metrics (if previous was steps, do not use steps again)
+            3. Provide variety to keep the user engaged
+            
+            
+            """
         }
         
         prompt += """
         
-        Create ONE achievable daily challenge that fits the user's profile.
+        Create ONE achievable daily challenge that is PERSONALIZED based on ALL the user profile data above.
+        
+        PERSONALIZATION REQUIREMENTS:
+        - Consider user's AGE: Adjust intensity appropriately (younger = more challenging, older = moderate)
+        - Consider user's WEIGHT & HEIGHT: Tailor fitness challenges to their physical capacity
+        - Consider user's GOAL: 
+          * lose_weight: Focus on calorie-burning activities, water intake, portion control
+          * gain_muscle: Focus on strength exercises, protein intake, recovery
+          * keep_healthy: Balance between fitness, nutrition, and mindfulness
+        - Consider user's ACTIVITY LEVEL:
+          * sedentary: Start with easier challenges (5000-7000 steps, 10-15 min workouts)
+          * moderate: Medium challenges (7000-10000 steps, 20-30 min workouts)
+          * athletic: More challenging (10000+ steps, 30-45 min workouts)
         
         RESPONSE FORMAT (JSON only, no extra text):
         {
-          "title": "Short title (3-6 words)",
+          "title": "Short title (3-5 words)",
           "subtitle": "Brief description (10-15 words)",
           "emoji": "One relevant emoji",
           "type": "fitness|diet|mindfulness",
           "targetValue": number
         }
         
-        Challenge types:
-        - fitness: steps, workout minutes, exercise sets (targetValue = number)
-        - diet: water glasses, protein grams, vegetables servings (targetValue = number)
-        - mindfulness: meditation minutes, gratitude entries, deep breaths (targetValue = number)
+        Challenge types example:
+        - fitness: steps, workout minutes, exercise sets, push-ups, squats, jumping jacks, burpees (targetValue = number), etc.
+        - diet: water glasses, protein grams, vegetables servings, fruits servings, healthy meals, fiber grams (targetValue = number), carbon grams (targetValue = number), etc.
+        - mindfulness: meditation minutes, gratitude entries, deep breaths, journaling minutes, stretching minutes (targetValue = number), etc.
         
         Requirements:
-        - Make it achievable based on user's stats
-        - Use specific numbers for targetValue
+        - Make it ACHIEVABLE and REALISTIC based on user's complete profile
+        - Use specific numbers for targetValue that match their fitness level
         - Keep title concise and motivating
         - Choose appropriate emoji
-        - Do not generate the same challenge twice in a row
+        - VARY the challenge type and activity for diversity, don't need to follow the example above exactly, just be creative and unique.
         - No meaningful word. For example, use "30 minutes of workout" instead of "complete a 30 minute workout"
         
-        Example:
+        Examples:
         {"title": "Walk 8,000 steps", "subtitle": "Get moving with a daily walk", "emoji": "👟", "type": "fitness", "targetValue": 8000}
+        {"title": "Drink 8 glasses of water", "subtitle": "Stay hydrated throughout the day", "emoji": "💧", "type": "diet", "targetValue": 8}
+        {"title": "Meditate for 15 minutes", "subtitle": "Find calm and focus today", "emoji": "🧘", "type": "mindfulness", "targetValue": 15}
+        {"title": "Do 30 push-ups", "subtitle": "Build upper body strength", "emoji": "💪", "type": "fitness", "targetValue": 30}
+        {"title": "Eat 5 servings of vegetables", "subtitle": "Nourish your body with greens", "emoji": "🥗", "type": "diet", "targetValue": 5}
         """
         
         return prompt
