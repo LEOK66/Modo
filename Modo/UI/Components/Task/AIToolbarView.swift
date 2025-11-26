@@ -29,15 +29,15 @@ struct AIToolbarView: View {
             Button(action: onAIGenerateTapped) {
                 HStack(spacing: 6) {
                     Image(systemName: "wand.and.stars")
-                        .foregroundColor(Color(.systemBackground))
+                        .foregroundColor(isAIGenerating ? Color(.systemBackground) : (colorScheme == .dark ? Color.black : Color(.systemBackground)))
                     Text(isAIGenerating ? "..." : "AI Generate")
-                        .foregroundColor(Color(.systemBackground))
+                        .foregroundColor(isAIGenerating ? Color(.systemBackground) : (colorScheme == .dark ? Color.black : Color(.systemBackground)))
                         .lineLimit(1)
                 }
                 .font(.system(size: 14, weight: .medium))
                 .frame(height: 32)
                 .padding(.horizontal, 10)
-                .background(isAIGenerating ? Color(.systemGray4) : (colorScheme == .dark ? Color(.systemGray6) : Color(.label)))
+                .background(isAIGenerating ? Color(.systemGray4) : (colorScheme == .dark ? Color.white : Color(.label)))
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
             .disabled(isAIGenerating)
