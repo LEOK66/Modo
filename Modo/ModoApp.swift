@@ -7,6 +7,7 @@ import FirebaseAuth
 
 @main
 struct ModoApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var authService = ServiceContainer.shared.authService
     @StateObject private var userProgress = UserProgress()
     @StateObject private var dailyCaloriesService = DailyCaloriesService()
@@ -15,9 +16,6 @@ struct ModoApp: App {
     @State private var verificationTimer: Timer?
     
     init() {
-        FirebaseApp.configure()
-        Database.database().isPersistenceEnabled = true
-        
         // Configure URLCache for image caching
         // Memory cache: 50MB, Disk cache: 100MB
         let cacheSizeMemory = 50 * 1024 * 1024  // 50 MB

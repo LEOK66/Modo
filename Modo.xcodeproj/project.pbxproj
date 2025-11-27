@@ -13,6 +13,7 @@
 		77C160322EAF3CFC00F6E552 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 77C160312EAF3CFC00F6E552 /* GoogleSignInSwift */; };
 		77C160342EAF3D4A00F6E552 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 77C160332EAF3D4A00F6E552 /* FirebaseCore */; };
 		9E5F4EB22ED7BDA50029CF56 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = 9E5F4EB12ED7BDA50029CF56 /* FirebaseMessaging */; };
+		9E5F4EB82ED82C5C0029CF56 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 9E5F4EB72ED82C5C0029CF56 /* FirebaseAnalytics */; };
 		9EBDDAA02EBA75A200CAE91B /* FirebaseFunctions in Frameworks */ = {isa = PBXBuildFile; productRef = 9EBDDA9F2EBA75A200CAE91B /* FirebaseFunctions */; };
 		9ED5B9D52EB339BB003351A1 /* FirebaseDatabase in Frameworks */ = {isa = PBXBuildFile; productRef = 9ED5B9D42EB339BB003351A1 /* FirebaseDatabase */; };
 /* End PBXBuildFile section */
@@ -71,6 +72,7 @@
 				4236422A2EA35C9500D25C09 /* FirebaseAuth in Frameworks */,
 				77C160302EAF3CFC00F6E552 /* GoogleSignIn in Frameworks */,
 				77C160322EAF3CFC00F6E552 /* GoogleSignInSwift in Frameworks */,
+				9E5F4EB82ED82C5C0029CF56 /* FirebaseAnalytics in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -138,6 +140,7 @@
 				9ED5B9D42EB339BB003351A1 /* FirebaseDatabase */,
 				9EBDDA9F2EBA75A200CAE91B /* FirebaseFunctions */,
 				9E5F4EB12ED7BDA50029CF56 /* FirebaseMessaging */,
+				9E5F4EB72ED82C5C0029CF56 /* FirebaseAnalytics */,
 			);
 			productName = Modo;
 			productReference = 99F7495B2E9EEDFD006319FF /* Modo.app */;
@@ -572,6 +575,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 423642282EA35C9500D25C09 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseMessaging;
+		};
+		9E5F4EB72ED82C5C0029CF56 /* FirebaseAnalytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 423642282EA35C9500D25C09 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAnalytics;
 		};
 		9EBDDA9F2EBA75A200CAE91B /* FirebaseFunctions */ = {
 			isa = XCSwiftPackageProductDependency;
