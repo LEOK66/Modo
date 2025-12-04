@@ -70,7 +70,7 @@ struct AchievementsPageView: View {
                 }
                 .padding(.bottom, 32)
             }
-            .background(Color(hex: "#F8F9FA"))
+            .background(Color(hex: "#F5F6F7"))
             .navigationTitle("Achievements")
             .navigationBarTitleDisplayMode(.inline)
         }

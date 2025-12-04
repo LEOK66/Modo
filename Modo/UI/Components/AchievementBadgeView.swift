@@ -27,11 +27,57 @@ struct AchievementBadgeView: View {
                 .lineLimit(2)
         }
         .frame(width: containerSize + 20)
+        .padding(.vertical, 12)
+        .padding(.horizontal, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Color.white)
+        )
+        .shadow(
+            color: Color.black.opacity(0.12),
+            radius: 16,
+            x: 0,
+            y: 6
+        )
     }
     
     // MARK: - Badge Container
     
     private var badgeContainer: some View {
+        ZStack {
+            if achievement.iconName.starts(with: "system:") {
+                // Fallback: draw hexagon for SF Symbols
+                systemIconContainer
+            } else {
+                // Use designer's three-layer structure
+                ZStack {
+                    // Layer 1: Container background (different for locked/unlocked)
+                    Image(userAchievement.isUnlocked ? "achievement_container_unlocked" : "achievement_container_locked")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: containerSize, height: containerSize)
+                    
+                    // Layer 2: Achievement icon
+                    Image(achievement.iconName)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: iconSize, height: iconSize)
+                        .opacity(userAchievement.isUnlocked ? 1.0 : 0.5)
+                    
+                    // Lock overlay for locked achievements
+                    if !userAchievement.isUnlocked {
+                        lockOverlay
+                    }
+                }
+                .grayscale(userAchievement.isUnlocked ? 0.0 : 0.6)
+                .saturation(userAchievement.isUnlocked ? 1.0 : 0.3)
+            }
+        }
+    }
+    
+    // MARK: - System Icon Container (Fallback for SF Symbols)
+    
+    private var systemIconContainer: some View {
         ZStack {
             // Hexagon background
             HexagonShape()
@@ -60,40 +106,19 @@ struct AchievementBadgeView: View {
                 )
                 .frame(width: containerSize - 10, height: containerSize - 10)
             
-            // Achievement icon
-            achievementIcon
-            
-            // Lock overlay for locked achievements
-            if !userAchievement.isUnlocked {
-                lockOverlay
-            }
+            // SF Symbol icon
+            Image(systemName: String(achievement.iconName.dropFirst(7)))
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: iconSize, height: iconSize)
+                .foregroundColor(
+                    userAchievement.isUnlocked
+                        ? Color(hex: achievement.iconColor)
+                        : Color(hex: "#C0C0C0")
+                )
         }
-    }
-    
-    // MARK: - Achievement Icon
-    
-    private var achievementIcon: some View {
-        Group {
-            if achievement.iconName.starts(with: "system:") {
-                // SF Symbol
-                Image(systemName: String(achievement.iconName.dropFirst(7)))
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: iconSize, height: iconSize)
-                    .foregroundColor(
-                        userAchievement.isUnlocked
-                            ? Color(hex: achievement.iconColor)
-                            : Color(hex: "#C0C0C0")
-                    )
-            } else {
-                // Asset image
-                Image(achievement.iconName)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: iconSize, height: iconSize)
-                    .opacity(userAchievement.isUnlocked ? 1.0 : 0.4)
-            }
-        }
+        .grayscale(userAchievement.isUnlocked ? 0.0 : 0.6)
+        .saturation(userAchievement.isUnlocked ? 1.0 : 0.3)
     }
     
     // MARK: - Lock Overlay
@@ -120,31 +145,11 @@ struct AchievementBadgeView: View {
     // MARK: - Status Ribbon
     
     private var statusRibbon: some View {
-        ZStack {
-            // Ribbon shape
-            RibbonShape()
-                .fill(
-                    userAchievement.isUnlocked
-                        ? Color(hex: "#FFD700")
-                        : Color(hex: "#D0D0D0")
-                )
-                .frame(width: 90, height: 24)
-                .shadow(
-                    color: Color.black.opacity(0.1),
-                    radius: 2,
-                    x: 0,
-                    y: 1
-                )
-            
-            // Status text
-            Text(userAchievement.isUnlocked ? "UNLOCKED" : "LOCKED")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundColor(
-                    userAchievement.isUnlocked
-                        ? Color(hex: "#8B7500")
-                        : Color(hex: "#888888")
-                )
-        }
+        // Use designer's status PNG
+        Image(userAchievement.isUnlocked ? "achievement_status_unlocked" : "achievement_status_locked")
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .frame(width: 90, height: 24)
     }
 }
 

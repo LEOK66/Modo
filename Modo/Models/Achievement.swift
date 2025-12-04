@@ -110,7 +110,7 @@ extension Achievement {
             id: "first_step",
             title: "First Step",
             description: "Complete your first day",
-            iconName: "system:star.fill",
+            iconName: "achievement_first_step",
             iconColor: "#FF6B6B",
             category: .streak,
             unlockCondition: UnlockCondition(type: .streak, targetValue: 1),
@@ -120,7 +120,7 @@ extension Achievement {
             id: "week_warrior",
             title: "Week Warrior",
             description: "Complete 7 consecutive days",
-            iconName: "system:flame.fill",
+            iconName: "achievement_week_warrior",
             iconColor: "#9B59B6",
             category: .streak,
             unlockCondition: UnlockCondition(type: .streak, targetValue: 7),
@@ -130,31 +130,31 @@ extension Achievement {
             id: "ten_day_streak",
             title: "10-Day Streak",
             description: "Complete 10 consecutive days",
-            iconName: "system:bolt.fill",
+            iconName: "achievement_ten_day_streak",
             iconColor: "#F1C40F",
             category: .streak,
             unlockCondition: UnlockCondition(type: .streak, targetValue: 10),
-            order: 3
+            order: 4
         ),
         Achievement(
             id: "thirty_day_diamond",
             title: "30-Day Diamond",
             description: "Complete 30 consecutive days",
-            iconName: "system:diamond.fill",
+            iconName: "achievement_thirty_day_diamond",
             iconColor: "#3498DB",
             category: .streak,
             unlockCondition: UnlockCondition(type: .streak, targetValue: 30),
-            order: 4
+            order: 7
         ),
         Achievement(
             id: "century_club",
             title: "Century Club",
             description: "Complete 100 consecutive days",
-            iconName: "system:crown.fill",
+            iconName: "achievement_century_club",
             iconColor: "#E67E22",
             category: .streak,
             unlockCondition: UnlockCondition(type: .streak, targetValue: 100),
-            order: 5
+            order: 8
         ),
         
         // Task Achievements
@@ -162,11 +162,11 @@ extension Achievement {
             id: "overachiever",
             title: "Overachiever",
             description: "Complete 50 total tasks",
-            iconName: "system:star.circle.fill",
+            iconName: "achievement_overachiever",
             iconColor: "#F39C12",
             category: .task,
             unlockCondition: UnlockCondition(type: .totalTasks, targetValue: 50),
-            order: 6
+            order: 5
         ),
         
         // Challenge Achievements
@@ -174,21 +174,21 @@ extension Achievement {
             id: "early_bird",
             title: "Early Bird",
             description: "Complete 5 daily challenges",
-            iconName: "system:sunrise.fill",
+            iconName: "achievement_early_bird",
             iconColor: "#FF9F43",
             category: .challenge,
             unlockCondition: UnlockCondition(type: .challenges, targetValue: 5),
-            order: 7
+            order: 3
         ),
         Achievement(
             id: "night_owl",
             title: "Night Owl",
             description: "Complete 10 daily challenges",
-            iconName: "system:moon.stars.fill",
+            iconName: "achievement_night_owl",
             iconColor: "#5F27CD",
             category: .challenge,
             unlockCondition: UnlockCondition(type: .challenges, targetValue: 10),
-            order: 8
+            order: 6
         ),
         
         // Fitness Achievements
@@ -196,7 +196,7 @@ extension Achievement {
             id: "fitness_fanatic",
             title: "Fitness Fanatic",
             description: "Complete 25 fitness tasks",
-            iconName: "system:figure.run",
+            iconName: "achievement_fitness_fanatic",
             iconColor: "#00D2D3",
             category: .fitness,
             unlockCondition: UnlockCondition(type: .fitnessTasks, targetValue: 25),
