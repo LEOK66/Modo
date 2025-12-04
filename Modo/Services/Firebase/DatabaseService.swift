@@ -720,6 +720,31 @@ final class DatabaseService: DatabaseServiceProtocol {
         
         return handle
     }
+    
+    // MARK: - FCM Token Methods
+    
+    /// Save FCM token to Firebase for push notifications
+    /// - Parameters:
+    ///   - userId: User ID
+    ///   - fcmToken: Firebase Cloud Messaging token
+    ///   - completion: Completion handler with result
+    func saveFCMToken(userId: String, fcmToken: String, completion: ((Result<Void, Error>) -> Void)?) {
+        let path = db.child("users").child(userId).child("fcmToken")
+        let payload: [String: Any] = [
+            "token": fcmToken,
+            "updatedAt": Date().timeIntervalSince1970
+        ]
+        
+        path.setValue(payload) { error, _ in
+            if let error = error {
+                print("❌ DatabaseService: Failed to save FCM token - \(error.localizedDescription)")
+                completion?(.failure(error))
+            } else {
+                print("✅ DatabaseService: FCM token saved for user \(userId)")
+                completion?(.success(()))
+            }
+        }
+    }
 }
 
 

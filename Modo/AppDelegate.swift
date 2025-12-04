@@ -1,6 +1,7 @@
 import UIKit
 import FirebaseDatabaseInternal
 import FirebaseCore
+import FirebaseAuth
 import UserNotifications
 import FirebaseMessaging
 
@@ -11,34 +12,30 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil
     ) -> Bool {
         
-        // 1. 配置 Firebase
         FirebaseApp.configure()
         Database.database().isPersistenceEnabled = true
         
-        // 2. 设置通知代理
         UNUserNotificationCenter.current().delegate = self
-        
-        // 3. 请求通知权限
+
         let authOptions: UNAuthorizationOptions = [.alert, .badge, .sound]
         UNUserNotificationCenter.current().requestAuthorization(
             options: authOptions,
             completionHandler: { granted, error in
                 if let error = error {
-                    print("❌ 通知权限请求失败: \(error)")
+                    print("❌ AppDelegate: Notification permission request failed: \(error)")
                 } else {
-                    print("✅ 通知权限: \(granted ? "已授予" : "被拒绝")")
+                    print("✅ AppDelegate: Notification permission: \(granted ? "granted" : "denied")")
                 }
             }
-        )
+        ) 
         
-        // 4. 注册远程通知
         application.registerForRemoteNotifications()
         Messaging.messaging().delegate = self
         
         return true
     }
     
-    // 注册成功回调
+    // Successfully registered for remote notifications
     func application(
         _ application: UIApplication,
         didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
@@ -49,15 +46,14 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         // ✅ Link APNs token with FCM so Firebase can route pushes through APNs
         Messaging.messaging().apnsToken = deviceToken
         
-        // 这里可以将 token 发送到你的服务器
     }
     
-    // 注册失败回调
+    // Failed to register for remote notifications
     func application(
         _ application: UIApplication,
         didFailToRegisterForRemoteNotificationsWithError error: Error
     ) {
-        print("❌ 远程通知注册失败: \(error)")
+        print("❌ AppDelegate: Failed to register for remote notifications: \(error)")
     }
 }
 
@@ -127,16 +123,34 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
 
 extension AppDelegate: MessagingDelegate {
     func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
-      print("Firebase registration token: \(String(describing: fcmToken))")
+      guard let fcmToken = fcmToken else {
+        print("⚠️ AppDelegate: Received nil FCM token")
+        return
+      }
+      
+      print("✅ AppDelegate: Firebase registration token: \(fcmToken)")
 
-      let dataDict: [String: String] = ["token": fcmToken ?? ""]
+      // Post notification for app to handle if needed
+      let dataDict: [String: String] = ["token": fcmToken]
       NotificationCenter.default.post(
         name: Notification.Name("FCMToken"),
         object: nil,
         userInfo: dataDict
       )
-      // TODO: If necessary send token to application server.
-      // Note: This callback is fired at each app startup and whenever a new token is generated.
+      
+      // Save FCM token to Firebase database if user is authenticated
+      if let userId = Auth.auth().currentUser?.uid {
+        DatabaseService.shared.saveFCMToken(userId: userId, fcmToken: fcmToken) { result in
+          switch result {
+          case .success:
+            print("✅ AppDelegate: FCM token saved to database for user \(userId)")
+          case .failure(let error):
+            print("❌ AppDelegate: Failed to save FCM token to database: \(error.localizedDescription)")
+          }
+        }
+      } else {
+        print("⚠️ AppDelegate: User not authenticated, FCM token will be saved after login")
+      }
     }
     
 }

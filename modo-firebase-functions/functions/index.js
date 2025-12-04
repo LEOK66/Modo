@@ -4,6 +4,7 @@
  */
 
 const {onCall} = require("firebase-functions/v2/https");
+const {onSchedule} = require("firebase-functions/v2/scheduler");
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 
@@ -107,7 +108,7 @@ exports.chatWithAI = onCall(async (request) => {
       let errorMessage =
         `OpenAI API error: ${response.status} ${response.statusText}`;
       let errorType = "unknown";
-      
+
       try {
         const errorJson = JSON.parse(errorText);
         if (errorJson.error && errorJson.error.message) {
@@ -121,7 +122,7 @@ exports.chatWithAI = onCall(async (request) => {
       }
 
       // Check for rate limit errors (TPM, RPM, etc.)
-      if (response.status === 429 || 
+      if (response.status === 429 ||
           errorType === "rate_limit_exceeded" ||
           errorType === "insufficient_quota" ||
           errorMessage.toLowerCase().includes("rate limit") ||
@@ -266,5 +267,129 @@ exports.deleteAccount = onCall(async (request) => {
       success: false,
       error: error.message || "An unknown error occurred",
     };
+  }
+});
+
+/**
+ * Scheduled function to send daily challenge notifications
+ *
+ * To deploy: firebase deploy --only functions:sendDailyChallengeNotifications
+ */
+exports.sendDailyChallengeNotifications = onSchedule({
+  schedule: "0 9 * * *", // Every day at 9:00 AM
+  timeZone: "America/Los_Angeles", // 美国西部时间 (PST/PDT)
+}, async (event) => {
+  try {
+    logger.info("Starting daily challenge notification job");
+
+    const db = admin.database();
+    const usersRef = db.ref("users");
+
+    // Get all users
+    const snapshot = await usersRef.once("value");
+    if (!snapshot.exists()) {
+      logger.info("No users found in database");
+      return;
+    }
+
+    const users = snapshot.val();
+    const notificationPromises = [];
+    let successCount = 0;
+    let failureCount = 0;
+
+    // Process each user
+    for (const [userId] of Object.entries(users)) {
+      try {
+        // Get FCM token
+        const fcmTokenRef = db.ref(`users/${userId}/fcmToken/token`);
+        const tokenSnapshot = await fcmTokenRef.once("value");
+
+        if (!tokenSnapshot.exists()) {
+          logger.info(`No FCM token found for user ${userId}`);
+          continue;
+        }
+
+        const fcmToken = tokenSnapshot.val();
+        if (!fcmToken || typeof fcmToken !== "string") {
+          logger.warn(`Invalid FCM token for user ${userId}`);
+          continue;
+        }
+
+        // Get user profile to personalize message
+        const profileRef = db.ref(`users/${userId}/profile`);
+        const profileSnapshot = await profileRef.once("value");
+        const profile = profileSnapshot.exists() ? profileSnapshot.val() : null;
+        const username = (profile && profile.username) || "Modor";
+
+        // Prepare notification message
+        const challengeMessage = `Hey ${username}! Your daily challenge ` +
+          "is waiting for you. Let's make today count! 💪";
+        const message = {
+          notification: {
+            title: "🌟 Daily Challenge Ready!",
+            body: challengeMessage,
+          },
+          data: {
+            type: "daily_challenge",
+            date: new Date().toISOString().split("T")[0],
+          },
+          token: fcmToken,
+          apns: {
+            payload: {
+              aps: {
+                sound: "default",
+                badge: 1,
+              },
+            },
+          },
+        };
+
+        // Send notification
+        const sendPromise = admin.messaging().send(message)
+            .then((response) => {
+              logger.info(
+                  `Notification sent successfully to user ${userId}`,
+                  {
+                    userId,
+                    messageId: response,
+                  },
+              );
+              successCount++;
+            })
+            .catch((error) => {
+              logger.error(
+                  `Failed to send notification to user ${userId}`,
+                  {
+                    userId,
+                    error: error.message,
+                  },
+              );
+              failureCount++;
+            });
+
+        notificationPromises.push(sendPromise);
+      } catch (error) {
+        logger.error(`Error processing user ${userId}`, {
+          userId,
+          error: error.message,
+        });
+        failureCount++;
+      }
+    }
+
+    // Wait for all notifications to be sent
+    await Promise.allSettled(notificationPromises);
+
+    logger.info("Daily challenge notification job completed", {
+      totalUsers: Object.keys(users).length,
+      successCount,
+      failureCount,
+    });
+  } catch (error) {
+    logger.error("Error in sendDailyChallengeNotifications", {
+      error: error.message,
+      stack: error.stack,
+    });
+    throw error;
   }
 });
