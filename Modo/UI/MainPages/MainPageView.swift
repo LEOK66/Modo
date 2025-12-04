@@ -222,12 +222,13 @@ struct MainPageView: View {
             
             // Initialize ViewModels
             taskListViewModel.onAppear()
-            challengeViewModel.onAppear()
+            
+            // Note: Daily challenge is only loaded when user opens Profile page
+            // challengeViewModel is kept for displaying challenge detail view if needed
         }
         .onDisappear {
             // Cleanup ViewModels
             taskListViewModel.onDisappear()
-            challengeViewModel.onDisappear()
         }
         .onChange(of: taskListViewModel.selectedDate) { oldValue, newValue in
             // Handle date change in ViewModel

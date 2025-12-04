@@ -42,10 +42,12 @@ class ProgressCalculationService {
     /// - Parameters:
     ///   - completedDays: Number of completed days
     ///   - targetDays: Target number of days
+    ///   - bufferDays: Number of buffer days (days that can be skipped)
     /// - Returns: Progress percentage (0.0-1.0, capped at 1.0)
-    func calculateProgress(completedDays: Int, targetDays: Int) -> Double {
-        guard targetDays > 0 else { return 0.0 } // Avoid division by zero
-        let progress = Double(completedDays) / Double(targetDays)
+    func calculateProgress(completedDays: Int, targetDays: Int, bufferDays: Int = 0) -> Double {
+        // Calculate effective days (targetDays minus bufferDays, minimum 1 to avoid division by zero)
+        let effectiveDays = max(1, targetDays - bufferDays)
+        let progress = Double(completedDays) / Double(effectiveDays)
         return min(1.0, max(0.0, progress)) // Limit between 0.0 and 1.0
     }
     
