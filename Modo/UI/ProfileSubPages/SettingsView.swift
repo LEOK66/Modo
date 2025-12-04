@@ -7,7 +7,6 @@ struct SettingsView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @EnvironmentObject var authService: AuthService
     @Environment(\.modelContext) private var modelContext
-    @State private var notificationsEnabled = true
     
     // Check if user can change password (only for email/password accounts)
     private var canChangePassword: Bool {
@@ -44,22 +43,13 @@ struct SettingsView: View {
                 
                 // Preferences Section
                 settingsSection(title: "Preferences") {
-                    VStack(spacing: 0) {
-                        SettingsRowNavigationLink(
-                            icon: "globe",
-                            title: "Language",
-                            subtitle: "English",
-                            showDivider: true
-                        ) {
-                            ComingSoonView()
-                        }
-                        
-                        SettingsToggleRow(
-                            icon: "bell",
-                            title: "Notifications",
-                            subtitle: "Push alerts & reminders",
-                            isOn: $notificationsEnabled
-                        )
+                    SettingsRowNavigationLink(
+                        icon: "globe",
+                        title: "Language",
+                        subtitle: "English",
+                        showDivider: false
+                    ) {
+                        ComingSoonView()
                     }
                 }
                 
