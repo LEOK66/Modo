@@ -20,6 +20,7 @@ struct ProgressPageView: View {
     
     // Navigation state
     @State private var showEditProfile = false
+    @State private var showMacroBreakdown = false
     
     // Extract userId separately to reduce optional chaining inside closures
     private var currentUserId: String? {
@@ -84,6 +85,12 @@ struct ProgressPageView: View {
                     EditProfileView()
                         .environmentObject(authService)
                 }
+            }
+            .sheet(isPresented: $showMacroBreakdown) {
+                MacroBreakdownView(
+                    macroType: viewModel.selectedMacroType,
+                    viewModel: viewModel
+                )
             }
     }
     
@@ -152,7 +159,11 @@ struct ProgressPageView: View {
                                 recommended: viewModel.proteinText,
                                 actual: viewModel.todayProtein,
                                 progress: viewModel.proteinProgress,
-                                icon: "shield"
+                                icon: "shield",
+                                onInfoTap: {
+                                    viewModel.selectedMacroType = .protein
+                                    showMacroBreakdown = true
+                                }
                             )
                             NutritionRow(
                                 color: Color(hexString: "22C55E"),
@@ -160,7 +171,11 @@ struct ProgressPageView: View {
                                 recommended: viewModel.fatText,
                                 actual: viewModel.todayFat,
                                 progress: viewModel.fatProgress,
-                                icon: "heart"
+                                icon: "heart",
+                                onInfoTap: {
+                                    viewModel.selectedMacroType = .fat
+                                    showMacroBreakdown = true
+                                }
                             )
                             NutritionRow(
                                 color: Color(hexString: "F59E0B"),
@@ -168,7 +183,11 @@ struct ProgressPageView: View {
                                 recommended: viewModel.carbText,
                                 actual: viewModel.todayCarbs,
                                 progress: viewModel.carbsProgress,
-                                icon: "capsule"
+                                icon: "capsule",
+                                onInfoTap: {
+                                    viewModel.selectedMacroType = .carbs
+                                    showMacroBreakdown = true
+                                }
                             )
                         }
                         .padding(.horizontal, 24)
@@ -315,6 +334,20 @@ private struct MetricCard: View {
     }
 }
 
+// MARK: - Helper function for formatting macro values
+private func formatMacroValue(_ value: Double) -> String {
+    if value < 0.1 {
+        // Very small values, show 0
+        return "0g"
+    } else if value < 1.0 {
+        // Values less than 1, show 1 decimal place
+        return String(format: "%.1fg", value)
+    } else {
+        // Values >= 1, show as integer
+        return "\(Int(round(value)))g"
+    }
+}
+
 // MARK: - NutritionRow
 private struct NutritionRow: View {
     let color: Color
@@ -323,10 +356,11 @@ private struct NutritionRow: View {
     let actual: Double // Actual intake in grams
     let progress: Double // Progress from 0.0 to 1.0
     let icon: String
+    let onInfoTap: () -> Void
     
     private var fractionText: String {
-        let actualInt = Int(round(actual))
-        return "\(actualInt)g/\(recommended)"
+        let formattedActual = formatMacroValue(actual)
+        return "\(formattedActual)/\(recommended)"
     }
     
     private var percentText: String {
@@ -352,8 +386,10 @@ private struct NutritionRow: View {
                         .foregroundColor(.primary)
                 }
                 Spacer()
-                Image(systemName: "info.circle")
-                    .foregroundColor(.secondary)
+                Button(action: onInfoTap) {
+                    Image(systemName: "info.circle")
+                        .foregroundColor(.secondary)
+                }
             }
             
             // Progress section - similar to GoalCard
@@ -694,6 +730,124 @@ private struct CompletedGoalCard: View {
             RoundedRectangle(cornerRadius: 16)
                 .stroke(Color(hexString: "16A34A").opacity(0.3), lineWidth: 1.5)
         )
+    }
+}
+
+// MARK: - Macro Breakdown View
+private struct MacroBreakdownView: View {
+    let macroType: ProgressViewModel.MacroType
+    @ObservedObject var viewModel: ProgressViewModel
+    @Environment(\.dismiss) private var dismiss
+    
+    private var macroColor: Color {
+        Color(hexString: macroType.color)
+    }
+    
+    private var sources: [ProgressViewModel.MacroSource] {
+        viewModel.getMacroBreakdown(for: macroType)
+    }
+    
+    private var totalAmount: Double {
+        sources.reduce(0) { $0 + $1.amount }
+    }
+    
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color(.systemBackground)
+                    .ignoresSafeArea()
+                
+                if sources.isEmpty {
+                    VStack(spacing: 16) {
+                        Image(systemName: "fork.knife")
+                            .font(.system(size: 48))
+                            .foregroundColor(.secondary)
+                        Text("No \(macroType.displayName.lowercased()) intake today")
+                            .font(.system(size: 16))
+                            .foregroundColor(.secondary)
+                    }
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 20) {
+                            // Header summary
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Total \(macroType.displayName)")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.secondary)
+                                Text(formatMacroValue(totalAmount))
+                                    .font(.system(size: 32, weight: .bold))
+                                    .foregroundColor(macroColor)
+                            }
+                            .padding(.horizontal, 24)
+                            .padding(.top, 16)
+                            
+                            Divider()
+                                .padding(.horizontal, 24)
+                            
+                            // Food sources list
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Sources")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundColor(.primary)
+                                    .padding(.horizontal, 24)
+                                
+                                ForEach(sources) { source in
+                                    MacroSourceRow(
+                                        foodName: source.foodName,
+                                        amount: source.amount,
+                                        quantity: source.quantity,
+                                        color: macroColor
+                                    )
+                                }
+                            }
+                            .padding(.top, 8)
+                        }
+                    }
+                }
+            }
+            .navigationTitle(macroType.displayName)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .foregroundColor(macroColor)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Macro Source Row
+private struct MacroSourceRow: View {
+    let foodName: String
+    let amount: Double
+    let quantity: String
+    let color: Color
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            // Food name and quantity
+            VStack(alignment: .leading, spacing: 4) {
+                Text(foodName)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.primary)
+                Text(quantity)
+                    .font(.system(size: 13))
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+            
+            // Amount only
+            Text(formatMacroValue(amount))
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(color)
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 12)
+        .background(Color(.systemBackground))
     }
 }
 
