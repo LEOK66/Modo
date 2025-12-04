@@ -39,6 +39,9 @@ final class ProgressViewModel: ObservableObject {
     /// Today's actual macro intake (protein, fat, carbs)
     @Published private(set) var todayMacros: (protein: Double, fat: Double, carbs: Double) = (0, 0, 0)
     
+    /// Selected macro type for breakdown view
+    @Published var selectedMacroType: MacroType = .protein
+    
     /// Combine cancellables for notification subscriptions
     private var cancellables = Set<AnyCancellable>()
     
@@ -174,10 +177,32 @@ final class ProgressViewModel: ObservableObject {
     
     // MARK: - Macro Calculation Helper
     
-    private enum MacroType {
+    enum MacroType {
         case protein
         case fat
         case carbs
+        
+        var displayName: String {
+            switch self {
+            case .protein:
+                return "Protein"
+            case .fat:
+                return "Fat"
+            case .carbs:
+                return "Carbohydrates"
+            }
+        }
+        
+        var color: String {
+            switch self {
+            case .protein:
+                return "2E90FA"
+            case .fat:
+                return "22C55E"
+            case .carbs:
+                return "F59E0B"
+            }
+        }
     }
     
     /// Calculate macro value for a diet entry
@@ -234,6 +259,67 @@ final class ProgressViewModel: ObservableObject {
         }
         
         return calculatedValue ?? 0.0
+    }
+    
+    // MARK: - Macro Breakdown Methods
+    
+    /// Represents a single food source contribution to a macro
+    struct MacroSource: Identifiable {
+        let id: UUID
+        let foodName: String
+        let amount: Double // Amount in grams
+        let quantity: String // Display quantity (e.g., "200g" or "2 servings")
+    }
+    
+    /// Get detailed breakdown of a specific macro from today's completed diet tasks
+    /// - Parameter type: The macro type (protein, fat, or carbs)
+    /// - Returns: Array of food sources contributing to this macro
+    func getMacroBreakdown(for type: MacroType) -> [MacroSource] {
+        guard let authService = authService,
+              let userId = authService.currentUser?.uid else {
+            return []
+        }
+        
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        
+        // Get today's tasks from cache
+        let tasks = taskCacheService.getTasks(for: today, userId: userId)
+        
+        // Filter only completed diet tasks
+        let completedDietTasks = tasks.filter { task in
+            task.category == .diet && task.isDone
+        }
+        
+        var sources: [MacroSource] = []
+        
+        for task in completedDietTasks {
+            for entry in task.dietEntries {
+                let macroValue = calculateMacroValue(for: entry, type: type)
+                
+                // Only include entries with non-zero macro values
+                guard macroValue > 0 else { continue }
+                
+                // Get food name (prefer food.name, fallback to customName)
+                let foodName = entry.food?.name ?? entry.customName
+                guard !foodName.isEmpty else { continue }
+                
+                // Format quantity display
+                let quantity = entry.quantityText.isEmpty ? "1" : entry.quantityText
+                let unit = entry.unit.isEmpty ? "serving" : entry.unit
+                let quantityDisplay = "\(quantity) \(unit)"
+                
+                sources.append(MacroSource(
+                    id: entry.id,
+                    foodName: foodName,
+                    amount: macroValue,
+                    quantity: quantityDisplay
+                ))
+            }
+        }
+        
+        // Sort by amount descending (largest contributors first)
+        return sources.sorted { $0.amount > $1.amount }
     }
     
     // MARK: - Computed Properties - Display Text
