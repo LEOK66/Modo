@@ -174,8 +174,8 @@ struct AchievementsPageView: View {
         // Initialize user achievements with mock data
         // In production, this would be loaded from AchievementService
         userAchievements = achievements.map { achievement in
-            // Mock: unlock first 6 achievements
-            let isUnlocked = achievement.order <= 6
+            // Mock: unlock first 18 achievements, lock the rest
+            let isUnlocked = achievement.order <= 18
             return UserAchievement(
                 id: achievement.id,
                 achievementId: achievement.id,

@@ -25,52 +25,55 @@ struct AchievementBadgeView: View {
                 .foregroundColor(Color(hex: "#1A1A1A"))
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
+                .frame(height: 34, alignment: .top)
         }
         .frame(width: containerSize + 20)
-        .padding(.vertical, 12)
-        .padding(.horizontal, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color.white)
-        )
-        .shadow(
-            color: Color.black.opacity(0.12),
-            radius: 16,
-            x: 0,
-            y: 6
-        )
     }
     
     // MARK: - Badge Container
     
     private var badgeContainer: some View {
         ZStack {
+            // Layer 1: Container background (different for locked/unlocked)
+            Image(userAchievement.isUnlocked ? "achievement_container_unlocked" : "achievement_container_locked")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: containerSize, height: containerSize)
+            
+            // Layer 2: Achievement icon (SF Symbol or custom image)
+            achievementIcon
+            
+            // Lock overlay for locked achievements
+            if !userAchievement.isUnlocked {
+                lockOverlay
+            }
+        }
+        .grayscale(userAchievement.isUnlocked ? 0.0 : 0.6)
+        .saturation(userAchievement.isUnlocked ? 1.0 : 0.3)
+    }
+    
+    // MARK: - Achievement Icon
+    
+    private var achievementIcon: some View {
+        Group {
             if achievement.iconName.starts(with: "system:") {
-                // Fallback: draw hexagon for SF Symbols
-                systemIconContainer
+                // SF Symbol icon
+                Image(systemName: String(achievement.iconName.dropFirst(7)))
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: iconSize, height: iconSize)
+                    .foregroundColor(
+                        userAchievement.isUnlocked
+                            ? Color(hex: achievement.iconColor)
+                            : Color(hex: "#C0C0C0")
+                    )
             } else {
-                // Use designer's three-layer structure
-                ZStack {
-                    // Layer 1: Container background (different for locked/unlocked)
-                    Image(userAchievement.isUnlocked ? "achievement_container_unlocked" : "achievement_container_locked")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: containerSize, height: containerSize)
-                    
-                    // Layer 2: Achievement icon
-                    Image(achievement.iconName)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: iconSize, height: iconSize)
-                        .opacity(userAchievement.isUnlocked ? 1.0 : 0.5)
-                    
-                    // Lock overlay for locked achievements
-                    if !userAchievement.isUnlocked {
-                        lockOverlay
-                    }
-                }
-                .grayscale(userAchievement.isUnlocked ? 0.0 : 0.6)
-                .saturation(userAchievement.isUnlocked ? 1.0 : 0.3)
+                // Custom PNG icon
+                Image(achievement.iconName)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: iconSize, height: iconSize)
+                    .opacity(userAchievement.isUnlocked ? 1.0 : 0.5)
             }
         }
     }
