@@ -220,6 +220,7 @@ struct DietEntriesCardView: View {
                     .controlSize(.small)
                     .fixedSize(horizontal: true, vertical: false)
                     .frame(maxWidth: .infinity)
+                    .background(Color(.systemBackground))
                 }
                 
                 VStack(alignment: .leading, spacing: 4) {

@@ -59,6 +59,7 @@ struct QuickPickSheetView: View {
             .frame(maxWidth: .infinity, minHeight: 44)
         }
         .padding(16)
+        .presentationBackground(Color(.systemBackground))
         .presentationDetents([.fraction(0.6)])
         .presentationDragIndicator(.visible)
         .onAppear {

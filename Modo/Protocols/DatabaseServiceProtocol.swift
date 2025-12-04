@@ -153,5 +153,14 @@ protocol DatabaseServiceProtocol {
     ///   - callback: Callback with updated challenge data dictionary
     /// - Returns: Listener handle (store this to stop listening later)
     func listenToDailyChallenge(userId: String, date: Date, callback: @escaping ([String: Any]?) -> Void) -> DatabaseHandle?
+    
+    // MARK: - FCM Token Methods
+    
+    /// Save FCM token to Firebase for push notifications
+    /// - Parameters:
+    ///   - userId: User ID
+    ///   - fcmToken: Firebase Cloud Messaging token
+    ///   - completion: Completion handler with result
+    func saveFCMToken(userId: String, fcmToken: String, completion: ((Result<Void, Error>) -> Void)?)
 }
 
