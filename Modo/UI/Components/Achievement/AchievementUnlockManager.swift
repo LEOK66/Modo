@@ -59,8 +59,6 @@ class AchievementUnlockManager: ObservableObject {
 struct AchievementUnlockContainer: View {
     @StateObject private var manager = AchievementUnlockManager.shared
     
-    var onViewDetails: ((Achievement) -> Void)?
-    
     var body: some View {
         Group {
             if let (achievement, userAchievement) = manager.currentAchievement,
@@ -71,10 +69,7 @@ struct AchievementUnlockContainer: View {
                     isPresented: Binding(
                         get: { manager.isShowing },
                         set: { _ in manager.onDismiss() }
-                    ),
-                    onViewDetails: {
-                        onViewDetails?(achievement)
-                    }
+                    )
                 )
                 .transition(.opacity)
                 .zIndex(1000)

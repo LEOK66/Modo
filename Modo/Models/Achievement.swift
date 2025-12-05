@@ -45,6 +45,7 @@ enum AchievementCategory: String, Codable {
     case diet = "diet"
     case ai = "ai"
     case milestone = "milestone"
+    case mystery = "mystery" // Hidden/secret achievements
 }
 
 // MARK: - Unlock Condition
@@ -451,14 +452,14 @@ extension Achievement {
             order: 28
         ),
         
-        // MARK: - Special Achievements
+        // MARK: - Special Achievements (Mystery/Hidden)
         Achievement(
             id: "rainbow_warrior",
             title: "Rainbow Warrior",
             description: "Balance across all areas of health—you're doing it all",
             iconName: "system:rainbow",
             iconColor: "#E91E63",
-            category: .milestone,
+            category: .mystery,
             unlockCondition: UnlockCondition(type: .allCategoriesInWeek, targetValue: 10),
             order: 29
         ),

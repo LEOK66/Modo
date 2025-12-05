@@ -9,8 +9,6 @@ struct AchievementUnlockView: View {
     let userAchievement: UserAchievement
     @Binding var isPresented: Bool
     
-    var onViewDetails: (() -> Void)?
-    
     // Animation states
     @State private var cardScale: CGFloat = 0.3
     @State private var cardOpacity: Double = 0
@@ -127,43 +125,26 @@ struct AchievementUnlockView: View {
                     }
                     .padding(.horizontal, 32)
                     
-                    // Action buttons
-                    VStack(spacing: 12) {
-                        // View Details button
-                        Button(action: {
-                            onViewDetails?()
-                            dismiss()
-                        }) {
-                            Text("View Details")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 50)
-                                .background(
-                                    LinearGradient(
-                                        colors: [
-                                            Color(hex: "#1A1F3A"),
-                                            Color(hex: "#2D3354")
-                                        ],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
+                    // Close button
+                    Button(action: {
+                        dismiss()
+                    }) {
+                        Text("Close")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 50)
+                            .background(
+                                LinearGradient(
+                                    colors: [
+                                        Color(hex: "#1A1F3A"),
+                                        Color(hex: "#2D3354")
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
                                 )
-                                .clipShape(RoundedRectangle(cornerRadius: 14))
-                        }
-                        
-                        // Close button
-                        Button(action: {
-                            dismiss()
-                        }) {
-                            Text("Close")
-                                .font(.system(size: 16, weight: .regular))
-                                .foregroundColor(.primary)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 50)
-                                .background(Color(.secondarySystemBackground))
-                                .clipShape(RoundedRectangle(cornerRadius: 14))
-                        }
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
                     }
                     .padding(.horizontal, 32)
                     .offset(y: buttonOffset)
@@ -325,10 +306,7 @@ struct AchievementUnlockView: View {
         AchievementUnlockView(
             achievement: achievement,
             userAchievement: userAchievement,
-            isPresented: .constant(true),
-            onViewDetails: {
-                print("View details tapped")
-            }
+            isPresented: .constant(true)
         )
     }
 }

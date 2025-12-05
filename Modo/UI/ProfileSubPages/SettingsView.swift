@@ -131,9 +131,18 @@ struct SettingsView: View {
                             icon: "target",
                             title: "Test Goal",
                             subtitle: "Test goal progress calculation",
-                            showDivider: false
+                            showDivider: true
                         ) {
                             GoalTestView()
+                        }
+                        
+                        SettingsRowNavigationLink(
+                            icon: "trophy.fill",
+                            title: "Test Achievements",
+                            subtitle: "Manually unlock achievements",
+                            showDivider: false
+                        ) {
+                            AchievementTestView()
                         }
                     }
                 }

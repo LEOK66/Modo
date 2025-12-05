@@ -19,13 +19,22 @@ struct AchievementBadgeView: View {
             // Status ribbon
             statusRibbon
             
-            // Title
-            Text(achievement.title)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(Color(hex: "#1A1A1A"))
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .frame(height: 34, alignment: .top)
+            // Title (hide for locked mystery achievements)
+            if achievement.category == .mystery && !userAchievement.isUnlocked {
+                Text("???")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(Color(hex: "#1A1A1A"))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(1)
+                    .frame(height: 34, alignment: .top)
+            } else {
+                Text(achievement.title)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(Color(hex: "#1A1A1A"))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .frame(height: 34, alignment: .top)
+            }
         }
         .frame(width: containerSize + 20)
     }
@@ -56,7 +65,15 @@ struct AchievementBadgeView: View {
     
     private var achievementIcon: some View {
         Group {
-            if achievement.iconName.starts(with: "system:") {
+            // For mystery achievements that are locked, show question mark
+            if achievement.category == .mystery && !userAchievement.isUnlocked {
+                // Show question mark for locked mystery achievements
+                Image(systemName: "questionmark.circle.fill")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: iconSize, height: iconSize)
+                    .foregroundColor(Color(hex: "#C0C0C0"))
+            } else if achievement.iconName.starts(with: "system:") {
                 // SF Symbol icon
                 Image(systemName: String(achievement.iconName.dropFirst(7)))
                     .resizable()
