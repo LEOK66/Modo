@@ -9,6 +9,9 @@ struct AchievementUnlockView: View {
     let userAchievement: UserAchievement
     @Binding var isPresented: Bool
     
+    // Share functionality
+    @State private var showShareSheet = false
+    
     // Animation states
     @State private var cardScale: CGFloat = 0.3
     @State private var cardOpacity: Double = 0
@@ -125,26 +128,55 @@ struct AchievementUnlockView: View {
                     }
                     .padding(.horizontal, 32)
                     
-                    // Close button
-                    Button(action: {
-                        dismiss()
-                    }) {
-                        Text("Close")
-                            .font(.system(size: 16, weight: .semibold))
+                    // Action buttons
+                    HStack(spacing: 12) {
+                        // Share button
+                        Button(action: {
+                            showShareSheet = true
+                        }) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "square.and.arrow.up")
+                                    .font(.system(size: 16, weight: .semibold))
+                                Text("Share")
+                                    .font(.system(size: 16, weight: .semibold))
+                            }
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .frame(height: 50)
                             .background(
                                 LinearGradient(
                                     colors: [
-                                        Color(hex: "#1A1F3A"),
-                                        Color(hex: "#2D3354")
+                                        Color(hex: "#27AE60"),
+                                        Color(hex: "#2ECC71")
                                     ],
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
                                 )
                             )
                             .clipShape(RoundedRectangle(cornerRadius: 14))
+                        }
+                        
+                        // Close button
+                        Button(action: {
+                            dismiss()
+                        }) {
+                            Text("Close")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 50)
+                                .background(
+                                    LinearGradient(
+                                        colors: [
+                                            Color(hex: "#1A1F3A"),
+                                            Color(hex: "#2D3354")
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: 14))
+                        }
                     }
                     .padding(.horizontal, 32)
                     .offset(y: buttonOffset)
@@ -169,6 +201,14 @@ struct AchievementUnlockView: View {
         }
         .onAppear {
             startAnimation()
+        }
+        .sheet(isPresented: $showShareSheet) {
+            ShareSheet(
+                items: AchievementShareService.generateShareItems(
+                    achievement: achievement,
+                    userAchievement: userAchievement
+                )
+            )
         }
     }
     

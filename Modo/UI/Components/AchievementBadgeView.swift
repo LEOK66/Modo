@@ -7,6 +7,9 @@ struct AchievementBadgeView: View {
     let achievement: Achievement
     let userAchievement: UserAchievement
     
+    // Share functionality
+    @State private var showShareSheet = false
+    
     // Container properties
     private let containerSize: CGFloat = 100
     private let iconSize: CGFloat = 32
@@ -14,7 +17,34 @@ struct AchievementBadgeView: View {
     var body: some View {
         VStack(spacing: 12) {
             // Badge container (hexagon shape with icon)
-            badgeContainer
+            ZStack {
+                badgeContainer
+                
+                // Share button overlay (only for unlocked achievements)
+                if userAchievement.isUnlocked {
+                    VStack {
+                        HStack {
+                            Spacer()
+                            Button(action: {
+                                showShareSheet = true
+                            }) {
+                                Image(systemName: "square.and.arrow.up")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .frame(width: 28, height: 28)
+                                    .background(
+                                        Circle()
+                                            .fill(Color(hexString: "#1A1F3A").opacity(0.8))
+                                    )
+                                    .shadow(color: Color.black.opacity(0.2), radius: 4, x: 0, y: 2)
+                            }
+                            .offset(x: 8, y: -8)
+                        }
+                        Spacer()
+                    }
+                    .frame(width: containerSize, height: containerSize)
+                }
+            }
             
             // Status ribbon
             statusRibbon
@@ -37,6 +67,14 @@ struct AchievementBadgeView: View {
             }
         }
         .frame(width: containerSize + 20)
+        .sheet(isPresented: $showShareSheet) {
+            ShareSheet(
+                items: AchievementShareService.generateShareItems(
+                    achievement: achievement,
+                    userAchievement: userAchievement
+                )
+            )
+        }
     }
     
     // MARK: - Badge Container
