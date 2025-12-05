@@ -174,14 +174,13 @@ struct AchievementsPageView: View {
         // Initialize user achievements with mock data
         // In production, this would be loaded from AchievementService
         userAchievements = achievements.map { achievement in
-            // Mock: unlock first 18 achievements, lock the rest
-            let isUnlocked = achievement.order <= 18
+            // All achievements are locked initially
             return UserAchievement(
                 id: achievement.id,
                 achievementId: achievement.id,
-                status: isUnlocked ? .unlocked : .locked,
-                currentProgress: isUnlocked ? achievement.unlockCondition.targetValue : 0,
-                unlockedAt: isUnlocked ? Date() : nil
+                status: .locked,
+                currentProgress: 0,
+                unlockedAt: nil
             )
         }
     }

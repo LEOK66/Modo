@@ -52,14 +52,64 @@ enum AchievementCategory: String, Codable {
 struct UnlockCondition: Codable, Equatable {
     let type: ConditionType
     let targetValue: Int
+    var macro: String? // For macroStreak: "protein", "carbs", "fats"
+    var timeWindow: String? // For timeOfDayTasks: "before_7am", "after_midnight"
+    
+    init(type: ConditionType, targetValue: Int, macro: String? = nil, timeWindow: String? = nil) {
+        self.type = type
+        self.targetValue = targetValue
+        self.macro = macro
+        self.timeWindow = timeWindow
+    }
     
     enum ConditionType: String, Codable {
+        // Basic conditions
         case streak = "streak"              // Consecutive days completed
         case totalTasks = "total_tasks"     // Total tasks completed
         case fitnessTasks = "fitness_tasks" // Fitness tasks completed
         case dietTasks = "diet_tasks"       // Diet tasks completed
         case challenges = "challenges"      // Daily challenges completed
         case aiTasks = "ai_tasks"           // AI-generated tasks used
+        
+        // Streak variations
+        case streakRestarts = "streak_restarts" // Number of times streak restarted
+        case streakComeback = "streak_comeback" // Return to streak after breaking
+        
+        // Diet variations
+        case dietTasksSkipped = "diet_tasks_skipped" // Consecutive days over calorie target by 1000
+        case dietTasksAfter11PM = "diet_tasks_after_11pm" // Diet tasks completed after 11 PM
+        
+        // Macros
+        case macroStreak = "macro_streak" // Single macro streak (protein/carbs/fats)
+        case allMacrosStreak = "all_macros_streak" // All macros streak
+        case calorieAccuracy = "calorie_accuracy" // Days within ±50 calories of target
+        
+        // Time of day
+        case timeOfDayTasks = "time_of_day_tasks" // Tasks in specific time window
+        case allTimePeriods = "all_time_periods" // Tasks in all 4 time periods
+        
+        // Daily Challenge
+        case dailyChallengeTotal = "daily_challenge_total" // Total daily challenges completed
+        case dailyTasksTotal = "daily_tasks_total" // Total daily tasks completed
+        case dailyChallengesStreak = "daily_challenges_streak" // Consecutive daily challenges
+        case aiGeneratedTasksAdded = "ai_generated_tasks_added" // AI-generated daily tasks added
+        
+        // AI Usage
+        case aiPlansGenerated = "ai_plans_generated" // AI meal plans generated
+        case insightsPageVisits = "insights_page_visits" // Insights page visits
+        case aiGoalsCompleted = "ai_goals_completed" // AI-generated goals completed
+        case aiFeatureUsage = "ai_feature_usage" // AI features used (meal scan, insights, etc.)
+        case aiPlanRegenerations = "ai_plan_regenerations" // AI plan regenerations
+        
+        // Humor
+        case consecutiveDaysSkipped = "consecutive_days_skipped" // Consecutive days with all tasks skipped
+        case remindersSnoozed = "reminders_snoozed" // Reminder snoozes
+        case almostPerfectDays = "almost_perfect_days" // Days with 4/5 tasks completed
+        case weekendOnlyStreak = "weekend_only_streak" // Consecutive weeks only completing on weekends
+        case taskRescheduled = "task_rescheduled" // Task reschedules
+        
+        // Special
+        case allCategoriesInWeek = "all_categories_in_week" // All categories completed in consecutive weeks
     }
 }
 
@@ -119,11 +169,11 @@ extension Achievement {
         Achievement(
             id: "century_club",
             title: "Century Club",
-            description: "100 tasks conquered, champion mindset unlocked",
+            description: "10000 tasks conquered, champion mindset unlocked",
             iconName: "achievement_century_club",
             iconColor: "#E74C3C",
             category: .task,
-            unlockCondition: UnlockCondition(type: .totalTasks, targetValue: 100),
+            unlockCondition: UnlockCondition(type: .totalTasks, targetValue: 10000),
             order: 22
         ),
         Achievement(
@@ -133,7 +183,7 @@ extension Achievement {
             iconName: "system:graduationcap.fill",
             iconColor: "#2C3E50",
             category: .task,
-            unlockCondition: UnlockCondition(type: .totalTasks, targetValue: 500),
+            unlockCondition: UnlockCondition(type: .totalTasks, targetValue: 5000),
             order: 3
         ),
         
@@ -144,8 +194,8 @@ extension Achievement {
             description: "Getting the hang of the daily grind",
             iconName: "system:pin.fill",
             iconColor: "#E74C3C",
-            category: .task,
-            unlockCondition: UnlockCondition(type: .totalTasks, targetValue: 5),
+            category: .challenge,
+            unlockCondition: UnlockCondition(type: .dailyChallengeTotal, targetValue: 1000),
             order: 4
         ),
         Achievement(
@@ -154,8 +204,8 @@ extension Achievement {
             description: "You keep showing up, and it shows",
             iconName: "system:calendar.badge.checkmark",
             iconColor: "#E67E22",
-            category: .task,
-            unlockCondition: UnlockCondition(type: .totalTasks, targetValue: 20),
+            category: .challenge,
+            unlockCondition: UnlockCondition(type: .dailyTasksTotal, targetValue: 500),
             order: 5
         ),
         Achievement(
@@ -164,8 +214,8 @@ extension Achievement {
             description: "Seven days, seven wins",
             iconName: "system:arrow.up.right.circle.fill",
             iconColor: "#E74C3C",
-            category: .streak,
-            unlockCondition: UnlockCondition(type: .streak, targetValue: 7),
+            category: .challenge,
+            unlockCondition: UnlockCondition(type: .dailyChallengesStreak, targetValue: 7),
             order: 6
         ),
         Achievement(
@@ -174,8 +224,8 @@ extension Achievement {
             description: "Picking up challenges like a pro",
             iconName: "system:puzzlepiece.fill",
             iconColor: "#27AE60",
-            category: .ai,
-            unlockCondition: UnlockCondition(type: .aiTasks, targetValue: 10),
+            category: .challenge,
+            unlockCondition: UnlockCondition(type: .aiGeneratedTasksAdded, targetValue: 100),
             order: 7
         ),
         
@@ -197,7 +247,7 @@ extension Achievement {
             iconName: "system:slider.horizontal.3",
             iconColor: "#7F8C8D",
             category: .ai,
-            unlockCondition: UnlockCondition(type: .aiTasks, targetValue: 20),
+            unlockCondition: UnlockCondition(type: .aiPlansGenerated, targetValue: 100),
             order: 9
         ),
         Achievement(
@@ -207,7 +257,7 @@ extension Achievement {
             iconName: "system:brain.head.profile",
             iconColor: "#E91E63",
             category: .ai,
-            unlockCondition: UnlockCondition(type: .aiTasks, targetValue: 10),
+            unlockCondition: UnlockCondition(type: .insightsPageVisits, targetValue: 100),
             order: 10
         ),
         
@@ -219,7 +269,7 @@ extension Achievement {
             iconName: "achievement_fitness_fanatic",
             iconColor: "#00D2D3",
             category: .fitness,
-            unlockCondition: UnlockCondition(type: .fitnessTasks, targetValue: 50),
+            unlockCondition: UnlockCondition(type: .fitnessTasks, targetValue: 100),
             order: 21
         ),
         
@@ -231,7 +281,7 @@ extension Achievement {
             iconName: "system:carrot.fill",
             iconColor: "#FF9800",
             category: .diet,
-            unlockCondition: UnlockCondition(type: .dietTasks, targetValue: 50),
+            unlockCondition: UnlockCondition(type: .dietTasks, targetValue: 100),
             order: 12
         ),
         Achievement(
@@ -241,7 +291,7 @@ extension Achievement {
             iconName: "system:fork.knife",
             iconColor: "#FFC107",
             category: .diet,
-            unlockCondition: UnlockCondition(type: .dietTasks, targetValue: 3),
+            unlockCondition: UnlockCondition(type: .dietTasksSkipped, targetValue: 3),
             order: 13
         ),
         Achievement(
@@ -251,7 +301,7 @@ extension Achievement {
             iconName: "system:moon.fill",
             iconColor: "#FFB74D",
             category: .diet,
-            unlockCondition: UnlockCondition(type: .dietTasks, targetValue: 5),
+            unlockCondition: UnlockCondition(type: .dietTasksAfter11PM, targetValue: 10),
             order: 14
         ),
         
@@ -267,23 +317,23 @@ extension Achievement {
             order: 15
         ),
         Achievement(
-            id: "thirty_day_diamond",
-            title: "30-Day Diamond",
+            id: "365_day_diamond",
+            title: "365-Day Diamond",
             description: "You've built a habit that lasts",
             iconName: "achievement_thirty_day_diamond",
             iconColor: "#00BCD4",
             category: .streak,
-            unlockCondition: UnlockCondition(type: .streak, targetValue: 30),
+            unlockCondition: UnlockCondition(type: .streak, targetValue: 365),
             order: 20
         ),
         Achievement(
             id: "week_warrior",
             title: "Week Warrior",
-            description: "A full week of dedication—you're unstoppable",
+            description: "10 full week of dedication—you're unstoppable",
             iconName: "achievement_week_warrior",
             iconColor: "#9C27B0",
             category: .streak,
-            unlockCondition: UnlockCondition(type: .streak, targetValue: 7),
+            unlockCondition: UnlockCondition(type: .streak, targetValue: 10),
             order: 17
         ),
         Achievement(
@@ -293,7 +343,7 @@ extension Achievement {
             iconName: "system:flame.fill",
             iconColor: "#F44336",
             category: .streak,
-            unlockCondition: UnlockCondition(type: .streak, targetValue: 50),
+            unlockCondition: UnlockCondition(type: .streak, targetValue: 500),
             order: 18
         ),
         Achievement(
@@ -303,7 +353,7 @@ extension Achievement {
             iconName: "system:arrow.clockwise.circle.fill",
             iconColor: "#03A9F4",
             category: .streak,
-            unlockCondition: UnlockCondition(type: .streak, targetValue: 5),
+            unlockCondition: UnlockCondition(type: .streakRestarts, targetValue: 5),
             order: 19
         ),
         Achievement(
@@ -313,7 +363,7 @@ extension Achievement {
             iconName: "system:sparkles",
             iconColor: "#FF5722",
             category: .streak,
-            unlockCondition: UnlockCondition(type: .streak, targetValue: 7),
+            unlockCondition: UnlockCondition(type: .streakComeback, targetValue: 7),
             order: 20
         ),
         
@@ -324,8 +374,8 @@ extension Achievement {
             description: "You asked, AI delivered, you conquered",
             iconName: "system:trophy.fill",
             iconColor: "#FFC107",
-            category: .milestone,
-            unlockCondition: UnlockCondition(type: .totalTasks, targetValue: 10),
+            category: .ai,
+            unlockCondition: UnlockCondition(type: .aiGoalsCompleted, targetValue: 100),
             order: 21
         ),
         Achievement(
@@ -335,7 +385,7 @@ extension Achievement {
             iconName: "system:figure.wave",
             iconColor: "#9E9E9E",
             category: .ai,
-            unlockCondition: UnlockCondition(type: .aiTasks, targetValue: 50),
+            unlockCondition: UnlockCondition(type: .aiFeatureUsage, targetValue: 50),
             order: 22
         ),
         Achievement(
@@ -345,7 +395,7 @@ extension Achievement {
             iconName: "system:arrow.triangle.2.circlepath",
             iconColor: "#FF9800",
             category: .ai,
-            unlockCondition: UnlockCondition(type: .aiTasks, targetValue: 10),
+            unlockCondition: UnlockCondition(type: .aiPlanRegenerations, targetValue: 100),
             order: 23
         ),
         
@@ -357,7 +407,7 @@ extension Achievement {
             iconName: "system:zzz",
             iconColor: "#607D8B",
             category: .milestone,
-            unlockCondition: UnlockCondition(type: .totalTasks, targetValue: 3),
+            unlockCondition: UnlockCondition(type: .consecutiveDaysSkipped, targetValue: 3),
             order: 24
         ),
         Achievement(
@@ -367,7 +417,7 @@ extension Achievement {
             iconName: "system:alarm.fill",
             iconColor: "#FF5722",
             category: .milestone,
-            unlockCondition: UnlockCondition(type: .totalTasks, targetValue: 15),
+            unlockCondition: UnlockCondition(type: .remindersSnoozed, targetValue: 15),
             order: 25
         ),
         Achievement(
@@ -377,7 +427,7 @@ extension Achievement {
             iconName: "system:scope",
             iconColor: "#E91E63",
             category: .milestone,
-            unlockCondition: UnlockCondition(type: .totalTasks, targetValue: 10),
+            unlockCondition: UnlockCondition(type: .almostPerfectDays, targetValue: 10),
             order: 26
         ),
         Achievement(
@@ -387,7 +437,7 @@ extension Achievement {
             iconName: "system:calendar.badge.exclamationmark",
             iconColor: "#FF9800",
             category: .milestone,
-            unlockCondition: UnlockCondition(type: .totalTasks, targetValue: 4),
+            unlockCondition: UnlockCondition(type: .weekendOnlyStreak, targetValue: 4),
             order: 27
         ),
         Achievement(
@@ -397,7 +447,7 @@ extension Achievement {
             iconName: "system:circle.grid.cross.fill",
             iconColor: "#9C27B0",
             category: .milestone,
-            unlockCondition: UnlockCondition(type: .totalTasks, targetValue: 5),
+            unlockCondition: UnlockCondition(type: .taskRescheduled, targetValue: 2),
             order: 28
         ),
         
@@ -409,7 +459,7 @@ extension Achievement {
             iconName: "system:rainbow",
             iconColor: "#E91E63",
             category: .milestone,
-            unlockCondition: UnlockCondition(type: .totalTasks, targetValue: 7),
+            unlockCondition: UnlockCondition(type: .allCategoriesInWeek, targetValue: 10),
             order: 29
         ),
         
@@ -421,7 +471,7 @@ extension Achievement {
             iconName: "system:drop.fill",
             iconColor: "#795548",
             category: .diet,
-            unlockCondition: UnlockCondition(type: .dietTasks, targetValue: 7),
+            unlockCondition: UnlockCondition(type: .macroStreak, targetValue: 30, macro: "protein"),
             order: 30
         ),
         Achievement(
@@ -431,7 +481,7 @@ extension Achievement {
             iconName: "system:leaf.fill",
             iconColor: "#FFC107",
             category: .diet,
-            unlockCondition: UnlockCondition(type: .dietTasks, targetValue: 10),
+            unlockCondition: UnlockCondition(type: .macroStreak, targetValue: 30, macro: "carbs"),
             order: 31
         ),
         Achievement(
@@ -441,7 +491,7 @@ extension Achievement {
             iconName: "system:heart.fill",
             iconColor: "#4CAF50",
             category: .diet,
-            unlockCondition: UnlockCondition(type: .dietTasks, targetValue: 14),
+            unlockCondition: UnlockCondition(type: .macroStreak, targetValue: 30, macro: "fats"),
             order: 32
         ),
         Achievement(
@@ -451,7 +501,7 @@ extension Achievement {
             iconName: "system:circle.grid.3x3.fill",
             iconColor: "#00BCD4",
             category: .diet,
-            unlockCondition: UnlockCondition(type: .dietTasks, targetValue: 5),
+            unlockCondition: UnlockCondition(type: .allMacrosStreak, targetValue: 60),
             order: 33
         ),
         Achievement(
@@ -461,7 +511,7 @@ extension Achievement {
             iconName: "system:flame.fill",
             iconColor: "#FF5722",
             category: .diet,
-            unlockCondition: UnlockCondition(type: .dietTasks, targetValue: 10),
+            unlockCondition: UnlockCondition(type: .calorieAccuracy, targetValue: 100),
             order: 34
         ),
         
@@ -473,7 +523,7 @@ extension Achievement {
             iconName: "achievement_early_bird",
             iconColor: "#FF9800",
             category: .challenge,
-            unlockCondition: UnlockCondition(type: .challenges, targetValue: 20),
+            unlockCondition: UnlockCondition(type: .timeOfDayTasks, targetValue: 30, timeWindow: "before_7am"),
             order: 35
         ),
         Achievement(
@@ -483,7 +533,7 @@ extension Achievement {
             iconName: "achievement_night_owl",
             iconColor: "#5F27CD",
             category: .challenge,
-            unlockCondition: UnlockCondition(type: .challenges, targetValue: 10),
+            unlockCondition: UnlockCondition(type: .timeOfDayTasks, targetValue: 30, timeWindow: "after_midnight"),
             order: 36
         ),
         Achievement(
@@ -493,7 +543,7 @@ extension Achievement {
             iconName: "system:clock.fill",
             iconColor: "#03A9F4",
             category: .challenge,
-            unlockCondition: UnlockCondition(type: .challenges, targetValue: 4),
+            unlockCondition: UnlockCondition(type: .allTimePeriods, targetValue: 5),
             order: 37
         ),
     ]
