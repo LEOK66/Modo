@@ -64,6 +64,20 @@ final class TaskListViewModel: ObservableObject {
     /// Daily calories service for updating calories
     private weak var dailyCaloriesService: DailyCaloriesService?
     
+    /// User profile service for getting user profile (optional)
+    private weak var userProfileService: UserProfileService?
+    
+    /// Achievement check trigger for checking achievements
+    private lazy var achievementCheckTrigger: AchievementCheckTrigger = {
+        let achievementService = ServiceContainer.shared.achievementService
+        let statisticsCollector = AchievementStatisticsCollector(modelContext: modelContext)
+        return AchievementCheckTrigger(
+            achievementService: achievementService,
+            statisticsCollector: statisticsCollector,
+            modelContext: modelContext
+        )
+    }()
+    
     /// Model context for SwiftData operations
     private var modelContext: ModelContext
     
@@ -167,7 +181,12 @@ final class TaskListViewModel: ObservableObject {
     /// - Parameters:
     ///   - modelContext: Model context from SwiftUI environment
     ///   - dailyCaloriesService: Daily calories service from environment
-    func setup(modelContext: ModelContext, dailyCaloriesService: DailyCaloriesService) {
+    ///   - userProfileService: User profile service from environment (optional)
+    func setup(
+        modelContext: ModelContext,
+        dailyCaloriesService: DailyCaloriesService,
+        userProfileService: UserProfileService? = nil
+    ) {
         // Update model context
         self.modelContext = modelContext
         
@@ -178,6 +197,9 @@ final class TaskListViewModel: ObservableObject {
         
         // Update daily calories service
         self.dailyCaloriesService = dailyCaloriesService
+        
+        // Update user profile service
+        self.userProfileService = userProfileService
     }
     
     /// Setup view when it appears
@@ -188,6 +210,16 @@ final class TaskListViewModel: ObservableObject {
         setupNotifications()
         updateCaloriesServiceIfNeeded()
         scheduleMidnightSettlement()
+        
+        // Check achievements on app launch
+        if let userId = userId {
+            let userProfile = userProfileService?.currentProfile
+            achievementCheckTrigger.checkOnAppLaunch(
+                userId: userId,
+                tasksByDate: tasksByDate,
+                userProfile: userProfile
+            )
+        }
     }
     
     /// Cleanup when view disappears
@@ -356,6 +388,14 @@ final class TaskListViewModel: ObservableObject {
         // Notify challenge service if task completion status changed
         if oldTask.isDone != newTask.isDone {
             challengeService.updateChallengeCompletion(taskId: newTask.id, isCompleted: newTask.isDone)
+            
+            // Check achievements when task completion status changes
+            let userProfile = userProfileService?.currentProfile
+            achievementCheckTrigger.checkOnTaskCompleted(
+                userId: userId,
+                tasksByDate: tasksByDate,
+                userProfile: userProfile
+            )
         }
         
         // Update calories service and day completion

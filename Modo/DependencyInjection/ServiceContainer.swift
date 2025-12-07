@@ -100,6 +100,10 @@ final class ServiceContainer: ObservableObject {
         // Register TaskManagerService with DatabaseService dependency
         let taskManagerService = TaskManagerService(databaseService: databaseService)
         register(taskManagerService, for: TaskServiceProtocol.self)
+        
+        // Register AchievementService with DatabaseService dependency
+        let achievementService = AchievementService(databaseService: databaseService)
+        register(achievementService, for: AchievementServiceProtocol.self)
     }
     
     // MARK: - Service Cleanup
@@ -174,6 +178,17 @@ extension ServiceContainer {
         // Fallback: create new instance with DatabaseService dependency
         let databaseService = resolve(DatabaseServiceProtocol.self) ?? DatabaseService.shared
         return DailyChallengeService(databaseService: databaseService)
+    }
+    
+    /// Convenience method to get AchievementService
+    /// Returns the registered service or creates a new instance with DatabaseService for backward compatibility
+    var achievementService: AchievementServiceProtocol {
+        if let service = resolve(AchievementServiceProtocol.self) {
+            return service
+        }
+        // Fallback: create new instance with DatabaseService dependency
+        let databaseService = resolve(DatabaseServiceProtocol.self) ?? DatabaseService.shared
+        return AchievementService(databaseService: databaseService)
     }
 }
 
