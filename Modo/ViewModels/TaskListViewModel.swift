@@ -59,7 +59,7 @@ final class TaskListViewModel: ObservableObject {
     private let dayCompletionService: DayCompletionService
     
     /// Challenge service for daily challenge management
-    private let challengeService: ChallengeServiceProtocol
+    private let challengeService: any ChallengeServiceProtocol
     
     /// Daily calories service for updating calories
     private weak var dailyCaloriesService: DailyCaloriesService?
@@ -135,7 +135,7 @@ final class TaskListViewModel: ObservableObject {
         aiService: MainPageAIService = MainPageAIService(),
         notificationService: NotificationSetupService = NotificationSetupService(),
         dayCompletionService: DayCompletionService = DayCompletionService(),
-        challengeService: ChallengeServiceProtocol? = nil,
+        challengeService: (any ChallengeServiceProtocol)? = nil,
         dailyCaloriesService: DailyCaloriesService? = nil
     ) {
         // Set model context (will be updated in setup() if needed)

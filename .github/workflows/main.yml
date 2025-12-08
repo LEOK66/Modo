@@ -42,7 +42,7 @@ jobs:
           <plist version="1.0">
           <dict>
               <key>API_KEY</key>
-              <string>AIzaSyDummyKeyForCI</string>
+              <string>AIzaSyDUMMY_KEY_FOR_CI_1234567890asdfsd</string>
               <key>GCM_SENDER_ID</key>
               <string>123456789</string>
               <key>PROJECT_ID</key>

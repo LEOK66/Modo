@@ -49,7 +49,7 @@ final class DailyChallengeViewModel: ObservableObject {
     // MARK: - Private Properties
     
     /// Challenge service for business operations
-    private let challengeService: ChallengeServiceProtocol
+    private let challengeService: any ChallengeServiceProtocol
     
     /// Task repository for associating challenge with tasks
     private let taskRepository: TaskRepository?
@@ -69,7 +69,7 @@ final class DailyChallengeViewModel: ObservableObject {
     ///   - challengeService: Challenge service for business operations
     ///   - taskRepository: Task repository (optional, for associating challenge with tasks)
     init(
-        challengeService: ChallengeServiceProtocol,
+        challengeService: any ChallengeServiceProtocol,
         taskRepository: TaskRepository? = nil
     ) {
         self.challengeService = challengeService
