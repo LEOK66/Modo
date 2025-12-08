@@ -36,17 +36,17 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     }
     
     // Successfully registered for remote notifications
-    func application(
-        _ application: UIApplication,
-        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
-    ) {
-        let tokenParts = deviceToken.map { data in String(format: "%02.2hhx", data) }
-        let token = tokenParts.joined()
-        print("✅ Device Token: \(token)")
-        // ✅ Link APNs token with FCM so Firebase can route pushes through APNs
-        Messaging.messaging().apnsToken = deviceToken
+    // func application(
+    //     _ application: UIApplication,
+    //     didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+    // ) {
+    //     let tokenParts = deviceToken.map { data in String(format: "%02.2hhx", data) }
+    //     let token = tokenParts.joined()
+    //     print("✅ Device Token: \(token)")
+    //     // ✅ Link APNs token with FCM so Firebase can route pushes through APNs
+    //     Messaging.messaging().apnsToken = deviceToken
         
-    }
+    // }
     
     // Failed to register for remote notifications
     func application(
@@ -54,6 +54,40 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         didFailToRegisterForRemoteNotificationsWithError error: Error
     ) {
         print("❌ AppDelegate: Failed to register for remote notifications: \(error)")
+    }
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil
+    ) -> Bool {
+
+        // Detect unit test runs and skip Firebase initialization in that case.
+        let runningUnitTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+
+        if runningUnitTests {
+            print("⚠️ Skipping FirebaseApp.configure() while running unit tests")
+        } else {
+            FirebaseApp.configure()
+            Database.database().isPersistenceEnabled = true
+
+            UNUserNotificationCenter.current().delegate = self
+
+            let authOptions: UNAuthorizationOptions = [.alert, .badge, .sound]
+            UNUserNotificationCenter.current().requestAuthorization(
+                options: authOptions,
+                completionHandler: { granted, error in
+                    if let error = error {
+                        print("❌ AppDelegate: Notification permission request failed: \(error)")
+                    } else {
+                        print("✅ AppDelegate: Notification permission: \(granted ? "granted" : "denied")")
+                    }
+                }
+            )
+
+            application.registerForRemoteNotifications()
+            Messaging.messaging().delegate = self
+        }
+
+        return true
     }
 }
 
