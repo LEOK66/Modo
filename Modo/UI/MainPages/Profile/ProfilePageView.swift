@@ -69,7 +69,7 @@ private struct ProfilePageContentView: View {
             .onChange(of: userProfileService.currentProfile) { _, newValue in
                 if newValue != nil {
                     viewModel.updateProfileFromService()
-                    challengeViewModel.updateUserDataAvailability(profile: newValue)
+                    // ✅ No need to update data availability - Service automatically observes profile changes
                 }
             }
             .onChange(of: viewModel.progressData.percent) { _, newValue in

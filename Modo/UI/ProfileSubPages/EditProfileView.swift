@@ -59,11 +59,15 @@ struct EditProfileView: View {
                         TextField("-", text: $viewModel.heightValue)
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
-                        Picker("Unit", selection: $viewModel.heightUnit) {
+                        Picker("", selection: $viewModel.heightUnit) {
                             Text("cm").tag("cm")
                             Text("in").tag("in")
                         }
                         .pickerStyle(.menu)
+                        .labelsHidden()
+                        .tint(.primary)
+                        .background(Color.clear)
+                        .buttonStyle(.plain)
                     }
                     .onChange(of: viewModel.heightValue) {
                         if !viewModel.heightValue.isEmpty {
@@ -93,11 +97,15 @@ struct EditProfileView: View {
                         TextField("-", text: $viewModel.weightValue)
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
-                        Picker("Unit", selection: $viewModel.weightUnit) {
+                        Picker("", selection: $viewModel.weightUnit) {
                             Text("kg").tag("kg")
                             Text("lbs").tag("lbs")
                         }
                         .pickerStyle(.menu)
+                        .labelsHidden()
+                        .tint(.primary)
+                        .background(Color.clear)
+                        .buttonStyle(.plain)
                     }
                     .onChange(of: viewModel.weightValue) {
                         if !viewModel.weightValue.isEmpty {
@@ -158,11 +166,15 @@ struct EditProfileView: View {
                         TextField("-", text: $viewModel.targetWeightLoss)
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
-                        Picker("Unit", selection: $viewModel.targetWeightLossUnit) {
+                        Picker("", selection: $viewModel.targetWeightLossUnit) {
                             Text("kg").tag("kg")
                             Text("lbs").tag("lbs")
                         }
                         .pickerStyle(.menu)
+                        .labelsHidden()
+                        .tint(.primary)
+                        .background(Color.clear)
+                        .buttonStyle(.plain)
                     }
                 } else if viewModel.goalCode == "keep_healthy" {
                     HStack {

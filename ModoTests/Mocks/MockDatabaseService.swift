@@ -216,6 +216,27 @@ final class MockDatabaseService: DatabaseServiceProtocol {
         }
     }
     
+    func deleteDailyCompletions(userId: String, startDate: Date, endDate: Date, completion: ((Result<Void, Error>) -> Void)?) {
+        if let error = mockError {
+            completion?(.failure(error))
+            return
+        }
+        
+        if shouldSucceed {
+            if var userCompletions = dailyCompletions[userId] {
+                var currentDate = startDate
+                while currentDate <= endDate {
+                    userCompletions.removeValue(forKey: currentDate)
+                    currentDate = Calendar.current.date(byAdding: .day, value: 1, to: currentDate) ?? endDate
+                }
+                dailyCompletions[userId] = userCompletions
+            }
+            completion?(.success(()))
+        } else {
+            completion?(.failure(NSError(domain: "MockDatabaseService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Delete failed"])))
+        }
+    }
+    
     // MARK: - Daily Challenge Methods
     func saveDailyChallenge(userId: String, challenge: DailyChallenge, date: Date, isCompleted: Bool, isLocked: Bool, completedAt: Date?, taskId: UUID?, completion: ((Result<Void, Error>) -> Void)?) {
         if let error = mockError {

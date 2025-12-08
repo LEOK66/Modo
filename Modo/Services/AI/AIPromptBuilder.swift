@@ -201,7 +201,23 @@ class AIPromptBuilder {
         Text response (what user sees):
         "Great! I've created a personalized upper body workout for you tomorrow. It includes 5 exercises focusing on chest, back, and arms - perfect for building strength. You'll do Push-ups (3×12), Dumbbell Rows (3×10), Bench Press (4×8), and more. The whole workout should take about 45 minutes. Let's get stronger together! 💪"
         
-        [THEN call generate_workout_plan() with structured exercise data]
+        [THEN call create_tasks() with structured exercise data]:
+        {
+          "tasks": [{
+            "type": "workout",
+            "title": "Upper Body Strength",
+            "date": "2025-11-22",
+            "time": "9:00 AM",
+            "category": "fitness",
+            "exercises": [
+              {"name": "Push-ups", "sets": 3, "reps": "12", "rest_sec": 60, "duration_min": 4, "calories": 40},
+              {"name": "Dumbbell Rows", "sets": 3, "reps": "10", "rest_sec": 60, "duration_min": 5, "calories": 50},
+              {"name": "Bench Press", "sets": 4, "reps": "8", "rest_sec": 90, "duration_min": 8, "calories": 80},
+              {"name": "Pull-ups", "sets": 3, "reps": "8", "rest_sec": 90, "duration_min": 5, "calories": 50},
+              {"name": "Shoulder Press", "sets": 3, "reps": "10", "rest_sec": 60, "duration_min": 5, "calories": 45}
+            ]
+          }]
+        }
         
         CRITICAL - PERSONALIZATION:
         - ALWAYS tailor recommendations to user's goal, stats, and lifestyle
@@ -377,16 +393,24 @@ class AIPromptBuilder {
         
         Multi-day plans (ONLY when calling functions):
         ⚠️ NEW: Use generate_multi_day_plan() function for multi-day requests!
-        - If user asks for 2-7 days: "this week", "next 3 days", "5-day plan", etc.
-          * Call generate_multi_day_plan() ONCE with all days included
-          * Maximum 7 days per plan
-          * ⚠️ CRITICAL - KEEP IT CONCISE to avoid token limits:
-            - Use 2-3 foods per meal (simple names, no long descriptions)
-            - Use 4-5 exercises per workout (essential movements only)
-            - Each day should have varied content (different exercises/meals)
-
+        
+        ✅ WHEN TO USE (2-7 days):
+        - User asks for: "this week", "next 3 days", "5-day plan", "week-long plan", etc.
+        - Call generate_multi_day_plan() ONCE with all days included
+        - Maximum 7 days per plan (STRICT LIMIT)
+        - ⚠️ CRITICAL - KEEP IT CONCISE to avoid token limits:
+          * Use 2-3 foods per meal (simple names, no long descriptions)
+          * Use 4-5 exercises per workout (essential movements only)
+          * Each day should have varied content (different exercises/meals)
         - For nutrition plans: Vary meals across days (different proteins, carbs, recipes)
         - Set plan_type: "workout", "nutrition", or "both" based on user request
+        
+        ❌ WHEN TO REFUSE (8+ days):
+        - If user asks for more than 7 days (e.g., "monthly plan", "2 weeks", "30 days")
+        - DO NOT call generate_multi_day_plan()
+        - Instead, respond with text ONLY:
+          "I can create plans up to 7 days at a time. For longer periods, I recommend creating weekly plans separately. Would you like me to start with the first week?"
+        - Politely suggest they request one week at a time for better plan quality
         
         IMPORTANT REMINDERS:
         - For general questions: Only text response, NO function calls
@@ -521,6 +545,77 @@ class AIPromptBuilder {
         - Health questions that relate to fitness (sleep, recovery, stress, energy, injuries)
         - Lifestyle factors affecting fitness (work schedules, motivation, habits)
         
+        TASK MANAGEMENT FUNCTIONS (CRUD):
+        ⚠️ CRITICAL: ALWAYS use functions for task operations. NEVER just describe what you'll do without calling functions!
+        
+        You have access to functions that ACTUALLY modify the user's tasks in the database:
+        
+        1. query_tasks: View existing tasks
+           - Use when: User asks "What's my plan?", "Show me today's tasks"
+        
+        2. create_tasks: Create new tasks
+           - Use when: User asks "Create a workout", "Add a meal plan"
+           - MUST call this function to actually create tasks
+           - ⚠️ CRITICAL for FITNESS tasks:
+             • MUST populate the "exercises" array with multiple specific exercises
+             • Each exercise MUST include: name, sets, reps, rest_sec, duration_min, calories
+             • Example: [
+                 {name: "Push-ups", sets: 3, reps: "12", rest_sec: 60, duration_min: 5, calories: 50},
+                 {name: "Squats", sets: 4, reps: "15", rest_sec: 60, duration_min: 6, calories: 60},
+                 {name: "Plank", sets: 3, reps: "30s", rest_sec: 45, duration_min: 3, calories: 30}
+               ]
+             • DO NOT create a task with empty exercises array for fitness category
+             • A fitness task should contain 4-6 exercises minimum
+           - ⚠️ CRITICAL for DIET tasks:
+             • MUST populate the "meals" array with specific meal details
+             • Each meal MUST include: name, time, foods (with name, portion, calories)
+             • DO NOT create a task with empty meals array for diet category
+        
+        3. update_task: Modify existing tasks
+           - Use when: User says "Change X", "Update Y", "Edit Z"
+           - ⚠️ CRITICAL WORKFLOW (2 steps):
+             Step 1: Call query_tasks to find the task and get ALL its data (title, time, is_done, exercises, foods)
+             Step 2: When you receive the query result, IMMEDIATELY call update_task:
+               • Copy ALL fields from query_tasks result (title, time, is_done, exercises, foods)
+               • Modify ONLY the specific field/exercise/food that user wants to change
+               • Keep everything else exactly as it was
+           - Example: User says "Change squats to 5 sets"
+             • query_tasks returns: exercises=[{name:"Squats", sets:3, ...}, {name:"Push-ups", sets:3, ...}]
+             • update_task with: exercises=[{name:"Squats", sets:5, ...}, {name:"Push-ups", sets:3, ...}]
+             • Notice: Only squats.sets changed, push-ups stays the same
+           - DO NOT say "I'll proceed to update" - JUST CALL THE FUNCTION
+           - After update_task completes: "I've updated [task]: [changes]"
+        
+        4. delete_task: Remove tasks
+           - Use when: User says "Delete X", "Remove Y"
+           - ⚠️ CRITICAL WORKFLOW (2 steps):
+             Step 1: Call query_tasks to find the task and get its task_id
+             Step 2: When you receive the query result, IMMEDIATELY call delete_task with that task_id
+           - DO NOT say "I'll proceed to delete" - JUST CALL THE FUNCTION
+           - After delete_task completes: "I've deleted [task] from [date]"
+        
+        RESPONSE STYLE FOR CRUD OPERATIONS (PAST TENSE ONLY):
+        - ✅ CORRECT: "I've created...", "I've updated...", "I've deleted..."
+        - ❌ FORBIDDEN: "I'll proceed to...", "Let me...", "One moment...", "I will..."
+        
+        SEQUENTIAL FUNCTION CALLING FOR UPDATE/DELETE:
+        - Update and Delete require 2 sequential steps: query first, then modify
+        - When you call query_tasks and receive results, DO NOT respond with text - IMMEDIATELY call update_task/delete_task
+        - Only generate text response AFTER the second function (update_task/delete_task) completes
+        - Example flow:
+          User: "Delete today's workout"
+          → You call: query_tasks
+          → System returns: [{"task_id": "123", "title": "Morning Run"}]
+          → You call: delete_task (with task_id "123") ← DO THIS IMMEDIATELY, NO TEXT!
+          → System confirms deletion
+          → You respond: "I've deleted Morning Run from November 20, 2025"
+        
+        IMPORTANT: When user asks to modify/delete a task:
+        - First call query_tasks to get task_id
+        - When you receive the result, IMMEDIATELY call update_task/delete_task (don't wait, don't respond with text first)
+        - Only after the second function completes, respond with past tense: "I've updated/deleted..."
+        - NEVER use future tense: "I'll...", "I will..."
+        
         Context: Today is \(getTodayDateString()) (\(dayOfWeek)), it's \(timeOfDay) on a \(isWeekend ? "weekend" : "weekday")
         - When user says "today", use \(getTodayDateString())
         - When user says "tomorrow", use \(getTomorrowDateString())
@@ -576,50 +671,119 @@ class AIPromptBuilder {
     // MARK: - Daily Challenge Prompts
     
     /// Build a prompt for daily challenge generation
-    func buildDailyChallengePrompt(userProfile: UserProfile?) -> String {
-        var prompt = "Generate a personalized daily challenge. "
+    /// - Parameters:
+    ///   - userProfile: User profile for personalization
+    ///   - previousChallenge: Previous challenge to avoid repeating
+    /// - Returns: Complete prompt string
+    func buildDailyChallengePrompt(userProfile: UserProfile?, previousChallenge: DailyChallenge? = nil) -> String {
+        var prompt = "Generate a personalized daily challenge based on the user's complete profile. "
         
         if let profile = userProfile {
+            prompt += "\n\nUser Profile:"
+            
             if let age = profile.age {
-                prompt += "Age: \(age). "
+                prompt += "\n- Age: \(age) years"
             }
+            
             if let gender = profile.gender {
-                prompt += "Gender: \(gender). "
+                let genderText: String
+                switch gender.lowercased() {
+                case "male", "m":
+                    genderText = "Male"
+                case "female", "f":
+                    genderText = "Female"
+                case "other", "non-binary", "nb":
+                    genderText = "Non-binary"
+                default:
+                    genderText = gender.capitalized
+                }
+                prompt += "\n- Gender: \(genderText)"
             }
+            
+            // Add height (keep user's original units)
+            if let heightValue = profile.heightValue, let heightUnit = profile.heightUnit {
+                prompt += "\n- Height: \(heightValue) \(heightUnit)"
+            }
+            
+            // Add weight (keep user's original units)
+            if let weightValue = profile.weightValue, let weightUnit = profile.weightUnit {
+                prompt += "\n- Weight: \(weightValue) \(weightUnit)"
+            }
+            
             if let goal = profile.goal {
-                prompt += "Goal: \(goal). "
+                prompt += "\n- Goal: \(goal)"
             }
+            
             if let lifestyle = profile.lifestyle {
-                prompt += "Activity level: \(lifestyle). "
+                prompt += "\n- Activity level: \(lifestyle)"
             }
+            
+            prompt += "\n"
+        }
+        
+        // Add previous challenge context to avoid repetition
+        if let previous = previousChallenge {
+            prompt += """
+            
+            IMPORTANT - AVOID REPETITION:
+            The user's current challenge is:
+            - Title: "\(previous.title)"
+            - Type: \(previous.type.rawValue)
+            - Target: \(previous.targetValue)
+            
+            You MUST generate a DIFFERENT type of challenge. Requirements:
+            1. Choose a DIFFERENT challenge type (if previous was fitness, choose diet or mindfulness)
+            2. Use DIFFERENT activities/metrics (if previous was steps, do not use steps again)
+            3. Provide variety to keep the user engaged
+            
+            
+            """
         }
         
         prompt += """
         
-        Create ONE achievable daily challenge that fits the user's profile.
+        Create ONE achievable daily challenge that is PERSONALIZED based on ALL the user profile data above.
+        
+        PERSONALIZATION REQUIREMENTS:
+        - Consider user's AGE: Adjust intensity appropriately (younger = more challenging, older = moderate)
+        - Consider user's WEIGHT & HEIGHT: Tailor fitness challenges to their physical capacity
+        - Consider user's GOAL: 
+          * lose_weight: Focus on calorie-burning activities, water intake, portion control
+          * gain_muscle: Focus on strength exercises, protein intake, recovery
+          * keep_healthy: Balance between fitness, nutrition, and mindfulness
+        - Consider user's ACTIVITY LEVEL:
+          * sedentary: Start with easier challenges (5000-7000 steps, 10-15 min workouts)
+          * moderate: Medium challenges (7000-10000 steps, 20-30 min workouts)
+          * athletic: More challenging (10000+ steps, 30-45 min workouts)
         
         RESPONSE FORMAT (JSON only, no extra text):
         {
-          "title": "Short title (3-6 words)",
+          "title": "Short title (3-5 words)",
           "subtitle": "Brief description (10-15 words)",
           "emoji": "One relevant emoji",
           "type": "fitness|diet|mindfulness",
           "targetValue": number
         }
         
-        Challenge types:
-        - fitness: steps, workout minutes, exercise sets (targetValue = number)
-        - diet: water glasses, protein grams, vegetables servings (targetValue = number)
-        - mindfulness: meditation minutes, gratitude entries, deep breaths (targetValue = number)
+        Challenge types example:
+        - fitness: steps, workout minutes, exercise sets, push-ups, squats, jumping jacks, burpees (targetValue = number), etc.
+        - diet: water glasses, protein grams, vegetables servings, fruits servings, healthy meals, fiber grams (targetValue = number), carbon grams (targetValue = number), etc.
+        - mindfulness: meditation minutes, gratitude entries, deep breaths, journaling minutes, stretching minutes (targetValue = number), etc.
         
         Requirements:
-        - Make it achievable based on user's stats
-        - Use specific numbers for targetValue
+        - Make it ACHIEVABLE and REALISTIC based on user's complete profile
+        - Use specific numbers for targetValue that match their fitness level
         - Keep title concise and motivating
         - Choose appropriate emoji
+        - VARY the challenge type and activity for diversity, don't need to follow the example above exactly, just be creative and unique.
+        - No meaningful word. For example, use "30 minutes of workout" instead of "complete a 30 minute workout"
         
-        Example:
+        Examples:
         {"title": "Walk 8,000 steps", "subtitle": "Get moving with a daily walk", "emoji": "👟", "type": "fitness", "targetValue": 8000}
+        {"title": "Drink 8 glasses of water", "subtitle": "Stay hydrated throughout the day", "emoji": "💧", "type": "diet", "targetValue": 8}
+        {"title": "Meditate for 15 minutes", "subtitle": "Find calm and focus today", "emoji": "🧘", "type": "mindfulness", "targetValue": 15}
+        {"title": "Do 30 push-ups", "subtitle": "Build upper body strength", "emoji": "💪", "type": "fitness", "targetValue": 30}
+        {"title": "Eat 5 servings of vegetables", "subtitle": "Nourish your body with greens", "emoji": "🥗", "type": "diet", "targetValue": 5}
         """
         
         return prompt

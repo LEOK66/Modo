@@ -7,9 +7,11 @@ struct FitnessEntriesCardView: View {
     @Binding var titleText: String
     @FocusState.Binding var fitnessNameFocusIndex: Int?
     @Binding var pendingScrollId: String?
-    @Binding var durationHoursInt: Int
-    @Binding var durationMinutesInt: Int
-    @Binding var isDurationSheetPresented: Bool
+    @Binding var editingSets: Int?
+    @Binding var editingReps: String?
+    @Binding var editingRestSec: Int?
+    @Binding var editingDurationMin: Int
+    @Binding var isTrainingParamsSheetPresented: Bool
     
     let onAddExercise: () -> Void
     let onEditExercise: (Int) -> Void
@@ -17,7 +19,6 @@ struct FitnessEntriesCardView: View {
     let onClearAll: () -> Void
     let onTriggerHaptic: () -> Void
     let onDismissKeyboard: () -> Void
-    let formattedDuration: (Int, Int) -> String
     
     var body: some View {
         card {
@@ -137,66 +138,93 @@ struct FitnessEntriesCardView: View {
                 .buttonStyle(.plain)
             }
             
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Duration")
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondary)
-                    Button(action: {
-                        let total = max(0, entry.minutesInt)
-                        durationHoursInt = total / 60
-                        durationMinutesInt = total % 60
-                        // Clear focus immediately when opening duration sheet
-                        onDismissKeyboard()
-                        isDurationSheetPresented = true
-                        // tie the wheel to this entry index via editingFitnessEntryIndex
-                        editingFitnessEntryIndex = index
-                    }) {
-                        HStack {
-                            Text(entry.minutesInt > 0 ? formattedDuration(entry.minutesInt / 60, entry.minutesInt % 60) : "-")
-                                .foregroundColor(.primary)
-                            Spacer()
-                            Image(systemName: "timer")
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 8)
-                        .background(Color(.systemBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .stroke(Color(.separator), lineWidth: 0.5)
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Calories")
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondary)
-                    HStack(spacing: 4) {
-                        TextField("0", text: Binding(
-                            get: { fitnessEntries[index].caloriesText },
-                            set: { newValue in
-                                fitnessEntries[index].caloriesText = newValue.filter { $0.isNumber }
+            // Training Parameters (only show if any value exists)
+            if entry.sets != nil || entry.reps != nil || entry.restSec != nil {
+                Button(action: {
+                    // Load current values
+                    editingSets = entry.sets
+                    editingReps = entry.reps
+                    editingRestSec = entry.restSec
+                    editingDurationMin = entry.minutesInt
+                    // Clear focus
+                    onDismissKeyboard()
+                    isTrainingParamsSheetPresented = true
+                    editingFitnessEntryIndex = index
+                }) {
+                    HStack(spacing: 12) {
+                        if let sets = entry.sets, let reps = entry.reps {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Sets × Reps")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.secondary)
+                                Text("\(sets) × \(reps)")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.primary)
                             }
-                        ))
-                        .keyboardType(.numberPad)
-                        .textFieldStyle(.plain)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 8)
-                        .background(Color(.systemBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .stroke(Color(.separator), lineWidth: 0.5)
-                        )
-                        Text("cal")
-                            .font(.system(size: 12))
+                        }
+                        
+                        if entry.sets != nil || entry.reps != nil, entry.restSec != nil {
+                            Divider()
+                                .frame(height: 32)
+                        }
+                        
+                        if let rest = entry.restSec {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Rest")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.secondary)
+                                Text("\(rest)s")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.primary)
+                            }
+                        }
+                        
+                        Spacer()
+                        Image(systemName: "chevron.right")
                             .foregroundColor(.secondary)
+                            .font(.system(size: 12))
                     }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(Color(.tertiarySystemBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(Color(.separator), lineWidth: 0.5)
+                    )
                 }
+                .buttonStyle(.plain)
+            } else {
+                // Show "Add Training Params" button if no params exist
+                Button(action: {
+                    // Initialize with empty values
+                    editingSets = 3
+                    editingReps = "10"
+                    editingRestSec = 60
+                    editingDurationMin = entry.minutesInt
+                    onDismissKeyboard()
+                    isTrainingParamsSheetPresented = true
+                    editingFitnessEntryIndex = index
+                }) {
+                    HStack {
+                        Image(systemName: "plus.circle.fill")
+                            .foregroundColor(.secondary)
+                        Text("Add Training Details")
+                            .font(.system(size: 14))
+                            .foregroundColor(.secondary)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(Color(.tertiarySystemBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(Color(.separator), lineWidth: 0.5)
+                            .opacity(0.5)
+                    )
+                }
+                .buttonStyle(.plain)
             }
             
             if entry.exercise == nil {
@@ -259,9 +287,11 @@ struct FitnessEntriesCardView: View {
         @State private var titleText = ""
         @FocusState private var fitnessNameFocusIndex: Int?
         @State private var pendingScrollId: String? = nil
-        @State private var durationHoursInt: Int = 0
-        @State private var durationMinutesInt: Int = 0
-        @State private var isDurationSheetPresented: Bool = false
+        @State private var editingSets: Int? = 3
+        @State private var editingReps: String? = "10"
+        @State private var editingRestSec: Int? = 60
+        @State private var editingDurationMin: Int = 0
+        @State private var isTrainingParamsSheetPresented: Bool = false
         
         var body: some View {
             FitnessEntriesCardView(
@@ -270,9 +300,11 @@ struct FitnessEntriesCardView: View {
                 titleText: $titleText,
                 fitnessNameFocusIndex: $fitnessNameFocusIndex,
                 pendingScrollId: $pendingScrollId,
-                durationHoursInt: $durationHoursInt,
-                durationMinutesInt: $durationMinutesInt,
-                isDurationSheetPresented: $isDurationSheetPresented,
+                editingSets: $editingSets,
+                editingReps: $editingReps,
+                editingRestSec: $editingRestSec,
+                editingDurationMin: $editingDurationMin,
+                isTrainingParamsSheetPresented: $isTrainingParamsSheetPresented,
                 onAddExercise: {
                     fitnessEntries.append(FitnessEntry())
                 },
@@ -286,14 +318,7 @@ struct FitnessEntriesCardView: View {
                     fitnessEntries.removeAll()
                 },
                 onTriggerHaptic: {},
-                onDismissKeyboard: {},
-                formattedDuration: { h, m in
-                    if h > 0 {
-                        return "\(h)h \(m)m"
-                    } else {
-                        return "\(m)m"
-                    }
-                }
+                onDismissKeyboard: {}
             )
             .padding()
         }

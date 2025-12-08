@@ -41,26 +41,36 @@ struct TaskListView: View {
     }
 
     var body: some View {
-        Group {
-            if tasks.isEmpty {
-                ScrollView {
-                    EmptyTasksView()
+        ScrollViewReader { proxy in
+            ZStack {
+                // Empty state - always in the view hierarchy
+                if tasks.isEmpty {
+                    ScrollView {
+                        EmptyTasksView()
+                    }
+                    .transition(.opacity)
+                    .zIndex(0)
                 }
-            } else {
-                ScrollViewReader { proxy in
-                    List {
-                        ForEach(tasks, id: \.id) { task in
-                            taskRowView(for: task, proxy: proxy)
-                        }
+                
+                // List - always in the view hierarchy, even when empty
+                // This ensures view stability for animations when transitioning from empty to first task
+                List {
+                    ForEach(tasks, id: \.id) { task in
+                        taskRowView(for: task, proxy: proxy)
                     }
-                    .listStyle(.plain)
-                    .scrollContentBackground(.hidden)
-                    .onChange(of: newlyAddedTaskId) { oldId, newId in
-                        handleNewTaskAdded(oldId: oldId, newId: newId, proxy: proxy)
-                    }
+                }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                .opacity(tasks.isEmpty ? 0 : 1)
+                .allowsHitTesting(!tasks.isEmpty)
+                .transition(.opacity)
+                .zIndex(1)
+                .onChange(of: newlyAddedTaskId) { oldId, newId in
+                    handleNewTaskAdded(oldId: oldId, newId: newId, proxy: proxy)
                 }
             }
         }
+        .animation(.easeInOut(duration: 0.2), value: tasks.isEmpty)
     }
     
     // MARK: - Task Row View
@@ -128,8 +138,12 @@ struct TaskListView: View {
     private func handleNewTaskAdded(oldId: UUID?, newId: UUID?, proxy: ScrollViewProxy) {
         guard let taskId = newId, newId != oldId else { return }
         
-        // Scroll to new task after a short delay
+        // Small delay to ensure all cards (especially fitness with complex meta rendering) have rendered
+        // This ensures animations start at the same time for all categories
         Task {
+            try? await Task.sleep(nanoseconds: 50_000_000) // 0.05s delay for render sync
+            
+            // Scroll to new task after a short delay
             try? await Task.sleep(nanoseconds: UInt64(AnimationTiming.scrollDelay * 1_000_000_000))
             await MainActor.run {
                 withAnimation(.easeInOut(duration: 0.6)) {
@@ -191,22 +205,16 @@ private struct TaskRowAnimationModifier: ViewModifier {
     
     private var opacity: Double {
         if isDeleting || isReplacing { return 0 }
-        if isNewlyAdded { return 0 }
-        return 1
+        return 1 // Always visible, don't wait for isNewlyAdded to clear
     }
     
     private var scale: CGFloat {
         if isReplacing { return 0.8 }
-        if isNewlyAdded { return 0.9 }
         return 1.0
     }
     
     private var xOffset: CGFloat {
         isDeleting ? screenWidth : 0
-    }
-    
-    private var yOffset: CGFloat {
-        isNewlyAdded ? 30 : 0
     }
     
     func body(content: Content) -> some View {
@@ -216,7 +224,7 @@ private struct TaskRowAnimationModifier: ViewModifier {
                 color: isNewlyAdded ? emphasisColor.opacity(0.3) : Color.clear,
                 radius: isNewlyAdded ? 12 : 0
             )
-            .offset(x: xOffset, y: yOffset)
+            .offset(x: xOffset)
             .opacity(opacity)
             .scaleEffect(scale)
             .animation(.spring(response: 0.5, dampingFraction: 0.75), value: isNewlyAdded)

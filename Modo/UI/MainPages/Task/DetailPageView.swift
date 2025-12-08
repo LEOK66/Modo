@@ -50,7 +50,7 @@ struct DetailPageView: View {
             Color(.systemBackground).ignoresSafeArea()
             
             // Check if task exists
-            if let task = task {
+            if task != nil {
                 VStack(spacing: 0) {
                     // Header
                     PageHeader(title: viewModel.isEditing ? "Edit Task" : "Task Details")
@@ -100,15 +100,10 @@ struct DetailPageView: View {
                 }
             }
         }
-        .sheet(isPresented: $viewModel.isDurationSheetPresented) {
-            DurationPickerSheetView(
-                isPresented: $viewModel.isDurationSheetPresented,
-                durationHours: $viewModel.durationHoursInt,
-                durationMinutes: $viewModel.durationMinutesInt,
-                onDurationChanged: {
-                    viewModel.recalcCaloriesFromDurationIfNeeded()
-                }
-            )
+        .sheet(isPresented: $viewModel.isTrainingParamsSheetPresented, onDismiss: {
+            viewModel.saveTrainingParamsToEntry()
+        }) {
+            trainingParamsSheet
         }
         .sheet(isPresented: $viewModel.isQuickPickPresented) {
             QuickPickSheetView(
@@ -303,9 +298,11 @@ struct DetailPageView: View {
             titleText: $viewModel.titleText,
             fitnessNameFocusIndex: $fitnessNameFocusIndex,
             pendingScrollId: $viewModel.pendingScrollId,
-            durationHoursInt: $viewModel.durationHoursInt,
-            durationMinutesInt: $viewModel.durationMinutesInt,
-            isDurationSheetPresented: $viewModel.isDurationSheetPresented,
+            editingSets: $viewModel.editingSets,
+            editingReps: $viewModel.editingReps,
+            editingRestSec: $viewModel.editingRestSec,
+            editingDurationMin: $viewModel.editingDurationMin,
+            isTrainingParamsSheetPresented: $viewModel.isTrainingParamsSheetPresented,
             onAddExercise: {
                 viewModel.addFitnessEntry()
                 triggerHapticLight()
@@ -330,9 +327,6 @@ struct DetailPageView: View {
                 dietNameFocusIndex = nil
                 fitnessNameFocusIndex = nil
                 viewModel.dismissKeyboard()
-            },
-            formattedDuration: { h, m in
-                TaskEditHelper.formattedDuration(hours: h, minutes: m)
             }
         )
     }
@@ -379,6 +373,88 @@ struct DetailPageView: View {
             .padding(.vertical, 16)
             .background(Color(.systemBackground))
         }
+    }
+    
+    // MARK: - Training Parameters Sheet
+    
+    private var trainingParamsSheet: some View {
+        VStack(spacing: 16) {
+            Text("Training Parameters")
+                .font(.system(size: 18, weight: .semibold))
+            
+            VStack(spacing: 12) {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Sets")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                        Picker("Sets", selection: Binding(
+                            get: { viewModel.editingSets ?? 3 },
+                            set: { viewModel.editingSets = $0 }
+                        )) {
+                            ForEach(1...10, id: \.self) { Text("\($0)") }
+                        }
+                        .pickerStyle(.wheel)
+                        .frame(maxWidth: .infinity)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Reps per Set")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                        TextField("10", text: Binding(
+                            get: { viewModel.editingReps ?? "" },
+                            set: { viewModel.editingReps = $0.isEmpty ? nil : $0 }
+                        ))
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.center)
+                            .padding(8)
+                            .background(Color(.systemBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+                }
+                
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Rest (seconds)")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                        Picker("Rest", selection: Binding(
+                            get: { viewModel.editingRestSec ?? 60 },
+                            set: { viewModel.editingRestSec = $0 }
+                        )) {
+                            ForEach([30, 45, 60, 90, 120, 180], id: \.self) { Text("\($0)s") }
+                        }
+                        .pickerStyle(.wheel)
+                        .frame(maxWidth: .infinity)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Duration (min)")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                        Picker("Duration", selection: $viewModel.editingDurationMin) {
+                            ForEach(0...120, id: \.self) { Text("\($0)") }
+                        }
+                        .pickerStyle(.wheel)
+                        .frame(maxWidth: .infinity)
+                    }
+                }
+            }
+            
+            Button("Done") {
+                viewModel.saveTrainingParamsToEntry()
+                viewModel.isTrainingParamsSheetPresented = false
+            }
+            .font(.system(size: 16, weight: .semibold))
+            .foregroundColor(Color(.systemBackground))
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .background(Color.primary)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .padding(16)
+        .presentationDetents([.fraction(0.7)])
+        .presentationDragIndicator(.visible)
     }
     
     // MARK: - Helper Methods

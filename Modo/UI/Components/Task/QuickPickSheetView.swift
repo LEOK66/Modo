@@ -59,6 +59,7 @@ struct QuickPickSheetView: View {
             .frame(maxWidth: .infinity, minHeight: 44)
         }
         .padding(16)
+        .presentationBackground(Color(.systemBackground))
         .presentationDetents([.fraction(0.6)])
         .presentationDragIndicator(.visible)
         .onAppear {
@@ -71,8 +72,12 @@ struct QuickPickSheetView: View {
                 searchFieldFocused = false
             }
         }
-        .onChange(of: searchText) { _, newValue in
-            guard mode == .food else { return }
+        .onChange(of: searchText) { oldValue, newValue in
+            print("🔍 QuickPickSheetView: searchText changed from '\(oldValue)' to '\(newValue)'")
+            guard mode == .food else {
+                print("⚠️ QuickPickSheetView: Mode is not .food, skipping search")
+                return
+            }
             handleFoodSearch(query: newValue)
         }
     }
@@ -94,12 +99,12 @@ struct QuickPickSheetView: View {
         }) {
             HStack {
                 Image(systemName: "square.and.pencil")
-                    .foregroundColor(Color(hexString: "6B7280"))
+                    .foregroundColor(.secondary)
                 Text("Customize Diet")
                 Spacer()
             }
             .padding(12)
-            .background(Color(hexString: "F9FAFB"))
+            .background(Color(.secondarySystemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -108,7 +113,7 @@ struct QuickPickSheetView: View {
         if !recentFoods.isEmpty {
             Text("Recent")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(Color(hexString: "6A7282"))
+                .foregroundColor(.secondary)
             ForEach(recentFoods) { item in
                 foodItemRow(item: item)
             }
@@ -117,7 +122,7 @@ struct QuickPickSheetView: View {
         if !local.isEmpty {
             Text("Local results")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(Color(hexString: "6A7282"))
+                .foregroundColor(.secondary)
             ForEach(local) { item in
                 foodItemRow(item: item)
             }
@@ -126,13 +131,13 @@ struct QuickPickSheetView: View {
         if isOnlineLoading {
             Text("Searching online")
                 .font(.system(size: 12))
-                .foregroundColor(Color(hexString: "6A7282"))
+                .foregroundColor(.secondary)
         }
         
         if !onlineFoods.isEmpty {
             Text("Online results")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(Color(hexString: "6A7282"))
+                .foregroundColor(.secondary)
             ForEach(onlineFoods) { item in
                 foodItemRow(item: item)
             }
@@ -154,12 +159,12 @@ struct QuickPickSheetView: View {
         }) {
             HStack {
                 Image(systemName: "square.and.pencil")
-                    .foregroundColor(Color(hexString: "6B7280"))
+                    .foregroundColor(.secondary)
                 Text("Customize Exercise")
                 Spacer()
             }
             .padding(12)
-            .background(Color(hexString: "F9FAFB"))
+            .background(Color(.secondarySystemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -168,7 +173,7 @@ struct QuickPickSheetView: View {
         if !recentExercises.isEmpty {
             Text("Recent")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(Color(hexString: "6A7282"))
+                .foregroundColor(.secondary)
             ForEach(recentExercises) { item in
                 exerciseItemRow(item: item)
             }
@@ -177,7 +182,7 @@ struct QuickPickSheetView: View {
         if !filteredExercises.isEmpty {
             Text("Local results")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(Color(hexString: "6A7282"))
+                .foregroundColor(.secondary)
             ForEach(filteredExercises) { item in
                 exerciseItemRow(item: item)
             }
@@ -186,13 +191,13 @@ struct QuickPickSheetView: View {
                 VStack(spacing: 8) {
                     Image(systemName: "figure.run")
                         .font(.system(size: 24))
-                        .foregroundColor(Color(hexString: "D1D5DB"))
+                        .foregroundColor(Color.secondary.opacity(0.6))
                     Text("No exercises found")
                         .font(.system(size: 14))
-                        .foregroundColor(Color(hexString: "6B7280"))
+                        .foregroundColor(.secondary)
                     Text("Try a different search term")
                         .font(.system(size: 12))
-                        .foregroundColor(Color(hexString: "9CA3AF"))
+                        .foregroundColor(Color.secondary.opacity(0.6))
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 32)
@@ -228,17 +233,98 @@ struct QuickPickSheetView: View {
             }
             isPresented = false
         }) {
-            HStack {
-                Text(item.name)
-                Spacer()
-                Text(quickPickCaloriesLabel(food: item))
-                    .foregroundColor(Color(hexString: "6A7282"))
+            VStack(alignment: .leading, spacing: 6) {
+                // First row: Name and Calories
+                HStack {
+                    Text(item.name)
+                        .lineLimit(1)
+                    Spacer()
+                    Text(quickPickCaloriesLabel(food: item))
+                        .foregroundColor(.secondary)
+                        .font(.system(size: 14))
+                }
+                
+                // Second row: Macro nutrients (only if available)
+                if hasMacroNutrients(item) {
+                    HStack(spacing: 12) {
+                        if let protein = getMacroValue(item, type: .protein) {
+                            macroChip(label: "P", value: protein)
+                        }
+                        if let fat = getMacroValue(item, type: .fat) {
+                            macroChip(label: "F", value: fat)
+                        }
+                        if let carbs = getMacroValue(item, type: .carbs) {
+                            macroChip(label: "C", value: carbs)
+                        }
+                        Spacer()
+                    }
+                }
             }
             .padding(12)
-            .background(Color(hexString: "F9FAFB"))
+            .background(Color(.secondarySystemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .buttonStyle(.plain)
+    }
+    
+    private enum MacroType {
+        case protein
+        case fat
+        case carbs
+    }
+    
+    private func hasMacroNutrients(_ food: MenuData.FoodItem) -> Bool {
+        return food.proteinPer100g != nil || food.fatPer100g != nil || food.carbsPer100g != nil ||
+               food.proteinPerServing != nil || food.fatPerServing != nil || food.carbsPerServing != nil
+    }
+    
+    private func getMacroValue(_ food: MenuData.FoodItem, type: MacroType) -> String? {
+        let per100g: Double?
+        let perServing: Double?
+        
+        switch type {
+        case .protein:
+            per100g = food.proteinPer100g
+            perServing = food.proteinPerServing
+        case .fat:
+            per100g = food.fatPer100g
+            perServing = food.fatPerServing
+        case .carbs:
+            per100g = food.carbsPer100g
+            perServing = food.carbsPerServing
+        }
+        
+        // Prefer per-serving if available and we're showing per-serving calories
+        // Otherwise prefer per-100g for consistency
+        if food.defaultUnit == "g" || (food.caloriesPer100g != nil && food.servingCalories == nil) {
+            if let value = per100g {
+                return String(format: "%.1fg", value)
+            }
+        } else {
+            if let value = perServing {
+                return String(format: "%.1fg", value)
+            } else if let value = per100g {
+                // Fallback: assume 1 serving ≈ 100g
+                return String(format: "%.1fg", value)
+            }
+        }
+        
+        return nil
+    }
+    
+    private func macroChip(label: String, value: String) -> some View {
+        HStack(spacing: 4) {
+            Text(label)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.secondary)
+            Text(value)
+                .font(.system(size: 11))
+                .foregroundColor(.primary)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(Color(.tertiarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
     }
     
     private func exerciseItemRow(item: MenuData.ExerciseItem) -> some View {
@@ -263,10 +349,10 @@ struct QuickPickSheetView: View {
                 Text(item.name)
                 Spacer()
                 Text("~\(item.calPer30Min) cal / 30m")
-                    .foregroundColor(Color(hexString: "6A7282"))
+                    .foregroundColor(.secondary)
             }
             .padding(12)
-            .background(Color(hexString: "F9FAFB"))
+            .background(Color(.secondarySystemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -286,13 +372,17 @@ struct QuickPickSheetView: View {
     }
     
     private func handleFoodSearch(query: String) {
+        print("🔍 QuickPickSheetView.handleFoodSearch: Called with query '\(query)'")
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard q.count >= 2 else {
+            print("⚠️ QuickPickSheetView.handleFoodSearch: Query too short: '\(q)' (count: \(q.count))")
             onlineFoods = []
             return
         }
+        print("🔍 QuickPickSheetView.handleFoodSearch: Query valid, calling onSearchFoods for '\(q)'")
         isOnlineLoading = true
         onSearchFoods(q) { results in
+            print("🔍 QuickPickSheetView.handleFoodSearch: Received \(results.count) results for '\(q)'")
             isOnlineLoading = false
             onlineFoods = results
         }

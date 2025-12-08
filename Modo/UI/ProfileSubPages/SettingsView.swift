@@ -1,11 +1,12 @@
 import SwiftUI
+import SwiftData
 import FirebaseAuth
 
 // MARK: - Settings View
 struct SettingsView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @EnvironmentObject var authService: AuthService
-    @State private var notificationsEnabled = true
+    @Environment(\.modelContext) private var modelContext
     
     // Check if user can change password (only for email/password accounts)
     private var canChangePassword: Bool {
@@ -42,22 +43,13 @@ struct SettingsView: View {
                 
                 // Preferences Section
                 settingsSection(title: "Preferences") {
-                    VStack(spacing: 0) {
-                        SettingsRowNavigationLink(
-                            icon: "globe",
-                            title: "Language",
-                            subtitle: "English",
-                            showDivider: true
-                        ) {
-                            ComingSoonView()
-                        }
-                        
-                        SettingsToggleRow(
-                            icon: "bell",
-                            title: "Notifications",
-                            subtitle: "Push alerts & reminders",
-                            isOn: $notificationsEnabled
-                        )
+                    SettingsRowNavigationLink(
+                        icon: "globe",
+                        title: "Language",
+                        subtitle: "English",
+                        showDivider: false
+                    ) {
+                        ComingSoonView()
                     }
                 }
                 
@@ -121,6 +113,31 @@ struct SettingsView: View {
                     }
                     .padding(20)
                 }
+                
+                // Debug Section (only in DEBUG mode)
+                #if DEBUG
+                settingsSection(title: "Debug") {
+                    VStack(spacing: 0) {
+                        SettingsRowNavigationLink(
+                            icon: "flame.fill",
+                            title: "Test Streak",
+                            subtitle: "Test streak functionality",
+                            showDivider: true
+                        ) {
+                            StreakTestView()
+                        }
+                        
+                        SettingsRowNavigationLink(
+                            icon: "target",
+                            title: "Test Goal",
+                            subtitle: "Test goal progress calculation",
+                            showDivider: false
+                        ) {
+                            GoalTestView()
+                        }
+                    }
+                }
+                #endif
                     }
                     .padding(.vertical, 16)
                 }

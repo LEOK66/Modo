@@ -28,7 +28,10 @@ struct TaskCreationService {
                     exercise: nil,
                     customName: exercise.name,
                     minutesInt: exercise.durationMin,
-                    caloriesText: String(exercise.calories)
+                    caloriesText: String(exercise.calories),
+                    sets: exercise.sets,
+                    reps: exercise.reps,
+                    restSec: exercise.restSec
                 )
             }
             

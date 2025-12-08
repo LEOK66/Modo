@@ -24,7 +24,12 @@ final class AvatarUploadService {
                     completion(.failure(error))
                     return
                 }
-                completion(.success(url!.absoluteString))
+                // Add timestamp to URL to force cache refresh
+                var urlString = url!.absoluteString
+                let timestamp = Int(Date().timeIntervalSince1970)
+                let separator = urlString.contains("?") ? "&" : "?"
+                urlString += "\(separator)t=\(timestamp)"
+                completion(.success(urlString))
             }
         }
     }
