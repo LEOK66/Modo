@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - Achievements View
 struct AchievementsView: View {
     var body: some View {
-        ComingSoonView()
+        AchievementsPageView()
     }
 }
 

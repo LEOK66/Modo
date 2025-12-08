@@ -11,7 +11,7 @@ import CryptoKit
 final class AuthService: ObservableObject, AuthServiceProtocol {
     // Optional dependency for challenge service (injected via dependency injection)
     // This allows AuthService to reset challenge state on sign out without direct dependency
-    weak var challengeService: ChallengeServiceProtocol?
+    weak var challengeService:  (any ChallengeServiceProtocol)?
     
     private var authStateListener: AuthStateDidChangeListenerHandle?
     @Published var isAuthenticated = false
@@ -23,7 +23,7 @@ final class AuthService: ObservableObject, AuthServiceProtocol {
     /// Initialize with optional challenge service dependency
     /// This allows for dependency injection while maintaining backward compatibility
     /// - Parameter challengeService: Optional challenge service for dependency injection
-    init(challengeService: ChallengeServiceProtocol? = nil) {
+    init(challengeService: (any ChallengeServiceProtocol)? = nil) {
         self.challengeService = challengeService
         setupAuthStateListener()
         if let user = Auth.auth().currentUser {
@@ -81,6 +81,7 @@ final class AuthService: ObservableObject, AuthServiceProtocol {
                 completion(.failure(error))
             } else if let user = result?.user {
                 completion(.success(user))
+                print("✅ User signed in successfully - User ID: \(user.uid)")
             }
         }
     }

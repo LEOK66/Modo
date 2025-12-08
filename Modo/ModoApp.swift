@@ -7,6 +7,7 @@ import FirebaseAuth
 
 @main
 struct ModoApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var authService = ServiceContainer.shared.authService
     @StateObject private var userProgress = UserProgress()
     @StateObject private var dailyCaloriesService = DailyCaloriesService()
@@ -15,9 +16,6 @@ struct ModoApp: App {
     @State private var verificationTimer: Timer?
     
     init() {
-        FirebaseApp.configure()
-        Database.database().isPersistenceEnabled = true
-        
         // Configure URLCache for image caching
         // Memory cache: 50MB, Disk cache: 100MB
         let cacheSizeMemory = 50 * 1024 * 1024  // 50 MB
@@ -124,6 +122,11 @@ struct ModoApp: App {
                 }
                 .animation(.easeInOut(          duration: 0.3), value: currentState)
                 .applyColorScheme(themeManager.colorScheme)
+                .task {
+                    // ✅ Inject UserProfileService into DailyChallengeService as early as possible
+                    // Using .task ensures this runs before child views appear
+                    ServiceContainer.shared.challengeService.setUserProfileService(userProfileService)
+                }
                 .environmentObject(authService)
                 .environmentObject(userProgress)
                 .environmentObject(dailyCaloriesService)

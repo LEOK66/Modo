@@ -3,7 +3,7 @@ import Foundation
 // MARK: - OpenAI Configuration
 struct OpenAIConfig {
     // Model settings
-    static let model = "gpt-4o"
+    static let model = "gpt-4o-mini"  // Using mini version for higher TPM and lower cost
     static let temperature: Double = 0.9
     
     // Token limits
@@ -91,14 +91,14 @@ struct WorkoutPlanFunctionResponse: Codable {
         let sets: Int
         let reps: String
         let restSec: Int?
-        let targetRPE: Int?
-        let alternatives: [String]?
+        let durationMin: Int?
+        let calories: Int?
         
         enum CodingKeys: String, CodingKey {
             case name, sets, reps
             case restSec = "rest_sec"
-            case targetRPE = "target_RPE"
-            case alternatives
+            case durationMin = "duration_min"
+            case calories
         }
     }
 }
@@ -202,15 +202,15 @@ struct MultiDayPlanFunctionResponse: Codable {
             let name: String
             let sets: Int
             let reps: String
-            let restSec: Int
-            let targetRPE: Int
-            let alternatives: [String]
+            let restSec: Int?
+            let durationMin: Int?
+            let calories: Int?
             
             enum CodingKeys: String, CodingKey {
                 case name, sets, reps
                 case restSec = "rest_sec"
-                case targetRPE = "target_RPE"
-                case alternatives
+                case durationMin = "duration_min"
+                case calories
             }
         }
     }

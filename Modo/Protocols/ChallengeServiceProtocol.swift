@@ -24,6 +24,9 @@ protocol ChallengeServiceProtocol: ObservableObject {
     /// Whether the user has minimum data for challenge generation
     var hasMinimumUserData: Bool { get }
     
+    /// Whether completion toast has been shown for current challenge
+    var hasShownCompletionToast: Bool { get }
+    
     /// Whether a challenge is currently being generated
     var isGeneratingChallenge: Bool { get }
     
@@ -31,10 +34,6 @@ protocol ChallengeServiceProtocol: ObservableObject {
     var challengeGenerationError: String? { get }
     
     // MARK: - Methods
-    
-    /// Update user data availability status
-    /// - Parameter profile: User profile to check
-    func updateUserDataAvailability(profile: UserProfile?)
     
     /// Load today's challenge from Firebase or generate default
     func loadTodayChallenge()

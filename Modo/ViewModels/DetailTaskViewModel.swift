@@ -57,11 +57,11 @@ final class DetailTaskViewModel: ObservableObject {
     /// Fitness entries
     @Published var fitnessEntries: [FitnessEntry] = []
     
-    /// Duration hours (for fitness)
-    @Published var durationHoursInt: Int = 0
-    
-    /// Duration minutes (for fitness)
-    @Published var durationMinutesInt: Int = 0
+    /// Training parameters for fitness entries (temporary editing values)
+    @Published var editingSets: Int? = nil
+    @Published var editingReps: String? = nil
+    @Published var editingRestSec: Int? = nil
+    @Published var editingDurationMin: Int = 0
     
     /// Currently editing diet entry index
     @Published var editingDietEntryIndex: Int? = nil
@@ -74,8 +74,8 @@ final class DetailTaskViewModel: ObservableObject {
     /// Whether time sheet is presented
     @Published var isTimeSheetPresented: Bool = false
     
-    /// Whether duration sheet is presented
-    @Published var isDurationSheetPresented: Bool = false
+    /// Whether training parameters sheet is presented
+    @Published var isTrainingParamsSheetPresented: Bool = false
     
     /// Whether quick pick sheet is presented
     @Published var isQuickPickPresented: Bool = false
@@ -208,13 +208,10 @@ final class DetailTaskViewModel: ObservableObject {
             newEntry.customName = entry.customName
             newEntry.minutesInt = entry.minutesInt
             newEntry.caloriesText = entry.caloriesText
+            newEntry.sets = entry.sets
+            newEntry.reps = entry.reps
+            newEntry.restSec = entry.restSec
             return newEntry
-        }
-        
-        // Set duration if fitness entry exists
-        if let firstFitnessEntry = fitnessEntries.first {
-            durationHoursInt = firstFitnessEntry.minutesInt / 60
-            durationMinutesInt = firstFitnessEntry.minutesInt % 60
         }
     }
     
@@ -227,14 +224,20 @@ final class DetailTaskViewModel: ObservableObject {
         dietEntries[index].caloriesText = String(calculatedCalories)
     }
     
-    /// Recalculate calories from duration for fitness entry
-    func recalcCaloriesFromDurationIfNeeded() {
+    /// Save training parameters to fitness entry
+    func saveTrainingParamsToEntry() {
         guard selectedCategory == .fitness else { return }
         guard let idx = editingFitnessEntryIndex, idx < fitnessEntries.count else { return }
-        let totalMinutes = max(0, durationHoursInt * 60 + durationMinutesInt)
-        fitnessEntries[idx].minutesInt = totalMinutes
+        
+        // Save training parameters
+        fitnessEntries[idx].sets = editingSets
+        fitnessEntries[idx].reps = editingReps
+        fitnessEntries[idx].restSec = editingRestSec
+        fitnessEntries[idx].minutesInt = editingDurationMin
+        
+        // Calculate calories from duration if exercise has calPer30Min
         if let per30 = fitnessEntries[idx].exercise?.calPer30Min {
-            let estimated = Int(round(Double(per30) * Double(totalMinutes) / 30.0))
+            let estimated = Int(round(Double(per30) * Double(editingDurationMin) / 30.0))
             fitnessEntries[idx].caloriesText = String(estimated)
         }
     }

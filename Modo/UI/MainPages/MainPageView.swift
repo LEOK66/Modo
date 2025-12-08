@@ -162,13 +162,16 @@ struct MainPageView: View {
                 }
 
                 if isShowingChallengeDetail {
-                    DailyChallengeDetailView(
+                DailyChallengeDetailView(
                         viewModel: challengeViewModel,
                         isPresented: $isShowingChallengeDetail
                     )
                     .transition(.opacity)
                     .zIndex(1)
                 }
+                
+                // Achievement unlock container
+                AchievementUnlockContainer()
             }
             .animation(.easeInOut(duration: 0.2), value: isShowingProfile)
             .animation(.easeInOut(duration: 0.2), value: isShowingChallengeDetail)
@@ -217,17 +220,22 @@ struct MainPageView: View {
             )
         }
         .onAppear {
-            // Setup ViewModel with correct dependencies (modelContext and dailyCaloriesService)
-            taskListViewModel.setup(modelContext: modelContext, dailyCaloriesService: dailyCaloriesService)
+            // Setup ViewModel with correct dependencies (modelContext, dailyCaloriesService, and userProfileService)
+            taskListViewModel.setup(
+                modelContext: modelContext,
+                dailyCaloriesService: dailyCaloriesService,
+                userProfileService: userProfileService
+            )
             
             // Initialize ViewModels
             taskListViewModel.onAppear()
-            challengeViewModel.onAppear()
+            
+            // Note: Daily challenge is only loaded when user opens Profile page
+            // challengeViewModel is kept for displaying challenge detail view if needed
         }
         .onDisappear {
             // Cleanup ViewModels
             taskListViewModel.onDisappear()
-            challengeViewModel.onDisappear()
         }
         .onChange(of: taskListViewModel.selectedDate) { oldValue, newValue in
             // Handle date change in ViewModel

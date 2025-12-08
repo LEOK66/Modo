@@ -37,6 +37,9 @@ final class DailyChallengeViewModel: ObservableObject {
     /// Whether the user has minimum data for challenge generation
     @Published private(set) var hasMinimumUserData: Bool = false
     
+    /// Whether completion toast has been shown for current challenge
+    @Published private(set) var hasShownCompletionToast: Bool = false
+    
     /// Whether challenge detail view should be shown
     @Published var isShowingDetail: Bool = false
     
@@ -46,7 +49,7 @@ final class DailyChallengeViewModel: ObservableObject {
     // MARK: - Private Properties
     
     /// Challenge service for business operations
-    private let challengeService: ChallengeServiceProtocol
+    private let challengeService: any ChallengeServiceProtocol
     
     /// Task repository for associating challenge with tasks
     private let taskRepository: TaskRepository?
@@ -66,7 +69,7 @@ final class DailyChallengeViewModel: ObservableObject {
     ///   - challengeService: Challenge service for business operations
     ///   - taskRepository: Task repository (optional, for associating challenge with tasks)
     init(
-        challengeService: ChallengeServiceProtocol,
+        challengeService: any ChallengeServiceProtocol,
         taskRepository: TaskRepository? = nil
     ) {
         self.challengeService = challengeService
@@ -84,6 +87,7 @@ final class DailyChallengeViewModel: ObservableObject {
     
     /// Setup view when it appears
     func onAppear() {
+        // ✅ Service layer handles deduplication to avoid redundant loads
         loadTodayChallenge()
     }
     
@@ -110,6 +114,7 @@ final class DailyChallengeViewModel: ObservableObject {
     func checkAndResetForNewDay() {
         if let service = challengeService as? DailyChallengeService {
             service.checkAndResetForNewDay()
+            // ✅ Service layer will reset its own load flags for new day
         }
     }
     
@@ -159,10 +164,11 @@ final class DailyChallengeViewModel: ObservableObject {
         challengeService.refreshChallenge(userProfile: userProfile)
     }
     
-    /// Update user data availability
-    /// - Parameter profile: User profile to check
-    func updateUserDataAvailability(profile: UserProfile?) {
-        challengeService.updateUserDataAvailability(profile: profile)
+    /// Mark completion toast as shown
+    func markCompletionToastShown() {
+        if let service = challengeService as? DailyChallengeService {
+            service.hasShownCompletionToast = true
+        }
     }
     
     // MARK: - Private Methods
@@ -171,6 +177,18 @@ final class DailyChallengeViewModel: ObservableObject {
     private func setupObservers() {
         // Observe challenge service if it's ObservableObject
         if let observableService = challengeService as? DailyChallengeService {
+            // ✅ CRITICAL: Immediately sync current values before observing future changes
+            // This ensures ViewModel has the correct state even if Service already has data
+            self.challenge = observableService.currentChallenge
+            self.isCompleted = observableService.isChallengeCompleted
+            self.isAddedToTasks = observableService.isChallengeAddedToTasks
+            self.isLocked = observableService.isLocked
+            self.completedAt = observableService.completedAt
+            self.isGenerating = observableService.isGeneratingChallenge
+            self.challengeGenerationError = observableService.challengeGenerationError
+            self.hasMinimumUserData = observableService.hasMinimumUserData
+            self.hasShownCompletionToast = observableService.hasShownCompletionToast
+            
             // Observe current challenge
             observableService.$currentChallenge
                 .receive(on: DispatchQueue.main)
@@ -217,6 +235,12 @@ final class DailyChallengeViewModel: ObservableObject {
             observableService.$hasMinimumUserData
                 .receive(on: DispatchQueue.main)
                 .assign(to: \.hasMinimumUserData, on: self)
+                .store(in: &cancellables)
+            
+            // Observe completion toast shown status
+            observableService.$hasShownCompletionToast
+                .receive(on: DispatchQueue.main)
+                .assign(to: \.hasShownCompletionToast, on: self)
                 .store(in: &cancellables)
             
             // Observe loading state (derive from generating state)

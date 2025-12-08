@@ -33,6 +33,18 @@ final class ProgressViewModel: ObservableObject {
     /// Current user profile
     private var userProfile: UserProfile?
     
+    /// Task cache service for getting today's tasks
+    private let taskCacheService = TaskCacheService.shared
+    
+    /// Today's actual macro intake (protein, fat, carbs)
+    @Published private(set) var todayMacros: (protein: Double, fat: Double, carbs: Double) = (0, 0, 0)
+    
+    /// Selected macro type for breakdown view
+    @Published var selectedMacroType: MacroType = .protein
+    
+    /// Combine cancellables for notification subscriptions
+    private var cancellables = Set<AnyCancellable>()
+    
     // MARK: - Initialization
     
     /// Initialize ViewModel with dependencies
@@ -40,6 +52,13 @@ final class ProgressViewModel: ObservableObject {
     ///   - progressService: Progress calculation service
     init(progressService: ProgressCalculationService = ProgressCalculationService.shared) {
         self.progressService = progressService
+        
+        // Observe day completion changes to reload progress data
+        NotificationCenter.default.publisher(for: .dayCompletionDidChange)
+            .sink { [weak self] _ in
+                self?.loadProgressData()
+            }
+            .store(in: &cancellables)
     }
     
     // MARK: - Setup Methods
@@ -60,6 +79,8 @@ final class ProgressViewModel: ObservableObject {
         
         // Load progress data
         loadProgressData()
+        // Load today's macro intake
+        loadTodayMacros()
     }
     
     /// Update user profile (called when profile changes)
@@ -67,6 +88,7 @@ final class ProgressViewModel: ObservableObject {
     func updateUserProfile(_ userProfile: UserProfile?) {
         self.userProfile = userProfile
         loadProgressData()
+        loadTodayMacros()
     }
     
     // MARK: - Data Loading Methods
@@ -112,6 +134,192 @@ final class ProgressViewModel: ObservableObject {
                 self.isLoading = false
             }
         }
+    }
+    
+    /// Load today's macro intake from completed diet tasks
+    func loadTodayMacros() {
+        guard let authService = authService,
+              let userId = authService.currentUser?.uid else {
+            DispatchQueue.main.async {
+                self.todayMacros = (0, 0, 0)
+            }
+            return
+        }
+        
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        
+        // Get today's tasks from cache
+        let tasks = taskCacheService.getTasks(for: today, userId: userId)
+        
+        // Filter only completed diet tasks
+        let completedDietTasks = tasks.filter { task in
+            task.category == .diet && task.isDone
+        }
+        
+        // Calculate total macros from all diet entries
+        var totalProtein: Double = 0
+        var totalFat: Double = 0
+        var totalCarbs: Double = 0
+        
+        for task in completedDietTasks {
+            for entry in task.dietEntries {
+                totalProtein += calculateMacroValue(for: entry, type: .protein)
+                totalFat += calculateMacroValue(for: entry, type: .fat)
+                totalCarbs += calculateMacroValue(for: entry, type: .carbs)
+            }
+        }
+        
+        DispatchQueue.main.async {
+            self.todayMacros = (totalProtein, totalFat, totalCarbs)
+        }
+    }
+    
+    // MARK: - Macro Calculation Helper
+    
+    enum MacroType {
+        case protein
+        case fat
+        case carbs
+        
+        var displayName: String {
+            switch self {
+            case .protein:
+                return "Protein"
+            case .fat:
+                return "Fat"
+            case .carbs:
+                return "Carbohydrates"
+            }
+        }
+        
+        var color: String {
+            switch self {
+            case .protein:
+                return "2E90FA"
+            case .fat:
+                return "22C55E"
+            case .carbs:
+                return "F59E0B"
+            }
+        }
+    }
+    
+    /// Calculate macro value for a diet entry
+    private func calculateMacroValue(for entry: DietEntry, type: MacroType) -> Double {
+        guard let food = entry.food else { return 0.0 }
+        
+        // Parse quantity from text
+        let quantity = Double(entry.quantityText) ?? 0.0
+        guard quantity > 0 else { return 0.0 }
+        
+        // Get base nutrient value based on type
+        let per100g: Double?
+        let perServing: Double?
+        
+        switch type {
+        case .protein:
+            per100g = food.proteinPer100g
+            perServing = food.proteinPerServing
+        case .fat:
+            per100g = food.fatPer100g
+            perServing = food.fatPerServing
+        case .carbs:
+            per100g = food.carbsPer100g
+            perServing = food.carbsPerServing
+        }
+        
+        // Calculate actual value based on unit and quantity
+        let calculatedValue: Double?
+        
+        if entry.unit == "g" {
+            // User entered grams
+            if let per100g = per100g {
+                // Use per-100g data: (per-100g value / 100) * quantity
+                calculatedValue = (per100g / 100.0) * quantity
+            } else if let perServing = perServing {
+                // Fallback to per-serving if per-100g not available
+                // This is approximate - we assume 1 serving = 100g if not specified
+                calculatedValue = (perServing / 100.0) * quantity
+            } else {
+                calculatedValue = nil
+            }
+        } else {
+            // User entered servings (or other units)
+            if let perServing = perServing {
+                // Use per-serving data: per-serving value * quantity
+                calculatedValue = perServing * quantity
+            } else if let per100g = per100g {
+                // Fallback to per-100g if per-serving not available
+                // Assume 1 serving = 100g (standard assumption)
+                calculatedValue = per100g * quantity
+            } else {
+                calculatedValue = nil
+            }
+        }
+        
+        return calculatedValue ?? 0.0
+    }
+    
+    // MARK: - Macro Breakdown Methods
+    
+    /// Represents a single food source contribution to a macro
+    struct MacroSource: Identifiable {
+        let id: UUID
+        let foodName: String
+        let amount: Double // Amount in grams
+        let quantity: String // Display quantity (e.g., "200g" or "2 servings")
+    }
+    
+    /// Get detailed breakdown of a specific macro from today's completed diet tasks
+    /// - Parameter type: The macro type (protein, fat, or carbs)
+    /// - Returns: Array of food sources contributing to this macro
+    func getMacroBreakdown(for type: MacroType) -> [MacroSource] {
+        guard let authService = authService,
+              let userId = authService.currentUser?.uid else {
+            return []
+        }
+        
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        
+        // Get today's tasks from cache
+        let tasks = taskCacheService.getTasks(for: today, userId: userId)
+        
+        // Filter only completed diet tasks
+        let completedDietTasks = tasks.filter { task in
+            task.category == .diet && task.isDone
+        }
+        
+        var sources: [MacroSource] = []
+        
+        for task in completedDietTasks {
+            for entry in task.dietEntries {
+                let macroValue = calculateMacroValue(for: entry, type: type)
+                
+                // Only include entries with non-zero macro values
+                guard macroValue > 0 else { continue }
+                
+                // Get food name (prefer food.name, fallback to customName)
+                let foodName = entry.food?.name ?? entry.customName
+                guard !foodName.isEmpty else { continue }
+                
+                // Format quantity display
+                let quantity = entry.quantityText.isEmpty ? "1" : entry.quantityText
+                let unit = entry.unit.isEmpty ? "serving" : entry.unit
+                let quantityDisplay = "\(quantity) \(unit)"
+                
+                sources.append(MacroSource(
+                    id: entry.id,
+                    foodName: foodName,
+                    amount: macroValue,
+                    quantity: quantityDisplay
+                ))
+            }
+        }
+        
+        // Sort by amount descending (largest contributors first)
+        return sources.sorted { $0.amount > $1.amount }
     }
     
     // MARK: - Computed Properties - Display Text
@@ -169,6 +377,49 @@ final class ProgressViewModel: ObservableObject {
         return "\(macros.carbohydrates)g"
     }
     
+    /// Today's actual protein intake
+    var todayProtein: Double {
+        todayMacros.protein
+    }
+    
+    /// Today's actual fat intake
+    var todayFat: Double {
+        todayMacros.fat
+    }
+    
+    /// Today's actual carbs intake
+    var todayCarbs: Double {
+        todayMacros.carbs
+    }
+    
+    /// Protein progress (actual / recommended)
+    var proteinProgress: Double {
+        guard let recommended = recommendedMacros?.protein, recommended > 0 else { return 0 }
+        return min(todayMacros.protein / Double(recommended), 1.0) // Cap at 100%
+    }
+    
+    /// Fat progress (actual / recommended)
+    var fatProgress: Double {
+        guard let recommended = recommendedMacros?.fat, recommended > 0 else { return 0 }
+        return min(todayMacros.fat / Double(recommended), 1.0) // Cap at 100%
+    }
+    
+    /// Carbs progress (actual / recommended)
+    var carbsProgress: Double {
+        guard let recommended = recommendedMacros?.carbohydrates, recommended > 0 else { return 0 }
+        return min(todayMacros.carbs / Double(recommended), 1.0) // Cap at 100%
+    }
+    
+    /// Whether the user has met all macro goals for today
+    var hasMetAllMacroGoals: Bool {
+        // Use a small tolerance to avoid floating point issues
+        let threshold = 0.99
+        return proteinProgress >= threshold &&
+               fatProgress >= threshold &&
+               carbsProgress >= threshold &&
+               recommendedMacros != nil
+    }
+    
     /// Goal description text for display
     var goalDescriptionText: String {
         guard let goal = userProfile?.goal else { return "-" }
@@ -198,6 +449,63 @@ final class ProgressViewModel: ObservableObject {
             return "0/0 days"
         }
         return "\(progressData.completedDays)/\(progressData.targetDays) days"
+    }
+    
+    /// Check if goal is expired (endDate < today)
+    var isGoalExpired: Bool {
+        guard let profile = userProfile,
+              let goalStartDate = profile.goalStartDate,
+              let targetDays = profile.targetDays else {
+            return false
+        }
+        
+        let calendar = Calendar.current
+        let normalizedStart = calendar.startOfDay(for: goalStartDate)
+        let today = calendar.startOfDay(for: Date())
+        
+        guard let endDate = calendar.date(byAdding: .day, value: targetDays, to: normalizedStart) else {
+            return false
+        }
+        
+        return endDate < today
+    }
+    
+    /// Check if goal is completed (completedDays >= targetDays)
+    var isGoalCompleted: Bool {
+        guard progressData.targetDays > 0 else { return false }
+        return progressData.completedDays >= progressData.targetDays
+    }
+    
+    /// Goal start date for display
+    var goalStartDateText: String? {
+        guard let profile = userProfile,
+              let goalStartDate = profile.goalStartDate else {
+            return nil
+        }
+        
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d, yyyy"
+        return formatter.string(from: goalStartDate)
+    }
+    
+    /// Goal end date for display
+    var goalEndDateText: String? {
+        guard let profile = userProfile,
+              let goalStartDate = profile.goalStartDate,
+              let targetDays = profile.targetDays else {
+            return nil
+        }
+        
+        let calendar = Calendar.current
+        let normalizedStart = calendar.startOfDay(for: goalStartDate)
+        
+        guard let endDate = calendar.date(byAdding: .day, value: targetDays, to: normalizedStart) else {
+            return nil
+        }
+        
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d, yyyy"
+        return formatter.string(from: endDate)
     }
     
     // MARK: - Health Calculation Methods

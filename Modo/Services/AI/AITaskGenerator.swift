@@ -222,15 +222,15 @@ class AITaskGenerator: ObservableObject {
                                 return
                             }
                             
-                            // Convert to AIExercise with calculated duration and calories
+                            // Convert to AIExercise - use AI-provided values or calculate if missing
                             let aiExercises = exercises.map { exercise -> AIExercise in
-                                let duration = self.exerciseData.calculateDuration(
+                                let duration = exercise.durationMin ?? self.exerciseData.calculateDuration(
                                     sets: exercise.sets,
                                     reps: exercise.reps,
                                     restSec: exercise.restSec ?? 60
                                 )
                                 
-                                let calories = self.exerciseData.calculateCalories(
+                                let calories = exercise.calories ?? self.exerciseData.calculateCalories(
                                     for: exercise.name,
                                     sets: exercise.sets,
                                     reps: exercise.reps,
@@ -307,7 +307,11 @@ class AITaskGenerator: ObservableObject {
         
         // ✅ Use AIPromptBuilder for prompt construction
         let systemPrompt = promptBuilder.buildSystemPrompt(userProfile: userProfile)
-        let userPrompt = "Generate a nutrition plan for \(formatDate(date)) with these meals: \(meals.joined(separator: ", ")). \(isReplacement ? "This replaces previous meals, so create DIFFERENT dishes with varied ingredients." : "")"
+        let userPrompt = """
+        Generate a nutrition plan for \(formatDate(date)) with ONLY these specific meals: \(meals.joined(separator: ", ")).
+        CRITICAL: DO NOT include any meals not in this list. Generate exactly \(meals.count) meal(s).
+        \(isReplacement ? "This replaces previous meals, so create DIFFERENT dishes with varied ingredients." : "")
+        """
         
         Task {
             do {
@@ -343,7 +347,16 @@ class AITaskGenerator: ObservableObject {
                             // Convert to AIGeneratedTask array
                             var generatedTasks: [AIGeneratedTask] = []
                             
+                            // Filter: Only process meals that were explicitly requested
+                            let requestedMealTypes = Set(meals.map { $0.lowercased() })
+                            
                             for meal in nutritionPlan.meals {
+                                // Skip unrequested meals (prevents duplicates from AI over-generation)
+                                guard requestedMealTypes.contains(meal.mealType.lowercased()) else {
+                                    print("   ⚠️ AITaskGenerator: Skipping unrequested meal: \(meal.mealType)")
+                                    continue
+                                }
+                                
                                 let foodItems = meal.foods.map { food in
                                     AIFoodItem(name: food.name, calories: food.calories)
                                 }

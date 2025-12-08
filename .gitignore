@@ -68,7 +68,7 @@ fastlane/test_output
 .DS_Store
 
 # Firebase/Google Services
-GoogleService-Info.plist
+**/GoogleService-Info.plist
 
 # API Keys (sensitive information)
 # Note: APIKeys.swift is tracked with placeholder key for CI

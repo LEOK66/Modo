@@ -261,20 +261,20 @@ final class DatabaseService: DatabaseServiceProtocol {
             guard self != nil else { return }
             
             guard snapshot.exists() else {
-                print("📡 DatabaseService: Listener update - no data for \(listenerKey)")
+                print("📡 DatabaseService: Listener update - no data for user \(userId)")
                 callback([])
                 return
             }
             
             guard let taskDict = snapshot.value as? [String: Any] else {
-                print("📡 DatabaseService: Listener update - invalid data for \(listenerKey)")
+                print("📡 DatabaseService: Listener update - invalid data for user \(userId)")
                 callback([])
                 return
             }
             
             do {
                 let tasks = try self!.parseTaskDictionary(taskDict)
-                print("📡 DatabaseService: Listener update - \(tasks.count) tasks for \(listenerKey)")
+                print("📡 DatabaseService: Listener update - \(tasks.count) tasks for user \(userId)")
                 callback(tasks)
             } catch {
                 print("❌ DatabaseService: Failed to parse tasks in listener - \(error.localizedDescription)")
@@ -543,6 +543,73 @@ final class DatabaseService: DatabaseServiceProtocol {
         }
     }
     
+    /// Delete daily completions for a date range from Firebase
+    /// - Parameters:
+    ///   - userId: User ID
+    ///   - startDate: Start date (inclusive)
+    ///   - endDate: End date (inclusive)
+    ///   - completion: Completion handler with result
+    func deleteDailyCompletions(userId: String, startDate: Date, endDate: Date, completion: ((Result<Void, Error>) -> Void)? = nil) {
+        let calendar = Calendar.current
+        let normalizedStart = calendar.startOfDay(for: startDate)
+        let normalizedEnd = calendar.startOfDay(for: endDate)
+        
+        let completionsPath = db.child("users").child(userId).child("dailyCompletions")
+        
+        // First fetch all completions to find which ones to delete
+        completionsPath.observeSingleEvent(of: .value) { [weak self] snapshot in
+            guard let self = self else {
+                completion?(.failure(NSError(domain: "DatabaseService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Service deallocated"])))
+                return
+            }
+            
+            guard snapshot.exists(), let completionsDict = snapshot.value as? [String: Any] else {
+                // No completions to delete
+                completion?(.success(()))
+                return
+            }
+            
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd"
+            dateFormatter.timeZone = TimeZone.current
+            dateFormatter.locale = Locale(identifier: "en_US_POSIX")
+            
+            var updates: [String: Any?] = [:]
+            var deletedCount = 0
+            
+            // Find all date keys in the range and mark them for deletion
+            for (dateKey, _) in completionsDict {
+                guard let date = dateFormatter.date(from: dateKey) else {
+                    continue
+                }
+                
+                // Check if date is in the requested range
+                if date >= normalizedStart && date <= normalizedEnd {
+                    updates[dateKey] = NSNull() // NSNull removes the key in Firebase
+                    deletedCount += 1
+                }
+            }
+            
+            // If no dates to delete, return success
+            guard !updates.isEmpty else {
+                completion?(.success(()))
+                return
+            }
+            
+            // Perform batch delete
+            let formatterForLog = dateFormatter // Capture for logging
+            completionsPath.updateChildValues(updates) { error, _ in
+                if let error = error {
+                    print("❌ DatabaseService: Failed to delete daily completions from Firebase - \(error.localizedDescription)")
+                    completion?(.failure(error))
+                } else {
+                    print("🗑️ DatabaseService: Deleted \(deletedCount) daily completion records from Firebase for date range [\(formatterForLog.string(from: normalizedStart)) to \(formatterForLog.string(from: normalizedEnd))]")
+                    completion?(.success(()))
+                }
+            }
+        }
+    }
+    
     // MARK: - Daily Challenge Methods
     
     /// Save daily challenge to Firebase
@@ -652,6 +719,31 @@ final class DatabaseService: DatabaseServiceProtocol {
         }
         
         return handle
+    }
+    
+    // MARK: - FCM Token Methods
+    
+    /// Save FCM token to Firebase for push notifications
+    /// - Parameters:
+    ///   - userId: User ID
+    ///   - fcmToken: Firebase Cloud Messaging token
+    ///   - completion: Completion handler with result
+    func saveFCMToken(userId: String, fcmToken: String, completion: ((Result<Void, Error>) -> Void)?) {
+        let path = db.child("users").child(userId).child("fcmToken")
+        let payload: [String: Any] = [
+            "token": fcmToken,
+            "updatedAt": Date().timeIntervalSince1970
+        ]
+        
+        path.setValue(payload) { error, _ in
+            if let error = error {
+                print("❌ DatabaseService: Failed to save FCM token - \(error.localizedDescription)")
+                completion?(.failure(error))
+            } else {
+                print("✅ DatabaseService: FCM token saved for user \(userId)")
+                completion?(.success(()))
+            }
+        }
     }
 }
 

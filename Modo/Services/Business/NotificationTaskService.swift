@@ -183,7 +183,6 @@ struct NotificationTaskService {
         
         // Get challenge type (default to fitness)
         let typeString = userInfo["type"] as? String ?? "fitness"
-        let emoji = userInfo["emoji"] as? String ?? "💪"
         
         // Create daily challenge task
         let calendar = Calendar.current
@@ -349,13 +348,19 @@ struct NotificationTaskService {
                 guard let name = exerciseData["name"] as? String else { continue }
                 let durationMin = exerciseData["durationMin"] as? Int ?? 5
                 let calories = exerciseData["calories"] as? Int ?? 30
+                let sets = exerciseData["sets"] as? Int
+                let reps = exerciseData["reps"] as? String
+                let restSec = exerciseData["restSec"] as? Int
                 
                 // Create as custom exercise (not from standard library)
                 let entry = FitnessEntry(
                     exercise: nil, // Not from standard library
                     customName: name,
                     minutesInt: durationMin,
-                    caloriesText: String(calories)
+                    caloriesText: String(calories),
+                    sets: sets,
+                    reps: reps,
+                    restSec: restSec
                 )
                 fitnessEntries.append(entry)
             }

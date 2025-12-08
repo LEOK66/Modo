@@ -115,7 +115,7 @@ final class ProfileViewModel: ObservableObject {
         modelContext: ModelContext,
         userProfileService: UserProfileService? = nil,
         userProfileRepository: UserProfileRepository? = nil,
-        authService: AuthServiceProtocol? = nil,
+        authService: (any AuthServiceProtocol)? = nil,
         avatarUploadService: AvatarUploadService = AvatarUploadService(),
         progressService: ProgressCalculationService = ProgressCalculationService.shared
     ) {
@@ -320,14 +320,10 @@ final class ProfileViewModel: ObservableObject {
                 modelContext: modelContext
             )
             
-            // Calculate buffer days
-            let bufferDays = profile.bufferDays ?? max(3, Int(Double(targetDays) * 0.1))
-            
             // Calculate progress
             let progress = progressService.calculateProgress(
                 completedDays: completedDays,
-                targetDays: targetDays,
-                bufferDays: bufferDays
+                targetDays: targetDays
             )
             
             // Update UI on main thread
