@@ -78,7 +78,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
                     if let error = error {
                         print("❌ AppDelegate: Notification permission request failed: \(error)")
                     } else {
-                        print("✅ AppDelegate: Notification permission: \(granted ? "granted" : "denied")")
+                      print("✅ AppDelegate: Notification permission: \(granted ? "granted" : "denied")")
                     }
                 }
             )
@@ -88,6 +88,14 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         }
 
         return true
+    }
+
+    // Failed to register for remote notifications
+    func application(
+        _ application: UIApplication,
+        didFailToRegisterForRemoteNotificationsWithError error: Error
+    ) {
+        print("❌ AppDelegate: Failed to register for remote notifications: \(error)")
     }
 }
 
