@@ -110,6 +110,7 @@ class AchievementShareService {
     }
     
     /// Generate share items (image + text) for sharing
+    @MainActor
     static func generateShareItems(
         achievement: Achievement,
         userAchievement: UserAchievement
@@ -119,21 +120,11 @@ class AchievementShareService {
         // Add share text
         items.append(generateShareText(achievement: achievement))
         
-        // Generate share image on main thread
-        var shareImage: UIImage?
-        if Thread.isMainThread {
-            shareImage = generateShareImage(
-                achievement: achievement,
-                userAchievement: userAchievement
-            )
-        } else {
-            DispatchQueue.main.sync {
-                shareImage = generateShareImage(
-                    achievement: achievement,
-                    userAchievement: userAchievement
-                )
-            }
-        }
+        // Call generateShareImage directly
+        let shareImage = generateShareImage(
+            achievement: achievement,
+            userAchievement: userAchievement
+        )
         
         if let image = shareImage {
             items.append(image)
@@ -281,6 +272,3 @@ private struct AchievementShareView: View {
         return formatter.string(from: date)
     }
 }
-
-// Note: Color extension with hexString is already defined in Extensions.swift
-
