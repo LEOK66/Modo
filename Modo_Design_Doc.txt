@@ -1,0 +1,931 @@
+﻿Modo Design Doc
+Team Info:
+People
+* Leo Liu - Product Manager & Testing & Coordinator
+* Zihao Li - UI/UX & frontend Dev (more on UI)
+* Oliver Zhang - UI/UX & frontend Dev (more on UI)
+* Harry Nguyen - frontend Dev
+* Maya Odenheim - backend Dev
+* Shelby Smithson - backend Dev
+
+
+Communication channel
+* Discord
+* Class section
+
+
+Git repo
+Product Description:
+Modo is an AI-powered iOS app that helps fitness and health-conscious individuals seamlessly track their daily workout and nutrition. The name "Modo" represents "mode" – a way of life centered on health and simplicity.
+Unlike cluttered fitness apps with overwhelming features, Modo focuses on what matters: simplicity and actionability. Users can instantly capture their meals with the camera, and AI analyzes the nutritional content and calorie count in seconds. Modo's AI also generates personalized daily workout and meal plans tailored to individual goals.
+The core philosophy is minimalism – a clean, distraction-free interface that makes healthy living effortless rather than complicated. Modo integrates naturally into the iOS ecosystem, fitting into users' daily routines without friction.
+Major Feature:
+1. AI-Powered Meal Tracking: Snap a photo of your meal and get instant nutritional analysis and calorie counts
+2. Personalized AI Planning: Generate custom daily workout and meal plans tailored to your fitness goals
+3. Unified Progress Dashboard: Track and visualize your exercise and nutrition data in one clean interface
+4. Secure User Accounts: Personal profiles with privacy-focused data management
+5. AI Accountability Partner ("ModoCoach"): Intelligent notification system that learns your workout patterns and sends personalized, contextually-timed coaching messages. ModoCoach detects when you typically exercise, identifies when you're struggling, and adapts its communication style (Supportive, Data-Driven, or Tough-Love) to match what motivates you. Unlike generic reminders, notifications are sent at optimal times based on your app usage patterns - like a real trainer who knows your schedule and checks in at the right moments.
+6. Achievement & Badge System: Gamified reward system inspired by Duolingo that celebrates user consistency and milestones. Users collect badges for various achievements (7-day streak, first 10 workouts, protein goal hit 30 days straight, etc.). Each badge has unique artwork and rarity tiers (Bronze/Silver/Gold). The system tracks multiple achievement categories including consistency streaks, workout milestones, nutrition goals, and personal records - turning fitness progress into a collectible journey.
+7. Smart Stats Dashboard: Comprehensive health metrics system that automatically calculates and displays key statistics based on user's physical data (weight, height, age, activity level) and fitness goal (lose fat, gain muscle, stay healthy). The dashboard shows personalized calorie recommendations, BMR/TDEE calculations, macro breakdowns, and progress trends. All stats are AI-readable, meaning ModoCoach and workout/meal generators use this data to provide tailored recommendations without users needing to manually input preferences repeatedly.
+Stretch goals:
+1. Freemium Model: Free tier with basic tracking + Premium subscription for unlimited AI generations, advanced analytics, and personalized coaching
+2. Apple Ecosystem Integration:
+   1. Sync with Apple Health for comprehensive fitness data
+   2. Calendar integration for workout scheduling
+   3. Widget support for quick meal logging
+3. Social Media Sharing: User can share their progress on their favorite social media
+
+
+Use case:
+* View AI Insights and Recommendations Dashboard - leo liu
+   * Actors: User, AI Analytics Engine, Backend Data Service
+   * Triggers: User navigates to the "Insights" or "Progress" tab in the app
+   * Preconditions:
+      * User is logged in
+      * User has at least 7 days of tracked data (meals and/or workouts)
+      * AI analytics service is available
+   * Postconditions (Success Scenario):
+      * User views personalized insights about their fitness and nutrition patterns
+      * AI provides actionable recommendations for improvement
+      * User understands progress toward their goals
+      * User feels motivated and informed to adjust their plan
+   * List of Steps:
+      * User taps on "Insights" tab from main dashboard
+      * System retrieves user's historical data (workouts, meals, goals)
+      * System sends data to AI Analytics Engine for processing
+      * AI analyzes patterns, trends, and goal progress
+      * AI generates personalized insights (e.g., "You're averaging 200 calories below target", "Your protein intake is inconsistent")
+      * System displays insights dashboard with visual charts and graphs
+      * System shows progress metrics (weight trend, workout consistency, calorie adherence)
+      * AI provides 3-5 actionable recommendations (e.g., "Try adding protein to breakfast", "Consider rest day on Thursdays")
+      * User reviews insights and recommendations
+      * User taps on a recommendation to see detailed explanation
+      * System shows why AI made this recommendation with supporting data
+      * User can accept recommendation and apply to current plan
+      * System updates user's plan based on accepted recommendation
+      * User returns to dashboard with updated guidance
+   * Extensions/Variations:
+      * User shares progress chart to social media or saves as image
+   * Exceptions:
+      * AI service unavailable
+      * AI cannot generate meaningful insights 
+      * No internet connection
+* Create and Manage User Account - Maya
+   * Actors: User, Authentication Service (Firebase Auth), Backend Data Service
+   * Triggers: User selects ‘Register’ or ‘Login’ from onboarding screen
+   * Preconditions: 
+      * Modo app installed
+      * Network connection available
+   * Postconditions (Success Scenario):
+* User is successfully authenticated and receives a valid session token.
+      * A user profile document is created or retrieved from Firestore.
+      * App navigates to the main dashboard, with the user recognized as logged in.
+   * List of steps (Success Scenario): 
+      * User opens Modo
+      * User selects ‘Register’ or ‘Login’
+         * If registering, user enters email and password
+         * App performs local validation (email validation and password strength)
+* App sends credentials securely via HTTPS to Firebase Authentication.
+* Firebase creates or verifies the user account.
+* On successful authentication, Firebase returns an auth token to the client.
+* App passes token to Backend Data Service, which checks if a user profile exists in Firestore.
+   * If not found creates new profile document with default settings 
+* Backend returns confirmation and profile data.
+* App securely caches session token and user profile.
+* User is navigated to the dashboard view.
+   * Extensions/variations: 
+      * User selects “Forgot Password,” enters email → Firebase sends password reset link.
+      * Sign in with Apple / Google, using OAuth flow via Firebase, backend verifies ID token and fetches existing user profile.
+   * Exceptions:
+      * If user attempts to register with email already exists, authentication service returns conflict error. App then clearly informs user that an account with that email already exists and suggests logging in instead, also providing a quick link to the password reset option if needed. 
+      * When user enters weak password, app prevents submission through local validation and displays inline error message explaining how to strengthen the password.
+      * If network connection drops during register or login, app temporarily queues user’s action using local caching and shows message that connection is lost. Once connectivity restored, system retries automatically. If multiple retries fail, user prompted to try again manually. 
+      * If user enters incorrect email or password, Firebase returns error and Modo displays “incorrect email or password”. 
+      * If user’s authentication token expires or is invalid, app automatically detects and logs user out. Prompts for reauthentication before allowing access to protected features. 
+* User Streak Tracking/Progress Dashboard - Shelby
+   * Actors: User, Modo AI, Backend Data Service
+   * Triggers: User opens the calendar or dashboard banner to check daily goal completion
+   * Preconditions: 
+      * User has registered account and is logged in
+      * User has set at least one daily goal
+      * User logs some amount of activity completion
+      * User has working internet connection
+   * Postconditions (Success Scenario):
+      * Calendar or dashboard banner displays completed tasks each day when selected.
+      * Fire symbols appear on days where all daily goals are achieved. The fire symbols show up in different sizes depending on how many daily goals are completed.
+      * Users can visually track the streaks of goal-completion days.
+      * AI will offer feedback and suggestions based on the streak data.
+      * Backend data will update to store the updated streak and goal completion status.
+   * List of steps (Success Scenario):
+      * User opens Modo and sets activity or meal goals for the day and checks off items as they complete them. 
+         * As items are checked off, the fire symbol grows in size.
+      * User can navigate to the progress dashboard or calendar.
+         * The backend will retrieve the user’s activity logs and show their streak data within the past 30 days.
+      * AI will evaluate the daily levels of completion and streak data to offer recommendations, suggestions, and feedback (e.g. “You reached your goals for the past 5 days. Keep it up!”).
+      * The user has the ability to review streaks by looking at their history. They can tap on any day for a detailed activity breakdown to show what was completed and what wasn’t.
+         * This option only exists on days where some activity has been completed (days with a fire symbol)
+   * Extensions/variations: 
+      * The user can filter by completion status or the amount of goals that have been completed.
+      * The user can filter by the goal type (workouts or nutrition or both).
+      * AI will offer suggestions for the next-day to stay on track for a streak.
+   * Exceptions:
+      * Dashboard will simply display the calendar and prompt the user to create goals if no goals have been set already.
+      * The fire symbol will not appear if the user doesn’t log their tasks (i.e. incomplete data).
+      * If the app cannot reach the backend due to network problems or server being down, it will only show the cached history (so dashboard is not blank) and is told to retry (i.e. “Couldn’t update progress. Tap to retry”). 
+      * The app will tell the user if there is no data in the history and urges the user to “Make a goal!”
+* Tracking Daily Meals and Caloric Intake - Harry Nguyen
+   * Actors: User, AI Analytics Engine, Backend Data Service, Camera System
+   * Triggers: 
+      * User selects a date on the Calendar and adds a new task to log a meal with nutrition values
+      * User uses the Insights feature and prompts AI to create a new meal task on the calendar
+      * User captures a meal using the Camera via the Insights feature to automatically add it as a calendar task
+   * Preconditions: 
+      * User is logged into their Modo account
+      * User has granted camera and photo access permissions (if capturing meals)
+      * AI analysis service is online and accessible
+   * Postconditions (Success Scenario)
+      * User’s meal is successfully logged on the selected calendar date
+      * Nutritional data are accurately analyzed and stored in the backend
+      * Progress dashboard is updated with the new data
+      * AI insights are refreshed using the updated nutritional information
+      * User can view, edit, or delete the logged meal entry at any time
+   * List of steps (Success Scenario)
+      * User opens the Modo app and navigates to the Calendar tab.
+      * User selects a specific date to log a meal.
+      * User chooses one of the following actions:
+         * Tap “Add Meal” to manually enter nutrition values, or
+         * Use the Insights feature to prompt AI to create a new meal task.
+      * If the camera is used, the system captures the image and sends it to AI.
+      * AI analyzes the image, identifying food items, portion sizes, and estimating nutritional content (calories, macros, etc.).
+      * The Backend Data Service retrieves nutritional information from the food database.
+      * The system displays a preview of the analyzed meal and nutrition summary to the user.
+      * User reviews and edits any items or portions if needed, then confirms to save.
+      * The system logs the meal on the selected calendar date and updates the user’s daily totals.
+      * Updated nutritional data syncs with the Progress Dashboard.
+      * AI uses the new data to adjust daily insights and recommendations.
+      * User views the updated daily caloric intake and progress metrics.
+   * Extensions/variations: 
+      * User edits or deletes a previously logged meal entry.
+      * User logs a meal manually without using the camera.
+      * AI automatically categorizes the meal (e.g., breakfast, lunch, dinner).
+      * AI suggests portion corrections based on photo analysis.
+   * Exceptions:
+      * Camera access denied: App prompts the user to enable camera permissions.
+      * AI service unavailable: User can manually enter meal data instead.
+      * Image upload failure: User is prompted to retry or log manually.
+      * Corrupted or unclear photo: AI cannot identify food items; system requests a clearer image.
+* Configure AI Accountability Partner (ModoCoach) - Zihao Li
+   * Actors: User, ModoCoach AI Engine, Backend Data Service, Notification Service
+   * Triggers:User navigates to Settings > ModoCoach Configuration or completes initial onboarding.
+   * Preconditions: 
+      * User is logged in
+      * User has at least 3 days of workout history (for pattern learning)
+      * Notification permissions are granted
+   * Postconditions (Success Scenario):
+      * User's coaching style preference is saved
+      * ModoCoach begins analyzing user patterns
+      * Personalized notifications are scheduled based on user behavior
+      * User receives contextually-timed motivational messages
+   * List of steps (Success Scenario):
+      * User opens ModoCoach settings from profile or during onboarding
+      * System displays coaching style options: Supportive, Data-Driven, Tough-Love
+      * User selects preferred coaching style and notification frequency
+      * System shows preview of each coaching style with example messages
+      * User confirms selection and sets notification preferences
+      * ModoCoach AI analyzes user's workout patterns from historical data
+      * System identifies optimal notification times based on usage patterns
+      * Backend stores coaching preferences and pattern analysis results
+      * ModoCoach schedules first personalized check-in notification
+      * User receives confirmation that ModoCoach is active
+   * Extensions/variations: 
+      * User can switch coaching styles at any time
+      * ModoCoach adapts messaging based on streak performance (supportive when struggling, congratulatory when succeeding)
+      * User can temporarily pause notifications (1 day, 3 days, 1 week)
+      * System suggests coaching style changes based on user response patterns
+   * Exceptions:
+      * Insufficient workout history → System prompts user to log 3+ workouts before enabling ModoCoach
+      * Notification permissions denied → System explains benefits and requests permission with clear instructions
+      * ModoCoach algorithm fails → Fallback to standard reminder notifications with option to retry setup
+* Generate and Customize AI Workout Plan - Oliver Zhang
+   * Actors: User, AI Workout Generator (OpenAI API), Backend Data Service, UI Customization Interface
+   * Triggers: 
+      * User navigates to "Workout" tab and taps "Generate New Plan"
+      * User completes initial onboarding and system prompts to create first workout plan
+      * User requests plan regeneration after completing current plan cycle
+   * Preconditions:
+      * User is logged in
+      * User has set basic fitness profile (goal, experience level, available equipment)
+      * AI workout generation service is available
+   * Postconditions (Success Scenario):
+      * User receives a personalized weekly workout plan tailored to their goals
+      * Plan is saved to user's calendar with scheduled dates
+      * User has customized the plan to fit their preferences
+      * Backend stores the generated and customized plan for tracking
+   * List of Steps (Success Scenario):
+      * User opens Modo app and navigates to "Workout" tab
+      * User taps "Generate New Plan" button
+      * System displays preference form:
+         * Fitness goal (Build Muscle / Lose Weight / Get Toned)
+         * Days per week (3-6 days)
+         * Session duration (30min / 45min / 60min)
+         * Available equipment (Bodyweight / Home Gym / Full Gym)
+      * User fills out preferences and taps "Generate Plan"
+      * Backend sends user data to AI Workout Generator
+      * AI generates personalized workout plan with weekly schedule and specific exercises (sets, reps, rest time)
+      * System displays generated plan in card-based layout showing weekly overview and daily exercise lists
+      * User reviews plan and taps "Customize" to enter edit mode
+      * User makes adjustments:
+         * Tap exercise to see alternative suggestions
+         * Swipe to delete exercises
+         * Adjust sets/reps with increment buttons
+________________
+         * Drag to reschedule workout days
+   * User taps "Save Plan"
+   * System syncs plan to calendar view
+   * Backend saves customized plan
+   * User returns to Workout dashboard with active plan displayed
+   * Extensions/Variations:
+   * User regenerates specific day only while keeping other days unchanged
+   * User saves customized plan as reusable template
+   * User previews exercise demo videos before customizing
+   * Exceptions:
+   * No internet connection: System queues generation request and notifies user when plan is ready after reconnection
+   * User abandons customization: System prompts "Save changes?" with Save/Discard/Cancel options
+   * Insufficient profile data: System redirects to profile setup before allowing plan generation
+Non-functional Requirement:
+   *  Performance & Responsiveness:
+   * Requirement: The app must provide near-instantaneous feedback for all user interactions to maintain the "simplicity and effortless" philosophy.
+   * Specific Metrics:
+   * AI Meal Analysis: Photo-to-nutrition analysis must complete within 5 seconds under normal network conditions (4G/5G/WiFi)
+   * App Launch Time: Cold start < 2 seconds, warm start < 1 second on iPhone 12 or newer
+   * UI Responsiveness: All button taps, navigation, and screen transitions must respond within 100ms
+   * Offline Capability: Core features (manual meal logging, workout tracking) must function without internet; AI features gracefully queue for later processing
+   * Testing Approach:
+   * Load testing with various network conditions (3G, 4G, WiFi, throttled)
+   * Stress testing AI API with concurrent requests
+   * Performance profiling on older iPhone models (iPhone 11, XR)
+   *  Security & Privacy:
+   * Requirement: User health data must be protected with industry-standard security practices, and users must have full control over their personal information.
+   * Data Protection:
+   * User passwords must be hashed using bcrypt with minimum 12 rounds
+   * Meal photos and personal data must be encrypted at rest (AES-256)
+   * No third-party analytics or advertising SDKs that collect PII without explicit consent
+   * All data transmission must use TLS 1.3 encryption
+   * Privacy Controls:
+   * Users can delete their account and all associated data permanently within 30 days
+   * Clear privacy policy explaining what data is collected and how AI uses it
+   * Testing Approach:
+   * Penetration testing and security audits before launch
+   * Regular dependency scanning for vulnerabilities
+   * Privacy impact assessment
+   * Test data deletion workflows end-to-end
+   * Verify encryption at rest and in transit
+   * Usability & Accessibility:
+   * Requirement: Modo must be intuitive enough for first-time users to complete core tasks without tutorials, and accessible to users with disabilities.
+   * Specific Requirements:
+   * New users should successfully log their first task within 60 seconds of opening the app
+   * Core features (log meal, start workout) accessible within 2 taps from home screen
+   * Consistent design patterns following iOS Human Interface Guidelines
+   * No feature should require more than 3 levels of navigation depth
+   * Error messages must be clear and actionable (not technical jargon)
+   * Accessibility Standards:
+   * Full VoiceOver support for visually impaired users
+   * Localization ready architecture for future language support
+   * Testing Approach:
+   * Usability testing with 5-10 target users during beta
+   * First-time user experience testing (time-to-complete key tasks)
+   * Accessibility audit using Xcode Accessibility Inspector
+   * Test with VoiceOver enabled throughout development
+   * A/B testing on onboarding flows
+   * Cognitive walkthrough for all major user flows
+Potential Risks:
+   * Technical Risks:
+   * AI Analysis Accuracy: (Likelihood: Medium | Impact: High)
+   * Risk: OpenAI Vision API may misidentify foods or estimate incorrect portion sizes, leading to inaccurate calorie tracking
+   * Mitigation: Implement user verification step showing AI analysis with option to edit; track accuracy metrics and adjust prompts; fallback to manual entry if confidence score is low
+   * Firebase Cost Overruns:(Likelihood: Medium | Impact: Medium)
+   * Risk: High-resolution meal photo storage and frequent Firestore writes could exceed free tier limits
+   * Mitigation: Compress images before upload; implement rate limiting (max 20 meals/day per user); monitor Firebase usage dashboard weekly; budget $50/month for overages
+   * Third-Party Service Dependencies : (Likelihood: Low | Impact: High)
+   * Risk: OpenAI API outages or rate limits could break core meal tracking functionality
+   * Mitigation: Implement graceful degradation with manual entry fallback; cache AI responses for common foods; display clear error messages with retry options
+   * User Experience Risks:
+   * AI Notification Fatigue:(Likelihood: Medium | Impact: Medium)
+   * Risk: ModoCoach sends too many notifications, causing users to disable notifications entirely
+   * Mitigation: Limit to 2 coaching messages/day max; implement "snooze" feature; A/B test notification frequency during beta (Week 8)
+   * Onboarding Complexity:(Likelihood: Low | Impact: Medium)
+   * Risk: Users abandon app during lengthy setup requiring fitness goals, equipment, and preferences
+   * Mitigation: Limit onboarding to 3 screens max; make advanced settings optional; usability test onboarding flow with 5 users in Week 7
+External Requirement:
+   * Error Handling and Robustness:
+   * Requirement: Modo must gracefully handle all reasonably expected errors and edge cases to maintain user trust and prevent data loss.
+   * Specific Requirements:
+   * User Input Validation:
+   * Meal photo uploads: Handle corrupted images, unsupported formats, or files exceeding 10MB with clear error messages
+   * Numeric inputs (weight, reps, calories): Reject negative values, non-numeric characters, and unrealistic values (e.g., 50,000 calorie meal)
+   * Text fields: Enforce character limits and sanitize inputs to prevent injection attacks
+   * Date/time inputs: Validate workout schedules don't conflict and are within reasonable ranges
+   * Network and Service Failures:
+   * AI service failures: Fall back to manual entry mode with clear messaging ("AI temporarily unavailable - enter meal manually")
+   * Network interruptions: Queue all actions locally and sync when connection restored, with visible sync status indicator
+   * API timeouts: Retry with exponential backoff (3 attempts), then prompt user with option to retry or continue offline
+   * Third-party service outages (Apple Health sync): Continue core functionality and log errors for later retry
+   * Data Integrity:
+   * Prevent duplicate meal/workout entries from rapid button taps
+   * Auto-save workout progress every 30 seconds to prevent data loss if app crashes
+   * Validate meal photo uploads completed successfully before allowing user to proceed
+   * Handle timezone changes and daylight saving time correctly for workout schedules
+   * User Feedback:
+   * All errors display user-friendly messages (not stack traces or technical codes)
+   * Provide actionable next steps: "Unable to analyze photo. Try taking another picture with better lighting."
+   * Critical failures (data corruption) trigger automatic error reports sent to development team
+   * Installation and Accessibility:
+   * Requirement: Modo must be easily installable for end users and accessible for testing/review by course staff and external evaluators.
+   * End User Installation:
+Primary Distribution: iOS app published on Apple App Store (TestFlight for beta testing)
+System Requirements: iOS 17.0 or later, compatible with iPhone 8 and newer
+Installation Process:
+   * TestFlight: Staff receives invite link → Install TestFlight app → Redeem code → Install Modo
+   * App Store (post-launch): Search "Modo Fitness" → Tap "Get" → Install
+First Launch Setup: Guided 2-minute onboarding to create account and set fitness goals
+Permissions: Clear prompts for camera access, notifications, and optional Apple Health integration
+   * Build and Development Environment Setup:
+   * Requirement: The complete Modo system (iOS app, backend services, AI integrations) must be buildable from source code by course staff or future developers with clear documentation.
+   * iOS App Build Instructions
+   * Prerequisites:
+   * macOS Ventura (13.0) or later
+   * Xcode 15.0 or later
+   * Apple Developer account (for device testing)
+   * Firebase account with project created
+   * Build Steps:
+   1. Clone repository: git clone https://github.com/modo-fitness/modo-ios.git
+   2. Open Modo.xcodeproj in Xcode
+   3. Add GoogleService-Info.plist from Firebase Console to project root
+   4. Copy Config.example.swift to Config.swift and add API keys (OpenAI, Firebase)
+   5. Build project (⌘+B) - Xcode will auto-resolve Swift Package dependencies
+   6. Run tests: ⌘+U
+   * Tech Stack: SwiftUI for UI, SwiftData for local caching, Firebase iOS SDK for backend integration
+   * Backend Build Instructions
+   * Prerequisites:
+   * Node.js 18+ and npm
+   * Firebase CLI: npm install -g firebase-tools
+   * VS Code (recommended)
+   * Build Steps:
+   1. Clone repository: git clone https://github.com/modo-fitness/modo-backend.git
+   2. Install dependencies: cd functions && npm install
+   3. Configure .env file with OpenAI API key
+   4. Login to Firebase: firebase login
+   5. Set project: firebase use --add
+   6. Start local emulators: firebase emulators:start
+   7. Deploy to production: firebase deploy
+   * Tech Stack: Firebase Cloud Functions (Node.js), Firestore database, Cloud Storage, Authentication
+   * API Testing
+   * Import postman/Modo-API-Collection.json into Postman
+   * Set environment variables: base_url and auth_token
+   * Test key endpoints: /analyzeMeal, /generateWorkout, /users/{userId}/meals
+
+
+   * Project Scope and Resource Allocation:
+   * Requirement: The Modo project scope is appropriately sized for a 6-person team over one academic term, with clear division of responsibilities and realistic deliverables.
+   * Team Resource Allocation:
+   * Frontend Development (3 developers):
+   * Zihao Li & Oliver Zhang (UI/UX + Frontend):
+   * Design and implement all user-facing screens (dashboard, meal logging, workout tracking, insights)
+   * Create reusable component library following iOS design patterns
+   * Implement photo capture and camera integration
+   * Expected output: 15-20 fully functional screens with polished animations
+   * Harry Nguyen (Frontend):
+   * Implement workout tracking logic and timer functionality
+   * Integrate with Apple Health API
+   * Build data visualization components (charts, progress indicators)
+   * Handle offline mode and local data persistence
+   * Expected output: Complete workout flow + data sync system
+   * Backend Development (2 developers):
+   * Maya Odenheim & Shelby Smithson
+   * User authentication and authorization system
+   * RESTful API endpoints for meal/workout CRUD operations
+   * Database design and optimization
+   * Real-time data sync service
+   * Expected output: Complete user management + core API (15-20 endpoints)
+   * AI service integration (OpenAI API for meal analysis, workout generation)
+   * Payment processing (Apple In-App Purchase integration)
+   * Image storage and processing pipeline (AWS S3)
+   * Background job processing (Celery for async tasks)
+   * Expected output: AI features + subscription system + image pipeline
+   * Product & Testing (1 coordinator):
+   * Leo Liu:
+   * Requirements gathering and feature prioritization
+   * Create comprehensive test plans and test cases
+   * Coordinate sprints and track deliverables
+   * Integration testing across frontend/backend
+   * User acceptance testing with beta testers
+   * Expected output: Test suite with 80%+ coverage + weekly sprint reports
+Team Process Description:
+   * Software Toolset:
+   * Xcode 15+: Primary IDE for iOS development with integrated Interface Builder, debugging tools, and performance profilers. Chosen for its seamless Swift/SwiftUI integration and required toolchain for iOS app development.
+   * VS Code: Backend development with Firebase Extensions for cloud function debugging and deployment. Lightweight and excellent for Node.js development.
+   * Firebase Console: Real-time monitoring of database, authentication, storage, and cloud functions. Provides production-grade backend infrastructure without server management overhead.
+   * Figma: Collaborative UI/UX design platform enabling real-time design reviews and component libraries. Exports assets directly compatible with Xcode, streamlining the design-to-code workflow.
+   * Excalidraw: Rapid architecture diagrams and user flow sketches during planning sessions. Simple and fast for brainstorming.
+   * Discord: Primary communication channel with dedicated channels for frontend, backend, design discussions, and daily standups. Supports screen sharing for quick problem-solving.
+   * GitHub: Version control with feature branch workflow. Pull request reviews ensure code quality and knowledge sharing across the team.
+   * Postman: API testing and documentation. Shared collections enable frontend developers to test backend endpoints independently.
+   * Team Member Roles & Justification:
+   * Leo Liu - Product Manager, Testing Lead & Coordinator
+   * Responsibilities: Define and prioritize features, coordinate sprints, write test cases, conduct integration testing, manage timeline and deliverables
+   * Why This Role Is Needed: With 6 team members and 9 weeks, coordination is critical to prevent duplicate work and ensure frontend/backend integration. A dedicated PM keeps the team focused on MVP rather than feature creep.
+   * Why Leo: As PM, Leo has the holistic view needed to identify integration issues early. Leo's proficient big tech internship experience provides firsthand knowledge of the end-to-end software development process, from requirements gathering to deployment. This professional experience in coordinating cross-functional teams and understanding both technical constraints and user perspectives makes Leo ideal for balancing stakeholder needs with engineering realities. Leo's exposure to industry-standard development practices ensures the team follows professional workflows while adapting them for an academic timeline.
+   * Oliver Zhang - UI design, Frontend Dev
+   * Responsibilities: Design and build workout plan interfaces in Figma and SwiftUI. Handle exercise customization features like drag-and-drop editing and scheduling, create reusable components, and integrate the AI workout API while keeping Modo's minimalist aesthetic.
+   * Why This Role is Needed: Workout planning needs polished UI just like meal tracking. Complex interactions—editing AI plans, swapping exercises—must feel effortless. This also balances workload: Harry handles meals, I handle workouts.
+   * Why Oliver: I'm UI/UX focused, so designing intuitive workout flows fits my strengths. I can go from Figma to SwiftUI quickly and excel at organizing complex info into clean, minimal layouts.
+   * Zihao Li - UI design (major), Frontend Dev
+   * Responsibilities: Design, refine user interface on Figma. Writing corresponding frontend swift code using Xcode. Connect backend api with frontend element.
+   * Why This Role is Needed: UI is one of the most important elements in this project based on Leo’s idea. We want to build a simple, high-end style app which requires a professional UI design app to accomplish, instead of drawing by hand. A clear and nice UI design also makes it more clear to the backend on design backend API.
+   * Why Zihao: Did frontend work this summer followed by Figma and is interested to learn how to create nice Figma design.
+   * Harry Nguyen - Frontend Dev
+   * Responsibilities: Design and implement Modo’s iOS interface using SwiftUI. Create Figma prototypes, build core screens (authentication, meal logging, workout tracking), and ensure a clean, accessible user experience that aligns with Modo’s minimalist design.
+   * Why This Role is Needed: Important to ensure Modo’s functionality is presented in a user-friendly, visually appealing and intuitive manner supporting the app’s minimalist design and making healthy living effortless for users..
+   * Why Harry: Previously worked on frontend projects and wants to gain more experience in IOS development using SwiftUI with a focus on clean design and usability.
+   * Maya Odenheim - Backend Dev
+   * Responsibilities: Designing, implementing, and maintaining Modo’s server-side architecture, ensuring that all data operations, APIs, and AI integrations run securely, efficiently, and reliably.
+   * Why This Role is Needed: Critical to connect Modo’s user-facing features with reliable and intelligent backend services. Without a robust backend, app would fail to operate. 
+   * Why Maya: Has fullstack experience and is interested in learning backend dev through hands-on project. 
+   * Shelby Smithson - Backend Dev:
+   * Responsibilities: Design, build, and maintain the backend infrastructure of Modo. This includes developing secure APIs, managing the database for user activity, nutrition, goal tracking, and integrating AI to evaluate goal completion and generate personal insights.
+   * Why This Role Is Needed: A reliable backend is essential in order to connect Modo’s AI features, progress dashboard, and the app interface. Without a strong backend, user data couldn’t be stored, analyzed, or synced in any useful way which is essential for the app’s core functionality.
+   * Why Shelby: I am interested in strengthening skills in server-side design and database management. This project offers an opportunity to apply backend skills in a real-world application while collaborating with my AI and frontend teams.
+
+
+   * 9-Week Development Schedule:
+   * Week 1-3: Foundation & Design Phase (Milestone 1):
+   * All Team - Common Activities:
+   * Finalize requirements and feature prioritization
+   * Map complete user workflows and use cases
+   * Define API contracts and data flow between frontend/backend
+   * Set up development environments and repositories
+   * Standup discussions on Discord to align on architecture decisions
+   * Frontend UI Team (Zihao, Oliver, Harry) Focus:
+   * Primary Goal: Create comprehensive UI/UX design and user experience flow
+   * Design all major screens in Figma (onboarding, meal logging, workout tracking, dashboard, insights, settings)
+   * Define component library and design system (colors, typography, spacing)
+   * Map user journeys: How does a user go from opening the app to logging a meal? Starting a workout?
+   * Create interactive Figma prototype showing screen transitions and interactions
+   * Define SwiftUI view hierarchy and navigation structure
+   * Plan offline experience: What happens when the network is unavailable?
+   * Consider accessibility: VoiceOver support, Dynamic Type, color contrast
+   * Backend Team (Maya, Shelby) Focus:
+   * Primary Goal: Design system architecture, data models, and service integration
+   * Design Firestore database schema: collections, documents, relationships, indexes
+   * Define all Cloud Functions and their triggers (HTTP endpoints, auth triggers, scheduled jobs)
+   * Map data flow: User takes photo → Upload to Storage → Trigger function → Call OpenAI → Parse response → Store in Firestore → Sync to app
+   * Design authentication flow and security rules
+   * Plan OpenAI integration: prompt templates, error handling, rate limiting, cost optimization
+   * Design Cloud Storage structure for meal photos and user assets
+   * Create system architecture diagram in Excalidraw showing all services and their interactions
+   * Define API request/response formats and document in Postman
+   * Leo's Coordination:
+   * Facilitate integration meetings: Ensure frontend data needs match backend API design
+   * Review both designs for consistency and feasibility
+   * Create test plan based on designed workflows
+   * Set up project tracking board with Week 4-9 task breakdown
+   * Milestone 1 Deliverables:
+   * Frontend UI Team: Complete Figma design, interactive prototype, component library documented
+   * Backend Team: System architecture diagram in Excalidraw, complete Firestore schema documented, all API endpoints defined in Postman with mock examples
+   * Shared: Agreed-upon API contracts, unified understanding of data flow, no ambiguity on "who builds what"
+   * Week 4-6: Core Feature Implementation (Milestone 2):
+   * Frontend UI Team (Zihao, Oliver, Harry) Focus:
+   * Primary Goal: Implement authentication, meal logging, and workout tracking features
+   * Week 4:
+   * implement authentication screens (signup, login, onboarding flow)
+   * Build main navigation and tab structure
+   * Integrate Firebase Authentication SDK
+   * Set up SwiftData models for local caching
+   * Week 5:
+   * Implement meal logging flow: camera capture, photo preview, manual entry form
+   * Build meal history list and detail views
+   * Implement photo upload to Firebase Storage
+   * Create loading states and error handling UI for AI analysis
+   * Display AI nutritional analysis results
+   * Week 6:
+   * Implement workout plan display screens
+   * Build workout tracking interface with timer and set/rep logging
+   * Integrate Apple Health SDK (read/write permissions)
+   * Create workout history views
+   * Prepare first TestFlight beta build with working core features
+   * Backend Team (Maya, Shelby) Focus:
+   * Primary Goal: Build and deploy authentication, meal analysis, and workout generation APIs
+   * week4:
+   * Deploy Firebase Authentication (email/password, Sign in with Apple) to staging
+   * Implement user profile creation and management Cloud Functions
+   * Set up Cloud Storage buckets and security rules
+   * Deploy initial Firestore security rules
+   * Configure staging environment monitoring
+   * Week 5:
+   * Build meal CRUD API endpoints (create, read, update, delete)
+   * Implement OpenAI Vision API integration for meal photo analysis
+   * Create prompt templates for accurate nutrition extraction
+   * Handle edge cases: multiple foods, ambiguous items, portion estimation
+   * Optimize image preprocessing for better AI results
+   * Deploy meal analysis functions to staging, test with frontend
+   * Week6: 
+   * Implement workout plan storage and retrieval APIs
+   * Build AI workout generation with OpenAI (personalized based on user goals, experience, equipment)
+   * Create workout session logging endpoints
+   * Implement user goals and preferences storage
+   * Set up API rate limiting for cost control
+   * Deploy all Week 4-6 functions to staging environment
+   * Leo's Coordination:
+   * Conduct end-to-end testing of completed flows
+   * Document bugs and integration issues
+   * Facilitate debugging sessions between frontend/backend
+   * Begin usability testing preparation (recruit beta testers)
+   * Coordinate staging deployment schedule between frontend/backend
+   * Verify TestFlight builds work with staging backend
+   * Milestone 2 Deliverables:
+   * Frontend UI Team: Functional authentication flow, complete meal logging with camera, AI analysis display, workout tracking with timer
+   * Backend Team: Working authentication system, meal analysis API with 70%+ accuracy, workout generation API, all endpoints tested in Postman
+   * Integration: Users can sign up, log meals with AI analysis, view/track workouts end-to-end
+   * Deployment:
+   * First TestFlight build (v0.1) deployed and accessible to team members
+   * All backend Cloud Functions deployed to Firebase staging environment
+   * Staging environment fully functional and tested
+
+
+   * Week 7-9: Advanced Features, Polish & Launch (Milestone 3):
+   * Frontend UI Team (Zihao, Oliver, Harry) Focus:
+   * Primary Goal: Complete insights dashboard, premium features, and polish all UI
+   * Week7:
+   * Build insights/progress dashboard with data visualizations
+   * Implement charts for nutrition trends and workout consistency
+   * Add offline mode support with SwiftData
+   * Implement background sync when connectivity restored
+   * Polish animations and screen transitions
+   * Deploy TestFlight build v0.2 with insights features
+   * Week8:
+   * Implement subscription/premium upgrade screens
+   * Integrate Apple In-App Purchase SDK
+   * Build settings and profile management screens
+   * Add restore purchase functionality
+   * Conduct accessibility audit (VoiceOver, Dynamic Type, contrast)
+   * Performance optimization and memory leak fixes
+   * Deploy TestFlight build v0.3 with premium features for beta testing
+   * Week9:
+   * Bug fixes from beta testing and Leo's QA
+   * Final UI polish and edge case handling
+   * Onboarding flow refinements based on user feedback
+   * Prepare demo scenarios and walkthrough
+   * Deploy final TestFlight build v1.0 for course staff evaluation
+   * Prepare App Store submission materials (screenshots, description, privacy policy)
+
+
+   * Backend Team (Maya, Shelby) Focus:
+   * Primary Goal: Complete AI insights, subscription system, and production hardening
+   * Week7:
+   * Implement AI insights generation (analyze user patterns, provide recommendations)
+   * Build real-time sync service for multi-device support
+   * Implement data conflict resolution logic
+   * Optimize Firestore queries and add indexes for performance
+   * Set up Firebase Crashlytics and error monitoring
+   * Deploy insights and sync functions to staging
+   * Week8:
+   * Implement subscription status tracking in Firestore
+   * Build payment webhook handling for App Store purchases
+   * Add premium feature gating (unlimited AI vs. 10/day for free tier)
+   * Implement API rate limiting based on subscription tier
+   * Conduct security audit of all Cloud Functions and Firestore rules
+   * Set up production monitoring and alerting
+   * Deploy subscription system to staging and test with TestFlight v0.3
+   * Set up production Firebase environment with proper security configurations
+   * Week 9:
+   * Critical bug fixes from security audit and beta testing
+   * API performance optimization (caching, query efficiency)
+   * Finalize error handling and logging
+   * Create backup and disaster recovery procedures
+   * Deploy all Cloud Functions to production environment
+   * Configure production database with proper indexes and security rules
+   * Set up production monitoring dashboards (Firebase Console, Cloud Functions metrics)
+   * Verify production environment stability and performance
+
+
+   * Leo's Coordination:
+   * Deploy TestFlight builds to beta testers (10-15 users Week 7, expand to 25-30 users Week 8)
+   * Conduct 1-on-1 observation sessions with 3-5 users and compile feedback report
+   * Full regression testing of all features and create bug priority matrix
+   * Course staff walkthrough and feedback session
+   * Monitor TestFlight crash reports and coordinate fixes with teams
+   * Coordinate production deployment timeline between frontend and backend
+   * Final integration testing and sign-off on production environment
+   * Prepare evaluation guide and demo presentation for course staff
+   * Finalize all documentation (README, API docs, testing guide, architecture docs, deployment runbook)
+   * Verify production deployment successful and share TestFlight v1.0 invite links with course staff
+   * Milestone 3 Deliverables:
+   * Frontend UI Team: Complete app with insights dashboard, subscription flow, polished UI/UX, passing accessibility audit
+   * Backend Team: AI insights working, subscription system operational, production-ready with monitoring, all security issues resolved
+   * Integration: Feature-complete app on TestFlight with premium tier functional, all critical bugs fixed
+   * Documentation: Complete technical documentation, user testing guide, demo presentation ready, deployment runbook
+   * Quality: App meets all non-functional requirements (performance, security, usability)
+   * Deployment:
+   * Production Firebase environment live and stable
+   * TestFlight v1.0 deployed and accessible via invite link
+   * Course staff has access to production app for evaluation
+   * All deployment documentation and credentials provided
+   * Monitoring and alerting configured for production environment
+   * Rollback procedures documented in case of critical issues
+Software Architecture:
+  
+
+   * Modo uses a three-tier mobile application architecture that separates the user interface, business logic, and data storage for maintainability and scalability. The system consists of four major components:
+   * iOS Application (Swift + SwiftUI):
+   * Purpose: Provides the native user interface and local data management for iPhone users.
+   * Key Modules:
+   * Presentation Layer (SwiftUI):
+   * ModoApp.swift: Main app entry point using MVVM architecture pattern
+   * Views: DashboardView, MealLoggingView, WorkoutView, InsightsView, SettingsView
+   * Integrates with Apple ecosystem: HealthKit for workout syncing, UserNotifications for ModoCoach alerts, AVFoundation for camera access
+   * Service Layer (Swift Classes):
+   * AuthService: Manages Firebase Authentication flows (email/password, OAuth)
+   * MealService: Handles photo capture, image compression (max 2MB), upload to Firebase Storage
+   * WorkoutService: Manages workout plan retrieval, session logging, Apple Health sync
+   * AIService: Communicates with backend AI endpoints, handles loading states and error fallbacks
+   * UserStatsService: Calculates BMR/TDEE locally using Mifflin-St Jeor formula, syncs with backend
+   * Data Layer (SwiftData/Core Data):
+   * Local models: User, Meal, Workout, Achievement
+   * Implements offline-first caching: writes to local storage first, syncs to Firestore when online
+   * LocalStorage (Mapper): Stores temporary user preferences and session data
+   * Backend API Server:
+   * Purpose: Orchestrates business logic, coordinates between Firebase and OpenAI services, enforces security rules and rate limiting.
+   * Key Modules:
+   * API Routes & Controllers
+   * authRoutes.ts → /api/auth/* (register, login, OAuth)
+   * userRoutes.ts → /api/users/* (profile CRUD, stats retrieval)
+   * mealRoutes.ts → /api/meals/* (meal CRUD, AI analysis orchestration)
+   * workoutRoutes.ts → /api/workouts/* (plan generation, session logging)
+   * aiRoutes.ts → /api/ai/* (OpenAI proxy, insights generation)
+   * Business Logic Services
+   * UserManager.ts: Handles profile operations, calculates BMR/TDEE with Mifflin-St Jeor formula
+   * MealAnalyzer.ts: Parses OpenAI Vision API JSON responses, extracts nutrition data, handles edge cases (low confidence scores, unclear portions)
+   * WorkoutGenerator.ts: Builds personalized workout plans based on user goals, equipment availability, and experience level
+   * NotificationScheduler.ts: Analyzes user workout patterns (optimal times, consistency), schedules ModoCoach notifications via FCM
+   * Middleware
+   * AuthMiddleware.ts: Verifies Firebase ID tokens on protected routes, attaches userId to requests
+   * ErrorHandler.ts: Catches exceptions, returns standardized JSON error responses
+   * RateLimiter.ts: Enforces usage limits (10 AI calls/day for free tier, unlimited for premium)
+   * Firebase Services
+   * Purpose: Provides managed cloud infrastructure for authentication, database, file storage, and push notifications.
+   * Firebase Authentication:
+   * Supports email/password and OAuth providers (Sign in with Apple, Google)
+   * Issues JWT tokens with 1-hour expiration, handles token refresh
+   * Manages password resets via email verification links
+   * Firestore Database:
+   * Stores structured data: users, meals, workouts, achievements, notifications
+   * Real-time listeners enable instant UI updates (e.g., streak counter changes)
+   * Security rules enforce user-level data isolation: users can only read/write their own documents
+   * Cloud Storage:
+   * Stores meal photos (compressed to max 2MB before upload)
+   * Badge artwork images (static assets)
+   * Optional user profile pictures
+   * Cloud Messaging (FCM):
+   * Sends push notifications via Apple Push Notification service (APNs)
+   * Triggered by Cloud Functions when ModoCoach schedules contextual messages
+   * Supports notification topics for premium user announcements
+   * AI Service 
+   * Purpose: Powers intelligent meal analysis and personalized workout generation through large language models.
+   * Interfaces Between Components
+   * iOS App ↔ Backend API: REST API (JSON) for sending/receiving user data.
+   * Backend API ↔ Firebase: Uses Firebase SDKs to store/retrieve structured data, store media, and send push notifications.
+   * Backend API ↔ AI Service: HTTP or queue-based communication to send meal images and receive AI-generated results.
+   * AI Service ↔ Firebase (via Backend): Results are stored in Firestore for app use.
+   * Data Overview
+   * Structured Data: Stored in Firebase Firestore (users, meals, workouts, plans, achievements, notifications).
+   * Unstructured Data: Stored in Firebase Storage (meal photos, badge images).
+   * Architectural Assumptions
+   * Users are online when interacting with the app.
+   * AI service is available for real-time or near-real-time analysis.
+   * Firebase handles core services like authentication, storage, and push notifications, so backend complexity is reduced.
+   * Key Architecture Decisions and Alternatives
+   * Decision: Use Firebase for authentication and storage.
+   * Alternative: Custom backend with PostgreSQL and manual authentication.
+   * Reason for Choice: Firebase reduces development overhead, ensures security, and integrates easily with iOS.
+   * Decision: Use a dedicated Node.js backend.
+   * Alternative: Fully serverless backend (Firebase Cloud Functions).
+   * Reason for Choice: A dedicated backend simplifies orchestrating multiple services (AI, notifications) and makes the app easier to maintain and extend.
+   * Data Storage:
+   * User Profiles (users/{userId} collection)
+   * Each document stores one user's account information including email, displayName, physical stats (weight, height, age, gender), fitness preferences (fitnessGoal: "lose_fat"/"gain_muscle"/"stay_healthy", activityLevel: "sedentary"/"moderate"/"very_active"), calculated metrics (BMR and TDEE in kilocalories), subscription status (free/premium), ModoCoach preferences (coachingStyle: "supportive"/"data_driven"/"tough_love"), FCM push notification token, and timestamps (createdAt, lastActive). BMR and TDEE are recalculated server-side whenever weight or activity level changes using the Mifflin-St Jeor formula.
+   * Meal Logs (meals/{userId}/entries/{mealId} subcollection)
+   * Each document represents one logged meal with fields including photoURL (Firebase Storage link), timestamp (when consumed), mealType ("breakfast"/"lunch"/"dinner"/"snack"), foodItems array (each containing food name and calories), totalCalories (sum), macros object (protein/carbs/fats in grams), aiConfidence score (0-100), manuallyEdited boolean, and warnings array. The subcollection structure provides automatic data isolation and improves query performance by scoping queries to a single user's meals.
+   * Workout Plans (workouts/{userId}/plans/{planId} subcollection)
+   * Each document stores an AI-generated workout program with fields including generation parameters (fitnessGoal, daysPerWeek, equipment, experienceLevel), weeklySchedule array (each element contains dayOfWeek, focusArea, and exercises array with name/sets/reps/restTime/notes), generatedAt timestamp, validUntil timestamp (2 weeks expiry), and completionRate percentage. The entire plan is stored in one document using nested arrays to avoid complex joins when rendering the weekly view.
+   * Workout Sessions (workouts/{userId}/sessions/{sessionId} subcollection)
+   * Each document logs one completed workout with fields including planId reference, startTime, endTime, completedExercises array (each containing exercise name, setsCompleted, repsPerSet array, and weight used), caloriesBurned, and syncedToHealthKit boolean. This data feeds the achievement system and analytics for ModoCoach's pattern recognition.
+   * Achievement Badges (achievements/{userId}/badges/{badgeId} subcollection)
+   * Each document tracks one badge's status with fields including badgeType ("streak"/"milestone"/"consistency"), name, description, tier ("bronze"/"silver"/"gold"), artworkURL (Storage link), earnedAt timestamp (nullable), progress counter, currentStreak, and longestStreak. Badges like "workout_streak_7" require completing workouts 7 consecutive days.
+   * Notification History (notifications/{userId}/history/{notificationId} subcollection)
+   * Each document records one ModoCoach notification with fields including message text, sentAt timestamp, coachingStyle used, opened boolean, and dismissed boolean. This history enables ModoCoach's AI to learn which messaging patterns increase user engagement and optimal notification timing.
+   * Architectural Assumptions:
+   * 4.1 Network Connectivity Assumptions
+   * Primary Assumption: Users have internet connectivity when using AI features (meal analysis, workout generation, insights)
+   * Justification: OpenAI API requires network access; the 9-week timeline does not allow building an on-device ML model
+   * Mitigation: Core features (manual meal logging, workout tracking) work offline using SwiftData cache. AI features gracefully degrade with clear "Offline - AI unavailable" messaging
+   *  Third-Party Service Availability
+   * Assumption: OpenAI API uptime > 99%, Firebase services are highly available (backed by Google Cloud)
+   * Risk: OpenAI outages or rate limits could break meal analysis
+   * Mitigation:
+   * Backend caches common foods (e.g., "grilled chicken breast") to serve from Firestore without OpenAI call
+   * If OpenAI fails, users can manually enter meal data
+   * Backend implements exponential backoff retry (3 attempts) before returning error
+   * Key Architecture Decisions & Alternatives
+   * Decision 1: Firebase vs. Custom Backend (PostgreSQL + AWS)
+   * Chosen: Firebase (Authentication, Firestore, Storage, Cloud Messaging)        
+   * pros:
+   * Rapid development: Auth, Storage, Database out-of-box, Auto-scaling without DevOps, Native iOS SDK integration, Real-time sync with Firestore listeners
+   * cons:
+   * •Vendor lock-in (migration cost high), Complex queries limited (no JOINs), Cost scales with usage (can get expensive), Less control over infrastructure
+   * Decision 2: Dedicated Node.js Backend vs. Pure Serverless (Firebase Cloud Functions)
+   * Chosen: Node.js + Express backend deployed as a single server
+   * pros:
+   * Complex business logic easier to organize, Better debugging experience (run locally)), Easier OpenAI integration (long-running requests), Single codebase for all API routes
+   * cons:
+   * Requires deployment and maintenance, Fixed costs even with zero traffic, Must handle scaling manually (load balancer)
+Firebase Integration Strategy:
+   * Firestore Collections & Data Storage:
+   * users/ - Stores user profiles, physical stats (height, weight, age), fitness goals, subscription status, and coaching preferences. Each document includes BMR/TDEE calculations updated on profile changes.
+   * Example document path: users/{userId}
+   * Fields: email, displayName, weight, height, age, fitnessGoal (lose fat/gain muscle/stay healthy), activityLevel, bmr, tdee, subscriptionTier, coachingStyle, createdAt
+   * meals/ - Stores meal entries with subcollections for each user. Includes photo URLs (from Storage), AI-analyzed nutrition data (calories, macros), timestamps, and manual edits.
+   * Example document path: meals/{userId}/entries/{mealId}
+   * Fields: photoURL, timestamp, calories, protein, carbs, fats, mealType (breakfast/lunch/dinner), foodItems[], aiConfidence, manuallyEdited
+   * workouts/ - Stores workout plans and session logs. Includes AI-generated exercises, completion status, set/rep tracking, and timer data.
+   * Example document path: workouts/{userId}/plans/{planId} and workouts/{userId}/sessions/{sessionId}
+   * Fields for plans: exercises[], targetMuscleGroups[], duration, difficulty, generatedAt
+   * Fields for sessions: planId, startTime, endTime, completedExercises[], setsCompleted, caloriesBurned
+   * achievements/ - Tracks badge progress and earned badges per user. Includes streak counts, milestone dates, and rarity tiers.
+   * Example document path: achievements/{userId}/badges/{badgeId}
+   * Fields: badgeType, earnedAt, tier (Bronze/Silver/Gold), progress, currentStreak, longestStreak
+   * notifications/ - Stores ModoCoach notification history and scheduling data. Includes delivery times, message types, user engagement metrics.
+   * Example document path: notifications/{userId}/history/{notificationId}
+   * Fields: message, sentAt, coachingStyle, opened, dismissed, scheduledFor, triggerType (streak reminder/workout time/encouragement)
+   * Firebase Storage Structure:
+   * /users/{userId}/meals/{timestamp}.jpg - Meal photos uploaded from camera, organized by date. Images are compressed to max 2MB before upload to reduce storage costs.
+   * /badges/{badgeId}.png - Badge artwork images for different achievement tiers (Bronze/Silver/Gold). Static assets loaded once and cached locally.
+   * /profile-pictures/{userId}.jpg - Optional user profile photos. Default avatar used if not uploaded.
+Key Firebase API Calls:
+   * Authentication:
+   * signInWithEmailAndPassword(email, password) - User login flow
+   * createUserWithEmailAndPassword(email, password) - New user registration
+   * signInWithCredential(appleCredential) / signInWithCredential(googleCredential) - OAuth sign-in for Apple/Google
+   * sendPasswordResetEmail(email) - Password recovery flow
+   * Firestore:
+   * getDoc(doc(db, 'users', userId)) - Fetch user profile on app launch
+   * setDoc(doc(db, 'users', userId), profileData) - Create new user profile
+   * updateDoc(doc(db, 'users', userId), { weight: newWeight }) - Update user stats, triggers BMR/TDEE recalculation
+   * addDoc(collection(db, 'meals', userId, 'entries'), mealData) - Log new meal after AI analysis
+   * getDocs(query(collection(db, 'meals', userId, 'entries'), where('timestamp', '>=', last30Days))) - Fetch recent meals for dashboard
+   * onSnapshot(doc(db, 'achievements', userId, 'badges', 'currentStreak')) - Real-time listener for streak updates
+   * Storage:
+   * uploadBytes(storageRef, photoFile) - Upload meal photo from camera
+   * getDownloadURL(storageRef) - Retrieve photo URL after upload to display in app and send to OpenAI API
+   * deleteObject(storageRef) - Delete meal photos older than 90 days (automated Cloud Function)
+   * Cloud Messaging:
+   * send({ token: userFCMToken, notification: { title, body } }) - ModoCoach sends personalized push notification triggered by Cloud Functions
+   * subscribeToTopic(token, 'premium_users') - Group notifications for subscription tier
+Security & User Data Protection:
+Data Security Measures:
+   * All meal photos containing potentially sensitive dietary information are stored in Firebase Storage with strict security rules limiting access to authenticated users only
+   * User health metrics (weight, BMI, calorie intake) are encrypted at rest using Firebase's AES-256 encryption
+   * API calls between iOS app and backend use HTTPS/TLS 1.3 to prevent man-in-the-middle attacks
+   * Firebase Authentication tokens expire after 1 hour, requiring re-authentication for extended sessions
+   * Firestore security rules enforce user-level data isolation - users can only read/write their own documents
+Privacy Protections:
+   * Meal photos are automatically deleted from Storage after 90 days to minimize data retention
+   * AI analysis happens server-side; raw photos are never permanently stored on backend servers after processing
+   * User email addresses are hashed before logging for analytics purposes
+   * No third-party analytics SDKs (Google Analytics, Mixpanel) are integrated - all analytics use Firebase's privacy-focused tools
+   * Users can export all their data (meals, workouts, achievements) in JSON format via Settings
+   * Account deletion permanently removes all user data from Firestore and Storage within 30 days per GDPR compliance
+OpenAI API Security:
+   * Meal photos sent to OpenAI Vision API are not stored or used for model training (per OpenAI's API policy)
+   * API keys are stored in Firebase Functions environment variables, never exposed in iOS app code
+   * Rate limiting (10 AI requests/day for free tier) prevents abuse and controls costs
+   * Request/response logging excludes personally identifiable information
+
+
+Vulnerability Management:
+   * Firebase SDK dependencies are automatically updated via Dependabot to patch security vulnerabilities
+   * Cloud Functions use Node.js LTS version with regular security updates
+   * Input validation on all API endpoints prevents SQL injection and XSS attacks
+   * Admin access to Firebase Console restricted to team leads with 2FA enabled
+Test Plan & Bug
+   * Test Automation Infrastructure
+   * Selected Testing Frameworks：
+   * Primary Unit Testing Framework: XCTest (iOS native testing framework)
+   * UI Testing Framework: XCUITest (iOS native UI testing framework)
+   * Mocking Framework: Firebase Auth mocking (for testing authentication functionality, avoiding real service calls)
+   * Justification for Framework Selection
+   * XCTest:
+   * Native iOS support with no additional dependencies, perfect integration with Xcode.
+   * Excellent performance, suitable for iOS development, supports unit testing and performance testing.
+   * XCUITest:
+   * Official iOS UI testing framework that can test real user interactions.
+   * Supports recording and playback functionality, making UI test creation convenient.
+   * Firebase Auth Mocking:
+   * Avoids using real Firebase services in tests, improving test speed and stability.
+   * Reduces testing costs and ensures test isolation.
+   * How to Add a New Test to the Codebase：
+   * Add Unit tests:
+   * Under ModoTests folder, there are the test files to add or modify.
+   * General Functionality Tests (ModoTests.swift):
+   * Suitable for testing pure functions such as data validation, utility functions, and extension methods.
+   * Create new test files in the ModoTests folder (if needed) or add to existing files.
+   * Inherit from XCTestCase class.
+   * Use @testable import Modo to import the module under test.
+   * Write test methods with names starting with test.
+   * Authentication Service Tests (AuthServiceTests.swift):
+   * Suitable for testing service classes related to authentication business logic, such as login, registration, Google login, password reset, etc.
+   * Add to the AuthServiceTests.swift file in the ModoTests folder.
+   * Ensure test methods start with test.
+   * etc.(There will be more coming up)
+   * Add UI tests:
+   * under ModoUITests folder.
+   * Continuous Integration (CI) Service
+   * CI Service Selection:
+   * CI Service: GitHub Actions
+   * Project Repository Linkage to CI:
+   * GitHub Actions automatically detects and runs CI workflows defined in YAML configuration files (e.g., main.yml) placed in the .github/workflows/ folder at the project root.
+   * Justification for Choosing GitHub Actions:
+   * Native Integration: GitHub Actions integrates natively with GitHub repositories, requiring no additional configuration or third-party service connections.
+   * Free Tier: Provides generous free build time for open-source projects and small teams.
+   * Easy Configuration: Uses YAML files for configuration with intuitive syntax that is easy to learn and maintain.
+   * Rich Actions: Features a vast community Actions library, enabling easy integration of various tools and services (e.g., actions/checkout and maxim-lobanov/setup-xcode).
+   * macOS Support: Provides macOS virtual machines, perfectly supporting iOS project compilation and testing.
+   * Tests Executed in CI Build
+   * The following command executes all test targets in the project during CI builds:
+
+
+xcodebuild test \
+  -workspace Modo.xcworkspace \
+  -scheme Modo \
+  -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest'
+
+
+	   * This command runs all tests
+
+
+   * Development Actions That Trigger CI Build
+   * CI builds are triggered by the following development actions:
+   * push (Code Push):
+   * When new code is pushed to any branch in the GitHub repository, the CI workflow automatically triggers. This ensures that every code commit is tested.
+   * pull_request (Pull Request):
+   * When a pull request is created or updated targeting any branch, the CI workflow automatically triggers. This ensures that all changes pass tests before code is merged into the target branch, helping maintain the stability of the main branch.
+Documentation Plan
+   * User Documentation
+   * In-App Help: Interactive onboarding flow and FAQ section in Settings
+   * Quick Start Guide: 2-page PDF covering account setup, meal logging, and workout generation (included in TestFlight notes)
+   * Administrator Documentation
+   * Installation Guide: /docs/INSTALLATION.md with TestFlight setup and test account credentials
+   * Evaluation Guide: /docs/EVALUATION.md with recommended test scenarios for course staff
+   * Developer Documentation
+   * README.md: Project overview with quick start instructions
+   * Build Guide: /docs/BUILD.md with iOS and backend setup steps (references existing External Requirements section)
+   * API Documentation: Postman collection with all endpoints and examples
+   * Architecture Overview: /docs/ARCHITECTURE.md with system diagrams and database schema
+   * Maintenance & Ownership
+   * User docs: Frontend team updates with new features
+   * Technical docs: Backend team maintains API docs; Leo coordinates architecture docs
+   * Update schedule: Documentation reviewed at each milestone (Weeks 3, 6, 9)
+Coding Guidelines:
+   * Frontend: Swift & SwiftUI
+   * Guideline: Swift API Design Guidelines and Apple's Human Interface Guidelines
+   * Why Chosen:
+   * Official Swift.org guidelines ensure code consistency with Apple's ecosystem and standard library conventions
+   * Emphasizes clarity at the point of use, making code self-documenting and easier for team members to understand
+   * HIG ensures UI/UX consistency with native iOS patterns, critical for Modo's "seamless iOS integration" philosophy
+   * Enforcement:
+   * SwiftLint: Integrated into Xcode build process to automatically flag violations (runs on every build)
+   * Configuration: .swiftlint.yml in repository root with rules for line length (120 chars), force unwrapping warnings, and naming conventions
+   * Pull Request Reviews: At least one team member must review Swift code before merging, checking for guideline adherence
+   * Pre-commit Hook: Optional Git hook runs SwiftLint before allowing commits
+   * Backend: TypeScript & Node.js
+   * Guideline: TypeScript Handbook - Do's and Don'ts and Airbnb JavaScript Style Guide
+   * Why Chosen:
+   * TypeScript Handbook provides best practices for type safety, reducing runtime errors in Firebase Cloud Functions
+   * Airbnb guide is industry-standard with comprehensive rules for modern JavaScript/TypeScript, widely adopted and well-documented
+   * Strong emphasis on readability and consistency, important for 2-person backend team collaboration
+   * Enforcement:
+   * ESLint: Configured with @typescript-eslint plugin and Airbnb preset in .eslintrc.json
+   * Prettier: Auto-formatting on save in VS Code ensures consistent code style (semicolons, quotes, indentation)
+   * GitHub Actions CI: ESLint runs on every push/PR; build fails if linting errors exist
+   * Pull Request Reviews: Backend code requires approval from the other backend developer, checking for type safety and code clarity
+   * Pre-commit Hook: Husky + lint-staged automatically runs ESLint and Prettier before commits
+   * General Practices:
+   * All code must pass automated linting before PR can be merged
+   * PRs require at least 1 approval from another team member
+   * Reviewers check for: guideline compliance, test coverage, clear variable names, and proper error handling
+   * Documentation Standards:
+   * Swift: Use DocC-style comments (///) for public APIs
+   * TypeScript: Use JSDoc comments for all exported functions
+   * Complex logic requires inline comments explaining the "why," not just the "what"
+Other Resources:
+Modo Tech doc
+Onboarding Doc

@@ -7,7 +7,7 @@ struct InfoGatheringView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     
-    // ViewModel - manages all business logic and state
+    // viewModel - manages all business logic and state
     @StateObject private var viewModel = InfoGatheringViewModel()
     
     

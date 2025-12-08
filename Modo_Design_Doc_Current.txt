@@ -1,0 +1,521 @@
+Modo Design Doc (Current Implementation)
+================================================================================
+
+Team Info:
+--------------------------------------------------------------------------------
+People
+* Leo Liu - Product Manager & Testing & Coordinator
+* Zihao Li - UI/UX & Frontend Dev (more on UI)
+* Oliver Zhang - UI/UX & Frontend Dev (more on UI)
+* Harry Nguyen - Frontend Dev
+* Maya Odenheim - Backend Dev
+* Shelby Smithson - Backend Dev
+
+Communication channel
+* Discord
+* Class section
+
+Git repo
+* https://github.com/[modo-project-repo]
+
+================================================================================
+Product Description:
+================================================================================
+Modo is an AI-powered iOS app that helps fitness and health-conscious individuals seamlessly track their daily workout and nutrition. The name "Modo" represents "mode" – a way of life centered on health and simplicity.
+
+Unlike cluttered fitness apps with overwhelming features, Modo focuses on what matters: simplicity and actionability. Users can interact with an AI assistant to generate personalized workout and meal plans, log tasks, and track their daily progress through a clean calendar-based interface.
+
+The core philosophy is minimalism – a clean, distraction-free interface that makes healthy living effortless rather than complicated. Modo integrates naturally into the iOS ecosystem, fitting into users' daily routines without friction.
+
+Major Features (Implemented):
+1. AI-Powered Task Generation: Chat with AI assistant (Modor) to generate custom workout and meal tasks. AI can create, query, update, and delete tasks via natural language.
+2. Unified Task Calendar: Track and manage daily tasks (diet, fitness, others) in a date-based calendar view with completion tracking and calorie summaries.
+3. Secure User Accounts: Firebase Authentication with email/password, Google Sign-In, and Apple Sign-In. Email verification flow included.
+4. Achievement & Badge System: Gamified reward system with multiple achievement categories (streaks, task milestones, fitness goals, diet goals, AI usage). Achievement unlock popup with share-to-clipboard functionality.
+5. Progress Tracking: Track daily completion streaks, goal progress, and calorie intake/burn statistics. Fire symbols indicate completed days on calendar.
+6. Health Metrics Calculation: Local BMR/TDEE calculation using Mifflin-St Jeor formula with activity multipliers. Macro recommendations based on fitness goals.
+7. AI Food Image Analysis: Capture or select food photos in the Insights chat; AI analyzes nutritional content and can create diet tasks from the analysis.
+
+Stretch Goals (Not Yet Implemented):
+1. Freemium Model: Free tier with basic tracking + Premium subscription for unlimited AI generations
+2. Apple Ecosystem Integration:
+   - Sync with Apple Health for comprehensive fitness data
+   - Calendar integration for workout scheduling
+   - Widget support for quick task logging
+3. Social Media Sharing: Direct share to social media platforms (currently clipboard-only)
+
+================================================================================
+Use Cases (Functional Requirements):
+================================================================================
+
+* Chat with AI to Generate and Manage Tasks - Leo Liu
+   * Actors: User, AI Assistant (Modor), Firebase Callable Function, OpenAI API
+   * Triggers: User opens Insights tab and sends a message to AI
+   * Preconditions:
+      * User is logged in
+      * User has completed onboarding (basic profile info)
+      * Network connection available
+   * Postconditions (Success Scenario):
+      * AI responds with generated tasks or requested information
+      * Tasks are created/updated/deleted in Firebase Realtime Database
+      * User sees confirmation of task changes in chat
+   * List of Steps:
+      * User navigates to Insights tab
+      * User types message (e.g., "Create a workout for today", "What tasks do I have tomorrow?")
+      * System sends message to Firebase chatWithAI callable function
+      * Function forwards to OpenAI with function definitions for task CRUD operations
+      * AI determines appropriate action and calls relevant functions
+      * System executes task operations (create/query/update/delete)
+      * AI response and task cards appear in chat
+      * User can accept or reject AI-generated task plans
+   * Extensions/Variations:
+      * User attaches photo for food analysis; AI analyzes and suggests diet task
+      * User requests multi-day plans (up to 7 days)
+      * User asks questions about their progress or existing tasks
+   * Exceptions:
+      * AI service unavailable: Show error message, allow manual task creation
+      * Rate limit exceeded: Display rate limit message with retry option
+      * Network error: Queue message locally (Firebase offline support)
+
+* Create and Manage User Account - Maya Odenheim
+   * Actors: User, Firebase Authentication, Firebase Realtime Database
+   * Triggers: User selects 'Register' or 'Login' from onboarding screen
+   * Preconditions:
+      * Modo app installed
+      * Network connection available
+   * Postconditions (Success Scenario):
+      * User is authenticated with valid Firebase session
+      * User profile exists in Realtime Database at users/{userId}/profile
+      * App navigates to main dashboard or onboarding (if first time)
+   * List of Steps (Success Scenario):
+      * User opens Modo
+      * User selects 'Register' or 'Login'
+         * If registering: enters email and password
+         * App validates email format and password strength locally
+      * App calls Firebase Auth createUserWithEmailAndPassword or signInWithEmailAndPassword
+      * Firebase returns auth token and user object
+      * For new users: Firebase sends email verification
+      * App checks if user profile exists in Realtime Database
+         * If not found: creates new profile with default settings and random avatar
+      * App checks onboarding completion status
+      * User navigates to onboarding (new) or main dashboard (returning)
+   * Extensions/Variations:
+      * Sign in with Google: OAuth flow via GIDSignIn
+      * Sign in with Apple: ASAuthorization flow with nonce
+      * Forgot Password: Firebase sends password reset email
+      * Change Password: Re-authenticate then updatePassword
+   * Exceptions:
+      * Email already exists: Show error with login suggestion
+      * Weak password: Show inline validation error
+      * Network error: Show retry option
+      * Invalid credentials: Show "incorrect email or password"
+      * Email not verified: Show EmailVerificationView with polling
+
+* User Streak Tracking and Calendar View - Shelby Smithson
+   * Actors: User, Firebase Realtime Database, ProgressCalculationService
+   * Triggers: User opens app or navigates calendar
+   * Preconditions:
+      * User is logged in
+      * User has set fitness goal during onboarding
+   * Postconditions (Success Scenario):
+      * Calendar displays fire symbols on days where all tasks completed
+      * Progress bar shows completion toward goal
+      * Streak count updates in real-time
+   * List of Steps (Success Scenario):
+      * User opens Modo app to main task list
+      * System fetches tasks for selected date from Firebase
+      * System calculates completion status (all tasks done = day complete)
+      * Calendar popup shows fire indicators on completed days
+      * System queries DailyCompletion records for streak calculation
+      * Progress percentage displayed based on completed days vs target
+      * User taps calendar day to view that day's tasks
+   * Extensions/Variations:
+      * User swipes between dates on main view
+      * Progress updates when task completion status changes
+      * Streak resets tracked for comeback achievements
+   * Exceptions:
+      * No tasks for day: Day cannot be marked complete
+      * Offline: Show cached data, sync when online
+      * No goal set: Prompt user to complete profile
+
+* Manual Task Creation and Management - Harry Nguyen
+   * Actors: User, Firebase Realtime Database
+   * Triggers: User taps "+" button to add new task
+   * Preconditions:
+      * User is logged in
+      * Selected date is within allowed range (±3 months)
+   * Postconditions (Success Scenario):
+      * Task saved to Firebase at users/{userId}/tasks/{date}/{taskId}
+      * Task appears in task list for selected date
+      * Calories update if task is diet/fitness type
+   * List of Steps (Success Scenario):
+      * User taps "+" button on tasks header
+      * AddTaskView opens with form fields
+      * User selects category: Diet, Fitness, or Others
+      * User enters task details:
+         * Diet: food items with quantities and calories
+         * Fitness: exercises with sets, reps, duration, calories
+         * Others: title and description
+      * User sets time for task
+      * User taps Save
+      * System validates inputs and saves to Firebase
+      * Task appears in list with animation
+   * Extensions/Variations:
+      * Edit existing task: tap task card to open DetailPageView
+      * Delete task: swipe to delete or delete from detail view
+      * Mark complete: tap checkbox on task card
+   * Exceptions:
+      * Invalid input: Show validation errors inline
+      * Save fails: Show error toast with retry
+      * Duplicate save prevented by pendingOperations guard
+
+* Share Achievement Moment - Zihao Li
+   * Actors: User, Achievement System, Clipboard
+   * Triggers: User unlocks an achievement
+   * Preconditions:
+      * User is logged in
+      * Achievement unlock condition met and recorded
+   * Postconditions (Success Scenario):
+      * Achievement unlock popup displayed
+      * User can copy share text to clipboard
+      * User receives "Copied" confirmation
+   * List of Steps (Success Scenario):
+      * System detects achievement unlock via AchievementCheckTrigger
+      * AchievementUnlockContainer displays popup with achievement info
+      * Popup shows achievement icon, title, and description
+      * User taps "Copy to Share" button
+      * System generates share text (achievement name, date, congratulation message)
+      * System writes text to UIPasteboard
+      * Toast confirms "Copied. Paste anywhere."
+      * User can paste in any messaging/social app
+   * Extensions/Variations:
+      * User dismisses popup without sharing
+      * User views achievement history in AchievementsPageView
+      * Re-share from achievement history
+   * Exceptions:
+      * Clipboard write fails: Show error with retry option
+      * Share text generation fails: Use default short message
+
+* Generate AI Workout/Meal Plan - Oliver Zhang
+   * Actors: User, AI Assistant, Firebase Callable Function
+   * Triggers: User requests plan in Insights chat
+   * Preconditions:
+      * User is logged in with profile data (height, weight, age, goal)
+      * Network connection available
+   * Postconditions (Success Scenario):
+      * AI generates personalized plan with exercises/meals
+      * Plan displayed in chat as interactive card
+      * User can accept to add tasks to calendar
+   * List of Steps (Success Scenario):
+      * User opens Insights tab
+      * User types request (e.g., "Create a workout plan for this week")
+      * System builds prompt with user profile data
+      * System sends to chatWithAI with function definitions
+      * AI calls generate_workout_plan or generate_nutrition_plan function
+      * Response parsed into structured workout/meal card
+      * User reviews plan in chat bubble
+      * User taps Accept to save tasks to Firebase
+      * Tasks appear on appropriate calendar dates
+   * Extensions/Variations:
+      * Multi-day plans (2-7 days) via generate_multi_day_plan
+      * User rejects plan and requests modifications
+      * AI considers existing tasks when generating
+   * Exceptions:
+      * AI service unavailable: Show error, suggest manual entry
+      * Plan too long (>7 days): AI explains limitation
+      * Missing profile data: Prompt to complete profile first
+
+================================================================================
+Non-functional Requirements:
+================================================================================
+
+1. Performance & Responsiveness:
+   * Requirement: The app must provide responsive feedback for user interactions.
+   * Current Implementation:
+      * UI transitions use SwiftUI animations with 0.2-0.3s duration
+      * Task list uses real-time Firebase listeners for instant updates
+      * Images cached via URLCache (50MB memory, 100MB disk)
+      * SwiftData provides local caching for profiles and chat history
+   * Testing Approach:
+      * Manual testing on iPhone devices
+      * Profile with Xcode Instruments for memory/CPU
+
+2. Security & Privacy:
+   * Requirement: User data protected with Firebase security; users control their data.
+   * Current Implementation:
+      * Passwords/auth handled by Firebase Auth (hashing managed by Firebase)
+      * Transport encryption via Firebase HTTPS (TLS managed by Google)
+      * No third-party analytics/ads SDKs collecting PII
+      * Account deletion via deleteAccount callable (immediate, no 30-day grace)
+      * OpenAI API key stored in Firebase Functions environment, not in app
+   * Not Yet Implemented:
+      * Privacy policy document
+      * Formal security audit
+      * Data export feature
+   * Testing Approach:
+      * Verify Firebase security rules
+      * Test deleteAccount removes all user data
+
+3. Usability & Accessibility:
+   * Requirement: App intuitive for first-time users; accessible to users with disabilities.
+   * Current Implementation:
+      * Onboarding flow captures essential info in focused screens
+      * Core features accessible within 2-3 taps from home
+      * Consistent iOS design patterns per Human Interface Guidelines
+      * Clear, non-technical error messages
+   * Not Yet Implemented:
+      * Full VoiceOver audit
+      * Dynamic Type support verification
+      * Formal usability testing
+   * Testing Approach:
+      * Manual first-time user experience testing
+      * Xcode Accessibility Inspector spot checks
+
+================================================================================
+External Requirements:
+================================================================================
+
+1. Error Handling and Robustness:
+   * Requirement: Modo must gracefully handle expected errors to maintain user trust.
+   * Current Implementation:
+      * User Input: Basic form validation in auth and task creation screens
+      * Network Failures: Firebase Realtime Database has built-in offline queue
+      * AI Failures: Users can create/edit tasks manually when AI unavailable
+      * Duplicate Prevention: pendingOperations guard in DatabaseService
+      * User Feedback: Non-technical error messages where implemented
+   * Not Yet Implemented:
+      * Comprehensive input sanitization (numeric ranges, character limits)
+      * Explicit sync status UI indicator
+      * Exponential backoff retry logic
+      * Auto-save for in-progress task editing
+      * Time zone/DST handling validation
+
+2. Installation and Accessibility:
+   * Requirement: Modo installable via TestFlight; buildable from source.
+   * End User Installation:
+      * Distribution: TestFlight (beta), App Store (future)
+      * System Requirements: iOS 17.0+, iPhone compatible
+      * Installation: TestFlight invite link → Install → Launch → Create account
+      * Permissions: Camera (for food photos), Notifications (optional)
+   * Build from Source:
+      * Prerequisites: macOS 13+, Xcode 15+, Firebase account
+      * Steps:
+         1. Clone repository
+         2. Open Modo.xcodeproj in Xcode
+         3. Add GoogleService-Info.plist from Firebase Console
+         4. Build (⌘+B) - Swift Package Manager resolves dependencies
+         5. Run tests (⌘+U)
+      * Backend: cd modo-firebase-functions/functions && npm install && firebase deploy
+
+3. Project Scope and Resources:
+   * Requirement: Scope appropriate for 6-person team over academic term.
+   * Current Allocation:
+      * Frontend (Zihao, Oliver, Harry): All SwiftUI views, ViewModels, local services
+      * Backend (Maya, Shelby): Firebase Functions, database design, AI integration
+      * Coordination (Leo): Testing, requirements, sprint management
+
+================================================================================
+Potential Risks:
+================================================================================
+
+Technical Risks:
+
+1. AI Analysis Accuracy (Likelihood: Medium | Impact: High)
+   * Risk: OpenAI may misidentify foods or provide inaccurate nutrition estimates
+   * Mitigation: AI responses shown as suggestions; users can edit before saving; fallback to manual entry
+
+2. Firebase Cost Overruns (Likelihood: Medium | Impact: Medium)
+   * Risk: Realtime Database reads/writes and Storage usage could exceed free tier
+   * Mitigation: Monitor Firebase usage dashboard; optimize queries; compress images
+
+3. Third-Party Service Dependencies (Likelihood: Low | Impact: High)
+   * Risk: OpenAI API outages break AI chat functionality
+   * Mitigation: Manual task creation always available; clear error messaging
+
+User Experience Risks:
+
+1. Unclear Sync Feedback (Likelihood: Medium | Impact: Medium)
+   * Risk: In offline/poor network, users don't see task sync status; may repeat actions
+   * Mitigation: Firebase offline cache prevents data loss; future: add visible sync indicators
+
+2. Onboarding Abandonment (Likelihood: Low | Impact: Medium)
+   * Risk: Users abandon during profile setup
+   * Mitigation: Onboarding focused on essential fields; advanced settings optional
+
+================================================================================
+Team Process Description:
+================================================================================
+
+Software Toolset:
+* Xcode 15+: Primary IDE for iOS development. Chosen for native Swift/SwiftUI support and required iOS toolchain.
+* VS Code: Backend development for Firebase Functions. Lightweight with good Node.js support.
+* Firebase Console: Real-time monitoring of database, auth, storage, and functions.
+* Figma: Collaborative UI/UX design with component libraries.
+* Discord: Primary communication with channels for frontend, backend, and standups.
+* GitHub: Version control with feature branch workflow and PR reviews.
+
+Team Member Roles & Justification:
+
+* Leo Liu - Product Manager, Testing Lead & Coordinator
+   * Responsibilities: Define features, coordinate sprints, write test cases, manage deliverables
+   * Why Needed: 6-person team needs coordination to prevent duplicate work and ensure integration
+   * Why Leo: Big tech internship experience in end-to-end development processes
+
+* Zihao Li - UI Design (Major), Frontend Dev
+   * Responsibilities: Design UI in Figma, implement SwiftUI views, connect frontend to backend
+   * Why Needed: Clean, professional UI critical for minimalist app philosophy
+   * Why Zihao: Frontend experience with Figma skills
+
+* Oliver Zhang - UI Design, Frontend Dev
+   * Responsibilities: Design and build workout interfaces, create reusable components
+   * Why Needed: Workout features need polished, complex UI interactions
+   * Why Oliver: UI/UX focused with Figma-to-SwiftUI skills
+
+* Harry Nguyen - Frontend Dev
+   * Responsibilities: Build core screens (auth, task logging), ensure accessible UX
+   * Why Needed: Multiple frontend developers needed for screen count
+   * Why Harry: Frontend project experience with SwiftUI focus
+
+* Maya Odenheim - Backend Dev
+   * Responsibilities: Design database schema, implement Firebase Functions, AI integration
+   * Why Needed: Backend required for data persistence and AI orchestration
+   * Why Maya: Fullstack experience, interested in backend development
+
+* Shelby Smithson - Backend Dev
+   * Responsibilities: Build APIs, manage database, integrate AI for insights
+   * Why Needed: Two backend devs needed for database + AI workload
+   * Why Shelby: Interest in server-side design and database management
+
+================================================================================
+Software Architecture:
+================================================================================
+
+Modo uses a two-tier mobile architecture with Firebase as Backend-as-a-Service:
+
+iOS Application (Swift + SwiftUI):
+* Purpose: Native user interface and local data management
+* Key Modules:
+   * Presentation Layer (SwiftUI):
+      * ModoApp.swift: Main entry point with MVVM architecture
+      * Views: LoginView, MainPageView, InsightsPageView, ProfilePageView, AchievementsPageView
+      * Uses UserNotifications for push notifications, AVFoundation for camera
+   * Service Layer (Swift Classes):
+      * AuthService: Firebase Auth flows (email, Google, Apple)
+      * DatabaseService: Firebase Realtime Database CRUD operations
+      * FirebaseAIService: Calls chatWithAI callable function
+      * HealthCalculator: Local BMR/TDEE calculation
+      * AchievementService: Check and unlock achievements
+      * TaskManagerService: Task CRUD coordination
+   * Data Layer (SwiftData):
+      * Models: UserProfile, FirebaseChatMessage, DailyCompletion
+      * Provides offline caching for profiles and chat history
+
+Firebase Services:
+* Firebase Authentication:
+   * Email/password, Google Sign-In, Apple Sign-In
+   * Email verification flow
+   * Password reset via email
+* Firebase Realtime Database:
+   * Path structure: users/{userId}/profile, users/{userId}/tasks/{date}/{taskId}, users/{userId}/achievements/{achievementId}
+   * Real-time listeners for task updates
+   * Built-in offline persistence
+* Firebase Storage:
+   * Avatar uploads: users/{userId}/profile.jpg
+* Firebase Cloud Functions:
+   * chatWithAI: Proxies requests to OpenAI API with function calling
+   * deleteAccount: Removes all user data (DB, Storage, Auth)
+   * sendDailyChallengeNotifications: Scheduled daily push notifications
+
+Data Models:
+* TaskItem: id, title, subtitle, time, timeDate, category (diet/fitness/others), dietEntries[], fitnessEntries[], isDone, isAIGenerated, isDailyChallenge
+* UserProfile: userId, username, avatarName, profileImageURL, heightValue/Unit, weightValue/Unit, age, gender, lifestyle, goal, dailyCalories, dailyProtein, targetWeightLoss, targetDays, goalStartDate
+* Achievement: id, title, description, iconName, category, unlockCondition
+* DailyCompletion: userId, date, isCompleted
+
+Key Architecture Decisions:
+* Decision: Firebase Realtime Database vs Firestore
+   * Chosen: Realtime Database
+   * Reason: Simpler path-based structure, built-in offline persistence, sufficient for current data model
+* Decision: Firebase Callable Functions vs REST API
+   * Chosen: Callable Functions
+   * Reason: Simpler auth integration, no server management, sufficient for AI proxy and account deletion
+
+================================================================================
+Test Plan:
+================================================================================
+
+Test Automation Infrastructure:
+* Framework: XCTest (native iOS testing)
+* Test Files Location: ModoTests/
+* Current Test Coverage:
+   * AuthServiceTests: Login, registration, Google sign-in, password reset
+   * DatabaseServiceTests: Task CRUD, profile operations
+   * HealthCalculatorTests: BMR/TDEE calculation, unit conversions, macro recommendations
+   * TaskServiceTests: Task management operations
+   * AchievementServiceTests: Achievement unlock logic
+   * ProgressCalculationServiceTests: Day completion, streak calculation
+
+How to Add Tests:
+1. Create test file in ModoTests/ folder
+2. Import XCTest and @testable import Modo
+3. Create class extending XCTestCase
+4. Write test methods with "test" prefix
+5. Use mock services where available (MockAuthService, MockDatabaseService)
+
+CI Integration:
+* Platform: GitHub Actions (planned)
+* Trigger: Push and Pull Request
+* Command: xcodebuild test -scheme Modo -destination 'platform=iOS Simulator,name=iPhone 15'
+
+================================================================================
+Documentation Plan:
+================================================================================
+
+User Documentation:
+* In-App: Onboarding flow introduces core features
+* TestFlight Notes: Installation and basic usage instructions
+
+Developer Documentation:
+* README.md: Project overview and quick start
+* This design doc: Architecture and requirements
+* Inline code comments: DocC-style for public APIs
+
+Coding Guidelines:
+* Swift: Swift API Design Guidelines, Apple HIG
+* Backend: JavaScript/Node.js standard practices
+* All code requires PR review before merge
+
+================================================================================
+Implementation Status Summary:
+================================================================================
+
+✅ Implemented:
+- User authentication (email, Google, Apple)
+- Task CRUD with calendar view
+- AI chat with task generation
+- Achievement system UI and unlock logic
+- BMR/TDEE calculation
+- Progress tracking with streaks
+- Avatar upload to Firebase Storage
+- Food image analysis in chat
+- Daily challenge notifications (scheduled function)
+- Account deletion
+
+⏳ Partially Implemented:
+- Achievement statistics collection (framework exists, aggregation incomplete)
+- Error handling (basic coverage, not comprehensive)
+- Input validation (auth screens only)
+
+❌ Not Implemented:
+- HealthKit integration
+- Apple Calendar sync
+- Widgets
+- In-App Purchase / Subscriptions
+- Social media sharing (clipboard only)
+- Comprehensive accessibility audit
+- Formal security audit
+- Privacy policy document
+- Offline sync status indicators
+- Exponential retry logic
+
+================================================================================
