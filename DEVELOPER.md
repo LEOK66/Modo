@@ -612,34 +612,35 @@ The project uses **GitHub Actions** for automated testing and continuous integra
 
 ### CI Workflow Overview
 
-On every push and pull request to the `main` branch, the CI pipeline:
+The CI pipeline runs on **push and pull request events** to the `develop` and `main` branches:
 
-1. **Checks out the code** from the repository
-2. **Sets up Xcode environment** (specific Xcode version)
-3. **Resolves Swift Package dependencies**
-4. **Builds the project** in Debug configuration
-5. **Runs all unit tests** (`ModoTests`)
-6. **Runs all UI tests** (`ModoUITests`)
-7. **Reports test results** and coverage
-8. **Fails the build** if any test fails
+1. **Checks out the code** from the repository.
+2. **Cleans build artifacts** by removing derived data and Xcode caches.
+3. **Caches Swift Package Manager (SPM) dependencies** to speed up builds.
+4. **Creates a dummy `GoogleService-Info.plist`** for Firebase services (so tests can run without real credentials).
+5. **Lists available iOS simulators** for debugging.
+6. **Builds the project** in Debug configuration on the iOS simulator.
+7. **Runs unit tests** (`ModoTests`) on iPhone 16 with iOS 18.4.
+8. **Uploads logs and test results** for review.
+9. **Fails the build** if any test fails.
 
 ### Viewing CI Build History
 
 1. **Navigate to GitHub Actions**
-   - Go to your repository on GitHub
-   - Click the **"Actions"** tab at the top
+   - Go to your repository on GitHub.
+   - Click the **"Actions"** tab at the top.
 
 2. **View Workflow Runs**
-   - See a list of all CI runs
-   - Green checkmark ✅ = successful build
-   - Red X ❌ = failed build
-   - Yellow circle 🟡 = build in progress
+   - See a list of all CI runs.
+   - Green checkmark ✅ = successful build.
+   - Red X ❌ = failed build.
+   - Yellow circle 🟡 = build in progress.
 
 3. **View Build Details**
-   - Click on any workflow run
-   - See detailed logs for each step
-   - View test results and failure reasons
-   - Download artifacts (if configured)
+   - Click on any workflow run.
+   - See detailed logs for each step.
+   - View test results and failure reasons.
+   - Download artifacts (`xcodebuild.log` and `TestResults`).
 
 ### CI Configuration File
 
@@ -652,45 +653,99 @@ name: iOS CI
 
 on:
   push:
-    branches: [ main ]
+    branches-ignore:
+      - develop
+      - main
   pull_request:
-    branches: [ main ]
+    branches: [develop, main]
 
 jobs:
-  build-and-test:
-    runs-on: macos-latest
-    
-    steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up Xcode
-      uses: maxim-lobanov/setup-xcode@v1
-      with:
-        xcode-version: '14.0'
-    
-    - name: Build
-      run: xcodebuild build -scheme Modo -destination 'platform=iOS Simulator,name=iPhone 15'
-    
-    - name: Run Tests
-      run: xcodebuild test -scheme Modo -destination 'platform=iOS Simulator,name=iPhone 15'
-```
+  test:
+    name: Build and Test
+    runs-on: macos-15  # macOS 15 comes with Xcode 16.x
+    timeout-minutes: 30
 
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Clean build artifacts
+        run: |
+          rm -rf ~/Library/Developer/Xcode/DerivedData
+          rm -rf ~/Library/Caches/com.apple.dt.Xcode
+
+      - name: Cache SPM packages
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData/*/SourcePackages
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
+      - name: Create GoogleService-Info.plist
+        run: |
+          mkdir -p Modo
+          cat > Modo/GoogleService-Info.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>API_KEY</key>
+              <string>AIzaSyDUMMY_KEY_FOR_CI_1234567890asdfsd</string>
+              <key>GCM_SENDER_ID</key>
+              <string>123456789</string>
+              <key>PROJECT_ID</key>
+              <string>modo-ci-test</string>
+              <key>STORAGE_BUCKET</key>
+              <string>modo-ci-test.appspot.com</string>
+              <key>GOOGLE_APP_ID</key>
+              <string>1:123456789:ios:abc123def456</string>
+              <key>CLIENT_ID</key>
+              <string>123456789-abcdefg.apps.googleusercontent.com</string>
+              <key>REVERSED_CLIENT_ID</key>
+              <string>com.googleusercontent.apps.123456789-abcdefg</string>
+          </dict>
+          </plist>
+          EOF
+
+      - name: List Available Simulators
+        run: |
+          echo "📱 Available destinations for scheme 'Modo':"
+          xcodebuild -project Modo.xcodeproj -scheme Modo -showdestinations | grep "iPhone" | head -10
+
+      - name: Build and Test
+        timeout-minutes: 20
+        run: |
+          set -o pipefail
+          echo "🧪 Testing on iOS Simulator"
+          xcodebuild test \
+            -project Modo.xcodeproj \
+            -scheme Modo \
+            -destination "platform=iOS Simulator,name=iPhone 16,OS=18.4" \
+            -only-testing:ModoTests \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            ONLY_ACTIVE_ARCH=YES \
+            -resultBundlePath TestResults \
+            2>&1 | tee xcodebuild.log
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            xcodebuild.log
+            TestResults
+```
 ### Local CI Simulation
 
-Run the same commands locally before pushing:
+You can run the same commands locally to simulate the full CI pipeline:
 
 ```bash
-# Simulate the full CI pipeline locally
-xcodebuild clean build test -scheme Modo -destination 'platform=iOS Simulator,name=iPhone 15'
+# Clean, build, and test locally
+xcodebuild clean test -project Modo.xcodeproj -scheme Modo -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.4'
 ```
-
-### CI Best Practices
-
-- ✅ **Always run tests locally** before pushing
-- ✅ **Never commit broken tests** to main branch
-- ✅ **Fix failing CI builds immediately**
-- ✅ **Review CI logs** when builds fail
-- ✅ **Keep tests fast** (entire suite should complete in < 5 minutes)
 
 ## Building a Release
 
