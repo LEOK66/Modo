@@ -838,14 +838,12 @@ Works fine with calories under 5000
 
 ---
 
-<p align="center">
-  <strong>Need more help?</strong><br>
-  Visit our <a href="https://github.com/LEOK66/Modo">GitHub repository</a> or email <a href="mailto:support@modo-app.com">support@modo-app.com</a>
-</p>
+**Last Updated**: December 2025  
+**Document Version**: 1.0  
+**Maintainers**: Modo Development Team  
+**License**: [Specify license]
 
-<p align="center">
-  <sub>Version 1.0.0 | Last Updated: December 2025</sub>
-</p>
+---
 
 ---
 
