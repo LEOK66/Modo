@@ -7,6 +7,7 @@ import UIKit
 class AchievementShareService {
     
     /// Generate a shareable image of an achievement badge
+    @MainActor
     static func generateShareImage(
         achievement: Achievement,
         userAchievement: UserAchievement,
