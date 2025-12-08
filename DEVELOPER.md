@@ -30,17 +30,20 @@ This document provides comprehensive guidelines for developers who want to contr
 ### Obtaining the Source Code
 
 1. **Clone the Repository**
+
    ```bash
    git clone https://github.com/your-username/Modo.git
    cd Modo
    ```
 
 2. **Verify Dependencies**
+
    - The project uses Swift Package Manager for dependencies
    - Dependencies are automatically resolved when opening the project in Xcode
    - No additional manual setup required for Firebase or Google Sign-In
 
 3. **Open the Project**
+
    ```bash
    open Modo.xcodeproj
    ```
@@ -167,16 +170,19 @@ Modo/
 The app follows a clean architecture approach with these key patterns:
 
 1. **MVVM (Model-View-ViewModel)**
+
    - SwiftUI views observe view models via `@ObservableObject`
    - View models contain presentation logic and state management
    - Views remain passive and declarative
 
 2. **Repository Pattern**
+
    - Repositories abstract data sources (Firebase, local storage)
    - Services interact with repositories, not directly with data sources
    - Enables easy testing and data source swapping
 
 3. **Service Layer Pattern**
+
    - Business logic centralized in service classes
    - Each service has a single responsibility
    - Services are injected via dependency injection
@@ -191,27 +197,32 @@ The app follows a clean architecture approach with these key patterns:
 #### Services Layer
 
 **Authentication (`AuthService.swift`)**
+
 - Manages user authentication state
 - Handles email/password and Google Sign-In flows
 - Provides authentication state to the entire app
 - Singleton pattern for global access
 
 **Database (`DatabaseService.swift`)**
+
 - Firebase Realtime Database operations
 - CRUD operations for all data entities
 - Real-time data synchronization
 
 **Task Management (`TaskService.swift` & `TaskCacheService.swift`)**
+
 - Task creation, updating, and deletion
 - Local caching layer for offline support
 - Task prioritization and scheduling
 
 **User Profile (`UserProfileService.swift`)**
+
 - Profile data management
 - User preferences and settings
 - Profile picture handling
 
 **Health & Progress Services**
+
 - `DailyCaloriesService`: Calorie tracking and calculations
 - `DailyChallengeService`: Daily challenge generation and tracking
 - `DayCompletionService`: Day completion tracking and streaks
@@ -219,6 +230,7 @@ The app follows a clean architecture approach with these key patterns:
 - `HealthCalculator`: BMI, BMR, TDEE calculations
 
 **AI Integration (`AIService/`)**
+
 - AI-powered features and recommendations
 - Natural language processing
 - Smart task suggestions
@@ -250,20 +262,23 @@ View → ViewModel → Service → Repository → Data Source (Firebase/Local)
 ### Development Build
 
 1. **Open Xcode**
+
    ```bash
    open Modo.xcodeproj
    ```
 
 2. **Select Target**
+
    - Choose your target: `Modo` (main app)
    - Select iOS Simulator (iPhone 15 recommended) or connected physical device
    - Ensure deployment target is iOS 15.0 or later
 
 3. **Build the Project**
+
    ```bash
    # Build only (without running)
    xcodebuild build -scheme Modo -destination 'platform=iOS Simulator,name=iPhone 15'
-   
+
    # Or use Xcode: Press Cmd + B
    ```
 
@@ -275,6 +290,7 @@ View → ViewModel → Service → Repository → Data Source (Firebase/Local)
 ### Build Configurations
 
 #### Debug Configuration (Default)
+
 - **Optimization**: None (`-Onone`)
 - **Debug Symbols**: Full (`-g`)
 - **Assertions**: Enabled
@@ -283,6 +299,7 @@ View → ViewModel → Service → Repository → Data Source (Firebase/Local)
 - **Use Case**: Development, debugging, testing
 
 #### Release Configuration
+
 - **Optimization**: Speed (`-O`)
 - **Debug Symbols**: None
 - **Assertions**: Disabled
@@ -293,6 +310,7 @@ View → ViewModel → Service → Repository → Data Source (Firebase/Local)
 ### Troubleshooting Build Issues
 
 **Issue: Swift Package Dependencies Fail to Resolve**
+
 ```bash
 # Solution: Reset package cache
 File → Packages → Reset Package Caches
@@ -303,11 +321,13 @@ rm -rf ~/Library/Developer/Xcode/DerivedData
 ```
 
 **Issue: Code Signing Errors**
+
 - Ensure you have a valid Apple Developer account
 - Check Team selection in project settings
 - Verify provisioning profiles are up to date
 
 **Issue: Firebase Configuration Missing**
+
 - Ensure `GoogleService-Info.plist` is present in the project
 - Verify the file is added to the Modo target
 
@@ -337,7 +357,7 @@ xcodebuild test -scheme Modo -destination 'platform=iOS Simulator,name=iPhone 15
 #### Running Tests in Xcode
 
 1. **Run All Tests**: Press `Cmd + U`
-2. **Run Specific Test Suite**: 
+2. **Run Specific Test Suite**:
    - Open Test Navigator (`Cmd + 6`)
    - Click the play button next to the test suite name
 3. **Run Single Test**: Click the diamond icon next to the test method
@@ -352,6 +372,7 @@ The project includes comprehensive test coverage across multiple layers:
 Tests are organized by the component they test:
 
 - **Service Tests**: Test business logic in isolation
+
   - `AuthServiceTests.swift`: Authentication flows, validation
   - `DatabaseServiceTests.swift`: Database operations
   - `TaskServiceTests.swift`: Task management logic
@@ -363,6 +384,7 @@ Tests are organized by the component they test:
   - `ProgressCalculationServiceTests.swift`: Progress metrics
 
 - **Utility Tests**: Test helper functions and utilities
+
   - `StringValidationTests.swift`: Input validation
   - `HealthCalculatorTests.swift`: Health calculations
   - `AIServiceUtilsTests.swift`: AI utility functions
@@ -420,34 +442,34 @@ import XCTest
 @testable import Modo
 
 final class NotificationServiceTests: XCTestCase {
-    
+
     // MARK: - Properties
-    
+
     var sut: NotificationService!  // System Under Test
     var mockDatabase: MockDatabaseService!
-    
+
     // MARK: - Setup & Teardown
-    
+
     override func setUpWithError() throws {
         try super.setUpWithError()
-        
+
         // Create mock dependencies
         mockDatabase = MockDatabaseService()
-        
+
         // Initialize the system under test
         sut = NotificationService(database: mockDatabase)
     }
-    
+
     override func tearDownWithError() throws {
         // Clean up
         sut = nil
         mockDatabase = nil
-        
+
         try super.tearDownWithError()
     }
-    
+
     // MARK: - Tests
-    
+
     func testNotificationScheduling() throws {
         // Test implementation here
     }
@@ -464,14 +486,14 @@ func testScheduleNotificationCreatesNotificationSuccessfully() throws {
     let title = "Daily Reminder"
     let body = "Complete your daily tasks"
     let scheduledDate = Date().addingTimeInterval(3600)
-    
+
     // WHEN: We schedule the notification
     let result = try sut.scheduleNotification(
         title: title,
         body: body,
         date: scheduledDate
     )
-    
+
     // THEN: The notification is created successfully
     XCTAssertTrue(result.isSuccess)
     XCTAssertEqual(mockDatabase.createCallCount, 1)
@@ -481,7 +503,7 @@ func testScheduleNotificationCreatesNotificationSuccessfully() throws {
 func testScheduleNotificationWithPastDateThrowsError() throws {
     // GIVEN: A date in the past
     let pastDate = Date().addingTimeInterval(-3600)
-    
+
     // WHEN/THEN: Scheduling should throw an error
     XCTAssertThrowsError(
         try sut.scheduleNotification(
@@ -498,6 +520,7 @@ func testScheduleNotificationWithPastDateThrowsError() throws {
 #### 5. Test Edge Cases
 
 Always test:
+
 - ✅ **Success path**: Normal expected behavior
 - ✅ **Failure paths**: Error conditions
 - ✅ **Edge cases**: Boundary values, empty inputs, nil values
@@ -507,14 +530,14 @@ Always test:
 func testEdgeCases() throws {
     // Empty strings
     XCTAssertThrowsError(try sut.process(""))
-    
+
     // Nil values
     XCTAssertNil(sut.getOptionalValue())
-    
+
     // Maximum values
     let maxResult = try sut.calculate(Int.max)
     XCTAssertNotNil(maxResult)
-    
+
     // Minimum values
     let minResult = try sut.calculate(0)
     XCTAssertEqual(minResult, expectedMinimum)
@@ -528,12 +551,12 @@ For computationally intensive operations:
 ```swift
 func testCalculationPerformance() throws {
     let input = generateLargeDataSet()
-    
+
     measure {
         // This block will be executed 10 times
         _ = sut.performComplexCalculation(input)
     }
-    
+
     // Xcode will report average execution time
 }
 ```
@@ -549,19 +572,19 @@ import Foundation
 @testable import Modo
 
 final class MockNotificationManager: NotificationManagerProtocol {
-    
+
     var scheduleCallCount = 0
     var cancelCallCount = 0
     var shouldSucceed = true
-    
+
     func schedule(notification: Notification) throws {
         scheduleCallCount += 1
-        
+
         if !shouldSucceed {
             throw NotificationError.schedulingFailed
         }
     }
-    
+
     func cancel(identifier: String) {
         cancelCallCount += 1
     }
@@ -627,10 +650,12 @@ The CI pipeline runs on **push and pull request events** to the `develop` and `m
 ### Viewing CI Build History
 
 1. **Navigate to GitHub Actions**
+
    - Go to your repository on GitHub.
    - Click the **"Actions"** tab at the top.
 
 2. **View Workflow Runs**
+
    - See a list of all CI runs.
    - Green checkmark ✅ = successful build.
    - Red X ❌ = failed build.
@@ -662,7 +687,7 @@ on:
 jobs:
   test:
     name: Build and Test
-    runs-on: macos-15  # macOS 15 comes with Xcode 16.x
+    runs-on: macos-15 # macOS 15 comes with Xcode 16.x
     timeout-minutes: 30
 
     steps:
@@ -738,6 +763,7 @@ jobs:
             xcodebuild.log
             TestResults
 ```
+
 ### Local CI Simulation
 
 You can run the same commands locally to simulate the full CI pipeline:
@@ -756,6 +782,7 @@ Before building a release, complete these steps:
 #### 1. Update Version Numbers
 
 **In Xcode:**
+
 1. Select the `Modo` project in Project Navigator
 2. Select the `Modo` target
 3. Go to the **General** tab
@@ -764,6 +791,7 @@ Before building a release, complete these steps:
    - **Build**: `CFBundleVersion` (e.g., `42`)
 
 **Or edit `Info.plist` directly:**
+
 ```xml
 <key>CFBundleShortVersionString</key>
 <string>1.2.0</string>
@@ -772,6 +800,7 @@ Before building a release, complete these steps:
 ```
 
 **Also update:**
+
 - Version in `README.md`
 - Version in release notes
 
@@ -823,6 +852,7 @@ xcodebuild build -scheme Modo -configuration Release \
 #### Step 3: Distribute the App
 
 **For App Store:**
+
 1. Click **Distribute App**
 2. Choose **App Store Connect**
 3. Select **Upload**
@@ -832,6 +862,7 @@ xcodebuild build -scheme Modo -configuration Release \
 7. Wait for upload to complete
 
 **For TestFlight (Beta Testing):**
+
 - After uploading to App Store Connect
 - Go to App Store Connect website
 - Select your app → TestFlight
@@ -872,21 +903,25 @@ git push origin v1.2.0
 **Release Date**: January 15, 2025
 
 ### New Features
+
 - Added dark mode support
 - Implemented AI-powered task suggestions
 - New progress tracking dashboard
 
 ### Improvements
+
 - Improved app startup time by 30%
 - Enhanced task synchronization reliability
 - Updated UI animations
 
 ### Bug Fixes
+
 - Fixed crash when editing completed tasks
 - Resolved sync issue with offline changes
 - Fixed calendar display on iPad
 
 ### Technical Changes
+
 - Updated Firebase SDK to v12.4.0
 - Migrated to new authentication flow
 - Performance optimizations
@@ -909,17 +944,20 @@ Follow **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 Follow Apple's Swift API Design Guidelines and these project-specific rules:
 
 #### Naming Conventions
+
 - **Classes**: PascalCase (`AuthService`, `UserProfile`)
 - **Methods**: camelCase (`signInWithGoogle`, `checkEmailVerification`)
 - **Variables**: camelCase (`currentUser`, `isAuthenticated`)
 - **Constants**: camelCase (`maxRetryCount`)
 
 #### Code Organization
+
 - **File Structure**: One main class per file
 - **Extensions**: Separate files for extensions
 - **Imports**: Alphabetical order, grouped by type
 
 #### SwiftUI Guidelines
+
 - **View Names**: Descriptive names ending in "View"
 - **State Variables**: Use `@State` for local state
 - **Binding**: Use `@Binding` for two-way data flow
@@ -938,7 +976,6 @@ Follow Apple's Swift API Design Guidelines and these project-specific rules:
 - **Complex Logic**: Add inline comments for complex algorithms
 - **TODO Comments**: Use `// TODO:` for future improvements
 
-
 ## Contributing
 
 ### Development Workflow
@@ -953,6 +990,7 @@ git checkout -b feature/task-priority-sorting
 ```
 
 **Branch naming conventions:**
+
 - `feature/` - New features
 - `bugfix/` - Bug fixes
 - `hotfix/` - Critical production fixes
@@ -1010,6 +1048,7 @@ Use **Conventional Commits** format:
 ```
 
 **Types:**
+
 - `feat`: New feature
 - `fix`: Bug fix
 - `docs`: Documentation changes
@@ -1041,21 +1080,25 @@ chore: update Firebase SDK to v12.4.0
 
 ```markdown
 ## Description
+
 Brief description of changes
 
 ## Type of Change
+
 - [ ] Bug fix
 - [ ] New feature
 - [ ] Breaking change
 - [ ] Documentation update
 
 ## Testing
+
 - [ ] Unit tests added/updated
 - [ ] UI tests added/updated
 - [ ] Manual testing completed
 - [ ] All tests pass locally
 
 ## Checklist
+
 - [ ] Code follows style guidelines
 - [ ] Self-review completed
 - [ ] Documentation updated
@@ -1063,9 +1106,11 @@ Brief description of changes
 - [ ] Related issues linked
 
 ## Screenshots (if applicable)
+
 [Add screenshots for UI changes]
 
 ## Related Issues
+
 Closes #123
 ```
 
@@ -1127,30 +1172,37 @@ When reporting bugs or requesting features:
 
 ```markdown
 ## Bug Description
+
 Clear, concise description of the bug
 
 ## Steps to Reproduce
+
 1. Open the app
 2. Navigate to Tasks screen
 3. Tap on completed task
 4. App crashes
 
 ## Expected Behavior
+
 Task details screen should open
 
 ## Actual Behavior
+
 App crashes immediately
 
 ## Environment
+
 - iOS Version: 16.5
 - Device: iPhone 14 Pro
 - App Version: 1.2.0
 - Xcode Version: 14.3
 
 ## Screenshots/Logs
+
 [Attach crash logs or screenshots]
 
 ## Additional Context
+
 This only happens with tasks completed more than 7 days ago
 ```
 
@@ -1158,18 +1210,23 @@ This only happens with tasks completed more than 7 days ago
 
 ```markdown
 ## Feature Description
+
 Brief description of the proposed feature
 
 ## Use Case
+
 Why is this feature needed? What problem does it solve?
 
 ## Proposed Solution
+
 How should this feature work?
 
 ## Alternatives Considered
+
 What other approaches did you consider?
 
 ## Additional Context
+
 Any mockups, examples, or references
 ```
 

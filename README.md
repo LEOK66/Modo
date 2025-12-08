@@ -1,7 +1,5 @@
 # Modo
 
-
-
 <p align="center">
   <strong>Your Personal Health & Wellness Companion</strong>
 </p>
@@ -26,7 +24,7 @@ Whether you're looking to lose weight, maintain a healthy lifestyle, or build mu
 
 ## Features
 
-###  Core Features
+### Core Features
 
 - **Task-Based Health Tracking** - Break down health goals into daily diet and fitness tasks
 - **Personalized Onboarding** - Customize your experience based on your profile and goals
@@ -35,14 +33,14 @@ Whether you're looking to lose weight, maintain a healthy lifestyle, or build mu
 - **Cloud Sync** - Your data safely stored and synchronized across devices
 - **Achievements & Milestones** – Track progress by earning badges and unlocking accomplishments for completed goals
 
-###  Authentication
+### Authentication
 
 - Email/password authentication
 - Google Sign-In integration
 - Secure email verification
 - Password reset functionality
 
-###  Tracking & Analytics
+### Tracking & Analytics
 
 - Daily task completion tracking
 - Calorie intake monitoring
@@ -50,7 +48,7 @@ Whether you're looking to lose weight, maintain a healthy lifestyle, or build mu
 - Progress visualization
 - Historical data review
 
-###  AI Integration
+### AI Integration
 
 - AI-powered task recommendations
 - Health question answering
@@ -126,12 +124,14 @@ xcodebuild build -scheme Modo -destination 'platform=iOS Simulator,name=iPhone 1
 ## System Requirements
 
 **Minimum:**
+
 - iOS 15.0 or later
 - iPhone 6s or later
 - Xcode 14.0+ (for development)
 - Internet connection
 
 **Recommended:**
+
 - iOS 16.0 or later
 - iPhone 12 or later
 - macOS 12.0+ with Xcode 14.0+
@@ -141,16 +141,19 @@ xcodebuild build -scheme Modo -destination 'platform=iOS Simulator,name=iPhone 1
 ## Technology Stack
 
 **Frontend:**
+
 - SwiftUI
 - Swift 5.7+
 - MVVM Architecture
 
 **Backend:**
+
 - Firebase Authentication
 - Firebase Realtime Database
 - Cloud Functions
 
 **Dependencies:**
+
 - Firebase iOS SDK v12.4.0
 - Google Sign-In iOS v9.0.0
 - SwiftData
@@ -208,10 +211,12 @@ See [DEVELOPER.md](DEVELOPER.md) for detailed contribution guidelines.
 ## Support
 
 **Documentation:**
+
 - [User Manual](USER_MANUAL.md) - Installation and usage guide
 - [Developer Guide](DEVELOPER.md) - Technical documentation
 
 **Get Help:**
+
 - [Report Bugs](https://github.com/LEOK66/Modo/issues)
 - [GitHub Discussions](https://github.com/LEOK66/Modo/discussions)
 - Email: support@modo-app.com
@@ -221,6 +226,7 @@ See [DEVELOPER.md](DEVELOPER.md) for detailed contribution guidelines.
 ## Roadmap
 
 ### Version 1.0.0 (Current)
+
 - User authentication
 - Task management
 - Progress tracking
@@ -232,8 +238,8 @@ See [DEVELOPER.md](DEVELOPER.md) for detailed contribution guidelines.
 - Push notifications
 
 ### Coming Soon
-- Apple Health integration
 
+- Apple Health integration
 
 ---
 
@@ -242,7 +248,6 @@ See [DEVELOPER.md](DEVELOPER.md) for detailed contribution guidelines.
 Built with SwiftUI, Firebase, and dedication from the Modo development team.
 
 ---
-
 
 <p align="center">
   <sub>Version 1.0.0 | Last Updated: December 2025</sub>

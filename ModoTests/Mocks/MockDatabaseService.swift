@@ -11,6 +11,7 @@ final class MockDatabaseService: DatabaseServiceProtocol {
     private var dailyCompletions: [String: [Date: Bool]] = [:]
     private var dailyChallenges: [String: [Date: [String: Any]]] = [:]
     private var usernames: [String: String] = [:]
+    private var fcmTokens: [String: String] = [:] 
     
     // MARK: - Test Configuration
     var shouldSucceed = true
@@ -330,6 +331,21 @@ final class MockDatabaseService: DatabaseServiceProtocol {
         return nil
     }
     
+    // MARK: - FCM Token Methods
+    func saveFCMToken(userId: String, fcmToken: String, completion: ((Result<Void, Error>) -> Void)?) {
+        if let error = mockError {
+            completion?(.failure(error))
+            return
+        }
+        
+        if shouldSucceed {
+            fcmTokens[userId] = fcmToken
+            completion?(.success(()))
+        } else {
+            completion?(.failure(NSError(domain: "MockDatabaseService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Save FCM token failed"])))
+        }
+    }
+    
     // MARK: - Test Helpers
     func reset() {
         userProfiles.removeAll()
@@ -337,6 +353,7 @@ final class MockDatabaseService: DatabaseServiceProtocol {
         dailyCompletions.removeAll()
         dailyChallenges.removeAll()
         usernames.removeAll()
+        fcmTokens.removeAll()
         shouldSucceed = true
         mockError = nil
         saveUserProfileCallCount = 0

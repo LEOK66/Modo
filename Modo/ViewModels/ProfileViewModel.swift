@@ -115,7 +115,7 @@ final class ProfileViewModel: ObservableObject {
         modelContext: ModelContext,
         userProfileService: UserProfileService? = nil,
         userProfileRepository: UserProfileRepository? = nil,
-        authService: AuthServiceProtocol? = nil,
+        authService: (any AuthServiceProtocol)? = nil,
         avatarUploadService: AvatarUploadService = AvatarUploadService(),
         progressService: ProgressCalculationService = ProgressCalculationService.shared
     ) {

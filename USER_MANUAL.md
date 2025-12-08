@@ -40,12 +40,14 @@ Modo is a comprehensive health and wellness iOS application designed to help you
 ### System Requirements
 
 **Minimum Requirements:**
+
 - iOS 15.0 or later
 - iPhone 6s or later
 - 100MB free storage
 - Internet connection (WiFi or cellular)
 
 **Recommended:**
+
 - iOS 16.0 or later
 - iPhone 12 or later
 - 200MB free storage
@@ -60,15 +62,18 @@ Modo is a comprehensive health and wellness iOS application designed to help you
 Before installing Modo, ensure you have:
 
 **Hardware:**
+
 - Mac computer running macOS 12.0 (Monterey) or later
 - iPhone running iOS 15.0 or later (for deployment to device)
 - At least 2GB of free disk space
 
 **Software:**
+
 - Xcode 14.0 or later (download from Mac App Store)
 - Git (for cloning the repository)
 
 **Accounts:**
+
 - Apple ID for App Store and Xcode
 - Apple Developer Account (for deploying to physical device)
 - Google Account (optional, for Google Sign-In)
@@ -109,6 +114,7 @@ open Modo.xcodeproj
 ```
 
 Or manually:
+
 1. Open Xcode
 2. Go to **File** → **Open**
 3. Navigate to the Modo folder
@@ -122,11 +128,13 @@ Xcode will automatically resolve Swift Package Manager dependencies:
 2. Dependencies include Firebase iOS SDK, Google Sign-In, and supporting libraries
 
 If dependencies don't resolve:
+
 - Go to **File** → **Packages** → **Resolve Package Versions**
 
 #### Step 5: Build the Project
 
 1. Select a target device from the dropdown menu:
+
    - Choose any iPhone simulator (e.g., "iPhone 15")
    - Or select your connected physical iPhone
 
@@ -187,6 +195,7 @@ Let's walk through creating a new account.
 ### Registration Methods
 
 You can create a Modo account using:
+
 - Email and password
 - Google Sign-In
 
@@ -200,15 +209,18 @@ You can create a Modo account using:
 #### Step 2: Enter Your Information
 
 1. **Email Address**
+
    - Must be a valid email format
    - Example: `john.doe@example.com`
 
 2. **Password**
+
    - Minimum 8 characters
    - Should include letters, numbers, and symbols
    - Example: `MySecure123!`
 
 3. **Confirm Password**
+
    - Re-enter your password to confirm
 
 4. Tap **"Register"**
@@ -227,6 +239,7 @@ After registration:
 **Important**: You must verify your email before continuing.
 
 **Troubleshooting**:
+
 - **No email?** Check your spam/junk folder
 - **Still no email?** Tap "Resend verification email"
 - **Wrong email?** Tap "Sign out" and register again
@@ -247,11 +260,13 @@ The onboarding process personalizes Modo to your health goals. You can **skip an
 ### Step 1: Enter Your Height
 
 **Imperial Units (Feet & Inches):**
+
 - Select feet from the first picker (3-8 feet)
 - Select inches from the second picker (0-11 inches)
 - Example: 5 feet 9 inches
 
 **Metric Units (Centimeters):**
+
 - Tap **"Switch to cm"** at the bottom
 - Enter your height in centimeters (100-250 cm)
 - Example: 175 cm
@@ -261,10 +276,12 @@ Tap **"Next"** to continue or **"Skip"** to skip.
 ### Step 2: Enter Your Weight
 
 **Imperial Units (Pounds):**
+
 - Enter your current weight in pounds (50-500 lbs)
 - Example: 165 lbs
 
 **Metric Units (Kilograms):**
+
 - Tap **"Switch to kg"** at the bottom
 - Enter your weight in kilograms (20-200 kg)
 - Example: 75 kg
@@ -283,16 +300,19 @@ Tap **"Next"** to continue or **"Skip"** to skip.
 Choose the option that best describes your daily activity level:
 
 **Sedentary 🪑**
+
 - Desk job, minimal physical activity
 - Less than 30 minutes of activity per day
 - Example: Office worker, driver
 
 **Moderately Active 🚶**
+
 - Regular light exercise or active job
 - 30-60 minutes of activity per day
 - Example: Teacher, retail worker, casual gym-goer
 
 **Athletic 🏃**
+
 - High physical activity or intense training
 - 60+ minutes of activity per day
 - Example: Construction worker, athlete, fitness enthusiast
@@ -304,14 +324,17 @@ Tap your selection, then **"Next"** or **"Skip"**.
 Select your primary health objective:
 
 **Lose Weight ⬇️**
+
 - Reduce body weight through calorie deficit
 - Focus on fat loss and healthy eating
 
 **Keep Healthy ➡️**
+
 - Maintain current weight and fitness level
 - Focus on balanced nutrition and activity
 
 **Gain Muscle ⬆️**
+
 - Increase muscle mass through training and nutrition
 - Focus on protein intake and strength building
 
@@ -322,11 +345,13 @@ Tap your selection, then **"Next"** or **"Skip"**.
 If you selected "Lose Weight":
 
 1. **Enter your target weight**
+
    - Same units as your current weight
    - Should be lower than your current weight
    - Example: 150 lbs (if current is 165 lbs)
 
 2. **Select timeframe**
+
    - 1-3 months
    - 3-6 months
    - 6-12 months
@@ -365,6 +390,7 @@ The Tasks screen is your daily command center.
 #### Header Section
 
 **Today's Stats:**
+
 - Greeting: "Welcome back, [Your Name]!"
 - Tasks completed: "3/10 tasks"
 - Current streak: "5 day streak"
@@ -374,10 +400,12 @@ The Tasks screen is your daily command center.
 #### Task List
 
 Tasks are organized by category:
+
 - **Diet Tasks** 🥗 (green background)
 - **Fitness Tasks** 🏃 (blue background)
 
 Each task displays:
+
 - Task name
 - Calories (diet tasks) or duration (fitness tasks)
 - Checkbox for completion
@@ -393,11 +421,12 @@ Each task displays:
 3. Fill in details:
    - **Name**: Task description
    - **Calories/Duration**: Amount
-      - May search for specific foods for accurate macros
+     - May search for specific foods for accurate macros
    - **Date**: When to complete (defaults to today)
 4. Tap **"Save"**
 
 **AI Tasks :**
+
 - Tap **"AI Tasks"** for personalized recommendations
   - **AI** button on main task page will create tasks for the day
   - Use **AI** for suggestions when adding tasks
@@ -446,7 +475,6 @@ The Insights screen provides AI-powered health insights and question answering.
 - Get nutritional analysis
 - Receive calorie estimates
 
-
 ---
 
 ### Profile Screen
@@ -456,6 +484,7 @@ Your personal dashboard for settings and progress.
 #### Profile Header
 
 Displays:
+
 - Profile picture
 - Your name
 - Email address
@@ -468,20 +497,24 @@ Displays:
 #### Menu Options
 
 **Progress**
+
 - View detailed progress over time
 - Track completion rates and trends
 
 **Achievements**
+
 - View earned badges
 - See achievement progress
 - Unlock new achievements
 
 **Help & Support**
+
 - Access help documentation
 - Contact support
 - View FAQ
 
 **Settings**
+
 - Update profile information
 - Change height, weight, age
 - Modify goals and preferences
@@ -490,6 +523,7 @@ Displays:
 - Account management
 
 **Sign Out**
+
 - Log out of your account
 - Data remains safely stored in cloud
 
@@ -525,12 +559,14 @@ Displays:
 #### Can't Sign In
 
 **"Invalid email or password" error:**
+
 - Double-check your credentials
 - Ensure Caps Lock is off
 - Try "Forgot Password?" link
 - For Google Sign-In, verify correct account
 
 **"Email not verified" error:**
+
 - Check email inbox (and spam folder)
 - Tap "Resend verification email"
 - Wait a few minutes and try again
@@ -540,12 +576,14 @@ Displays:
 #### App Launch Issues
 
 **App crashes on launch:**
+
 - Restart your device
 - Reinstall the app (delete and rebuild)
 - Check iOS version (requires 15.0+)
 - Clear app data by reinstalling
 
 **Stuck on loading screen:**
+
 - Check internet connection
 - Force close and reopen app
 - Verify Firebase service status
@@ -555,11 +593,13 @@ Displays:
 ### Task Management Issues
 
 **Tasks not saving:**
+
 - Check internet connection (Firebase required)
 - Sign out and sign back in
 - Force refresh by pulling down on task list
 
 **Can't mark tasks complete:**
+
 - Ensure tapping directly on the task
 - Check for error messages
 - Sign out and back in
@@ -570,12 +610,14 @@ Displays:
 ### Onboarding Problems
 
 **Can't proceed past a step:**
+
 - Ensure all required fields are filled correctly
 - Check value ranges (age, height, weight)
 - Try skipping the problematic step
 - Restart app and try again
 
 **Onboarding shows again after completion:**
+
 - Profile wasn't saved properly
 - Complete onboarding again without skipping
 - Ensure good internet connection
@@ -586,12 +628,14 @@ Displays:
 ### Connection Issues
 
 **"Failed to connect to Firebase" error:**
+
 - Check internet connection
 - Verify `GoogleService-Info.plist` is in project
 - Try signing out and back in
 - Reinstall the app
 
 **Google Sign-In not working:**
+
 - Ensure Google account on device
 - Check internet connection
 - Wait and try again
@@ -602,6 +646,7 @@ Displays:
 ### Performance Issues
 
 **App running slowly:**
+
 - Close other apps to free memory
 - Restart your device
 - Clear app cache (reinstall)
@@ -609,6 +654,7 @@ Displays:
 - Update iOS to latest version
 
 **High battery usage:**
+
 - Close app when not in use
 - Reduce screen brightness
 - Check for app updates
@@ -618,12 +664,14 @@ Displays:
 ### Data Sync Issues
 
 **Data not syncing:**
+
 - Check internet connection
 - Sign out and sign back in
 - Force close and reopen
 - Allow up to 60 seconds for sync
 
 **Lost data after update:**
+
 - Sign in with same account
 - Wait for cloud sync
 - Verify correct email/Google account
@@ -668,35 +716,43 @@ Send bug reports to: **support@modo-app.com**
 
 ```markdown
 ### Bug Description
+
 [Clear, concise description of the problem]
 
 ### Steps to Reproduce
+
 1. [First step]
 2. [Second step]
 3. [Third step]
 4. [Bug occurs]
 
 ### Expected Behavior
+
 [What should happen]
 
 ### Actual Behavior
+
 [What actually happens]
 
 ### Device Information
+
 - **Device Model**: [e.g., iPhone 14 Pro]
 - **iOS Version**: [e.g., iOS 16.5]
 - **App Version**: [e.g., 1.0.0]
 - **Build Number**: [If known]
 
 ### Screenshots/Videos
+
 [Attach screenshots or screen recordings if applicable]
 
 ### Frequency
+
 - [ ] Happens every time
 - [ ] Happens sometimes
 - [ ] Happened only once
 
 ### Additional Context
+
 [Any other relevant information]
 ```
 
@@ -704,9 +760,11 @@ Send bug reports to: **support@modo-app.com**
 
 ```markdown
 ### Bug Description
+
 App crashes when adding diet task with more than 5000 calories
 
 ### Steps to Reproduce
+
 1. Open app and sign in
 2. Tap "Add Task"
 3. Select "Diet Task"
@@ -716,23 +774,29 @@ App crashes when adding diet task with more than 5000 calories
 7. App crashes immediately
 
 ### Expected Behavior
+
 Task should save successfully or show error if calories too high
 
 ### Actual Behavior
+
 App crashes to home screen without warning
 
 ### Device Information
+
 - **Device Model**: iPhone 14 Pro
 - **iOS Version**: iOS 16.5
 - **App Version**: 1.0.0
 
 ### Screenshots
+
 [Screenshot attached]
 
 ### Frequency
+
 - [x] Happens every time
 
 ### Additional Context
+
 Works fine with calories under 5000
 ```
 
@@ -765,12 +829,14 @@ Works fine with calories under 5000
 ### Data Collection
 
 **We Collect:**
+
 - Account information (email, name)
 - Health data (height, weight, age, goals)
 - Usage data (tasks, progress, streaks)
 - Anonymous analytics
 
 **We Don't Collect:**
+
 - Location data
 - Contact lists
 - Photos (until feature is released)
@@ -825,9 +891,11 @@ Works fine with calories under 5000
 ## Version History
 
 ### Version 1.0.0 (Current)
+
 **Release Date**: January 2025
 
 **Features:**
+
 - User authentication (email/password, Google)
 - Task management
 - Progress tracking

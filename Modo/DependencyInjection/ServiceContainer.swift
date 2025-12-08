@@ -91,15 +91,19 @@ final class ServiceContainer: ObservableObject {
         
         // Register DailyChallengeService with DatabaseService dependency
         let challengeService = DailyChallengeService(databaseService: databaseService)
-        register(challengeService, for: ChallengeServiceProtocol.self)
+        register(challengeService, for: (any ChallengeServiceProtocol).self)
         
         // Register AuthService with challenge service dependency
         let authService = AuthService(challengeService: challengeService)
-        register(authService, for: AuthServiceProtocol.self)
+        register(authService, for: (any AuthServiceProtocol).self)
         
         // Register TaskManagerService with DatabaseService dependency
         let taskManagerService = TaskManagerService(databaseService: databaseService)
         register(taskManagerService, for: TaskServiceProtocol.self)
+        
+        // Register AchievementService with DatabaseService dependency
+        let achievementService = AchievementService(databaseService: databaseService)
+        register(achievementService, for: AchievementServiceProtocol.self)
     }
     
     // MARK: - Service Cleanup
@@ -141,7 +145,7 @@ extension ServiceContainer {
     /// Returns the registered service or falls back to shared instance for backward compatibility
     /// Note: Returns AuthService (not protocol) because it needs to be ObservableObject for @StateObject
     var authService: AuthService {
-        if let service = resolve(AuthServiceProtocol.self) as? AuthService {
+        if let service = resolve((any AuthServiceProtocol).self) as? AuthService {
             return service
         }
         return AuthService.shared
@@ -168,12 +172,23 @@ extension ServiceContainer {
     /// Returns the registered service or creates a new instance with DatabaseService for backward compatibility
     /// Note: Returns DailyChallengeService (not protocol) because it needs to be ObservableObject for @StateObject
     var challengeService: DailyChallengeService {
-        if let service = resolve(ChallengeServiceProtocol.self) as? DailyChallengeService {
+        if let service = resolve((any ChallengeServiceProtocol).self) as? DailyChallengeService {
             return service
         }
         // Fallback: create new instance with DatabaseService dependency
         let databaseService = resolve(DatabaseServiceProtocol.self) ?? DatabaseService.shared
         return DailyChallengeService(databaseService: databaseService)
+    }
+    
+    /// Convenience method to get AchievementService
+    /// Returns the registered service or creates a new instance with DatabaseService for backward compatibility
+    var achievementService: AchievementServiceProtocol {
+        if let service = resolve(AchievementServiceProtocol.self) {
+            return service
+        }
+        // Fallback: create new instance with DatabaseService dependency
+        let databaseService = resolve(DatabaseServiceProtocol.self) ?? DatabaseService.shared
+        return AchievementService(databaseService: databaseService)
     }
 }
 
